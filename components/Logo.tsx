@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface LogoProps {
@@ -12,64 +11,81 @@ const Logo: React.FC<LogoProps> = ({ size = 48, className = "", showText = false
   return (
     <div className={`flex flex-col items-center ${className}`}>
       {hashtag && (
-        <div className="mb-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/15 via-amber-500/25 to-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-black tracking-wide shadow-sm animate-pulse">
+        <div className="mb-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#16191E] border border-[#D4C19C]/30 text-[#E8D7B8] text-[11px] font-medium tracking-wide shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#D4C19C]/80 inline-block"></span>
           <span>{hashtag}</span>
         </div>
       )}
       <div className="flex items-center gap-3">
-        <div className="relative select-none" style={{ width: size, height: size }}>
+        <div className="relative select-none shrink-0" style={{ width: size, height: size }}>
           <svg 
             viewBox="0 0 100 100" 
             fill="none" 
             xmlns="http://www.w3.org/2000/svg"
-            className="w-full h-full drop-shadow-2xl"
+            className="w-full h-full drop-shadow-[0_2px_12px_rgba(212,193,156,0.12)]"
           >
             <defs>
-              <linearGradient id="gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#E5CB96" />
-                <stop offset="50%" stopColor="#D9B978" />
-                <stop offset="100%" stopColor="#B38E46" />
+              {/* Matte Velvet Background */}
+              <linearGradient id="logo-matte-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#16191E" />
+                <stop offset="60%" stopColor="#0D0F12" />
+                <stop offset="100%" stopColor="#07080A" />
               </linearGradient>
-              <linearGradient id="dark-glass" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#182028" />
-                <stop offset="100%" stopColor="#0A0D10" />
+
+              {/* Satin Champagne Gold */}
+              <linearGradient id="logo-satin" x1="20%" y1="15%" x2="80%" y2="85%">
+                <stop offset="0%" stopColor="#F7EEDF" />
+                <stop offset="35%" stopColor="#E5D6BD" />
+                <stop offset="70%" stopColor="#CBB794" />
+                <stop offset="100%" stopColor="#A89470" />
               </linearGradient>
-              <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="2.5" result="blur" />
-                <feComposite in="SourceGraphic" in2="blur" operator="over" />
-              </filter>
+
+              {/* Soft Pearls */}
+              <linearGradient id="logo-pearl" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#FAF3E8" />
+                <stop offset="100%" stopColor="#D6C4A6" />
+              </linearGradient>
             </defs>
 
-            {/* الخلفية: شكل هندسي ناعم بلون الكربون والغرافيت الفاخر */}
-            <rect x="5" y="5" width="90" height="90" rx="28" fill="url(#dark-glass)" stroke="url(#gold-gradient)" strokeWidth="1.25" strokeOpacity="0.45" />
+            {/* Container Rounded Card with Fine Hairline */}
+            <rect x="3.5" y="3.5" width="93" height="93" rx="23" fill="url(#logo-matte-bg)" stroke="#E5D6BD" strokeWidth="0.8" strokeOpacity="0.28" />
+            <rect x="5" y="5" width="90" height="90" rx="21.5" stroke="#E5D6BD" strokeWidth="0.4" strokeOpacity="0.08" />
 
-            {/* الرمز: أعمدة النمو الثلاثة (تمثل نقاط حرف الثاء + مسار التراكم المالي) */}
-            {/* العمود الأيسر - بداية النمو */}
-            <rect x="24" y="45" width="12" height="20" rx="6" fill="url(#gold-gradient)" filter="url(#glow)" />
-            
-            {/* العمود الأوسط - القمة (الثروة) */}
-            <rect x="44" y="25" width="12" height="40" rx="6" fill="url(#gold-gradient)" filter="url(#glow)" />
-            
-            {/* العمود الأيمن - الاستدامة */}
-            <rect x="64" y="35" width="12" height="30" rx="6" fill="url(#gold-gradient)" filter="url(#glow)" />
+            {/* 3 Pearls of "ث" & Crown of Wealth */}
+            <circle cx="50" cy="27.5" r="3.8" fill="url(#logo-pearl)" />
+            <circle cx="38.5" cy="37.5" r="3.8" fill="url(#logo-pearl)" />
+            <circle cx="61.5" cy="37.5" r="3.8" fill="url(#logo-pearl)" />
 
-            {/* المنحنى السفلي: يمثل الوعاء الحافظ للثروة وجسم حرف الثاء */}
+            {/* Central Pillar of "T" / Stature of Wealth */}
+            <rect x="48.5" y="37" width="3" height="29" rx="1.5" fill="url(#logo-satin)" opacity="0.9" />
+
+            {/* Classic Arch - Subtle Depth */}
             <path 
-              d="M 24 78 Q 50 92 76 78" 
-              stroke="url(#gold-gradient)" 
-              strokeWidth="5" 
-              strokeLinecap="round"
-              opacity="0.95"
+              d="M26 48 C26 62.5, 37.2 74.2, 50 74.2 C62.8 74.2, 74 62.5, 74 48 C74 46.5, 72.5 45.8, 71.5 47 C68.2 50.8, 60.5 54, 50 54 C39.5 54, 31.8 50.8, 28.5 47 C27.5 45.8, 26 46.5, 26 48 Z" 
+              fill="url(#logo-satin)" 
+              opacity="0.18"
             />
+
+            {/* Modern Classic Flowing Ribbon of "ث" */}
+            <path 
+              d="M72 47 C72.5 59, 63.5 71, 50 71 C36.5 71, 27.5 59, 28 47 C28.2 45, 30.8 44.5, 32 46.2 C35.2 50.8, 41.8 55, 50 55 C58.2 55, 64.8 50.8, 68 46.2 C69.2 44.5, 71.8 45, 72 47 Z" 
+              fill="url(#logo-satin)"
+            />
+
+            {/* Interlocking Balance Circle */}
+            <circle cx="50" cy="51" r="16" stroke="url(#logo-satin)" strokeWidth="0.5" strokeDasharray="1.2 1.8" opacity="0.35" />
+
+            {/* Base Foundation Plinth */}
+            <rect x="42" y="69" width="16" height="1" rx="0.5" fill="url(#logo-satin)" opacity="0.6" />
           </svg>
         </div>
         
         {showText && (
-          <div className="flex flex-col justify-center">
-            <h1 className="text-3xl font-bold text-[#F4F1EA] tracking-tighter leading-none">
+          <div className="flex flex-col justify-center text-start select-none">
+            <span className="text-xl font-bold text-[#F7F1E6] tracking-tight leading-tight">
               ثـري
-            </h1>
-            <span className="text-[9px] text-[#D9B978] font-bold tracking-[0.3em] uppercase opacity-90 mt-1">
+            </span>
+            <span className="text-[9px] text-[#D4C19C] font-semibold tracking-[0.22em] uppercase leading-none">
               THARI
             </span>
           </div>

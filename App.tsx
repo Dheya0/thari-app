@@ -81,7 +81,7 @@ const INITIAL_STATE: AppState = {
   pin: null,
   isLocked: false,
   isBiometricEnabled: false,
-  requireBiometricOnOpen: false,
+  requireBiometricOnOpen: true,
   isTravelMode: false,
   showSeparateCurrencies: false,
   hasAcceptedTerms: false,
@@ -126,7 +126,7 @@ function normalizeStoredState(parsed: any): AppState {
     : DEFAULT_EXCHANGE_RATES;
 
   const isSecurityProtected = !!parsed.pin || parsed.isBiometricEnabled === true;
-  const shouldLockOnOpen = isSecurityProtected && parsed.requireBiometricOnOpen !== false && parsed.autoLockTime !== 'never';
+  const shouldLockOnOpen = isSecurityProtected && parsed.autoLockTime !== 'never';
 
   return {
     ...INITIAL_STATE,
@@ -375,18 +375,31 @@ const App: React.FC = () => {
   // Timed Auto-lock when user leaves or backgrounds the app (Native iOS, Android & Web)
   useEffect(() => {
     const isSecurityConfigured = !!state.pin || state.isBiometricEnabled === true;
-    if (!isSecurityConfigured || state.requireBiometricOnOpen === false) return;
+    if (!isSecurityConfigured || state.autoLockTime === 'never') return;
 
     const onAppBackgrounded = () => {
-      backgroundedAtRef.current = Date.now();
+      const now = Date.now();
+      backgroundedAtRef.current = now;
+      try {
+        sessionStorage.setItem('thari_bg_ts', now.toString());
+      } catch (e) {}
+
       if (!state.autoLockTime || state.autoLockTime === 'instant') {
         setState(p => ({ ...p, isLocked: true }));
       }
     };
 
     const onAppForegrounded = () => {
-      if (backgroundedAtRef.current && state.autoLockTime && state.autoLockTime !== 'never' && state.autoLockTime !== 'instant') {
-        const elapsedMs = Date.now() - backgroundedAtRef.current;
+      let bgTime = backgroundedAtRef.current;
+      if (!bgTime) {
+        try {
+          const stored = sessionStorage.getItem('thari_bg_ts');
+          if (stored) bgTime = parseInt(stored, 10);
+        } catch (e) {}
+      }
+
+      if (bgTime && state.autoLockTime && state.autoLockTime !== 'never' && state.autoLockTime !== 'instant') {
+        const elapsedMs = Date.now() - bgTime;
         const thresholdMs = state.autoLockTime === '1min' ? 60000 : 300000;
         if (elapsedMs >= thresholdMs) {
           setState(p => ({ ...p, isLocked: true }));
@@ -435,7 +448,7 @@ const App: React.FC = () => {
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('pageshow', handlePageShow);
     };
-  }, [state.pin, state.isBiometricEnabled, state.autoLockTime, state.requireBiometricOnOpen]);
+  }, [state.pin, state.isBiometricEnabled, state.autoLockTime]);
 
   // Automated Periodic / On-Open Snapshot Backup Runner
   useEffect(() => {

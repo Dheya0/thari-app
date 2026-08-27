@@ -1,7 +1,14 @@
+import { Capacitor } from '@capacitor/core';
 import { BiometricAuth, BiometryType, CheckBiometryResult } from '@aparajita/capacitor-biometric-auth';
 
 export function isNativeCapacitorEnvironment(): boolean {
   if (typeof window === 'undefined') return false;
+
+  try {
+    if (Capacitor.isNativePlatform()) return true;
+    const platform = Capacitor.getPlatform();
+    if (platform === 'ios' || platform === 'android') return true;
+  } catch (e) {}
 
   const capacitorObj = (window as any)?.Capacitor ?? (globalThis as any)?.Capacitor;
   const nativeCheck = typeof capacitorObj?.isNativePlatform === 'function' ? capacitorObj.isNativePlatform() : false;
@@ -16,8 +23,8 @@ export function isNativeCapacitorEnvironment(): boolean {
     protocol === 'capacitor:' ||
     (isFileProtocol && !!capacitorObj) ||
     userAgent.includes('Capacitor') ||
-    userAgent.includes('Android') && !!capacitorObj ||
-    userAgent.includes('iPhone') && !!capacitorObj
+    (userAgent.includes('Android') && !!capacitorObj) ||
+    (userAgent.includes('iPhone') && !!capacitorObj)
   );
 }
 
@@ -47,7 +54,6 @@ export interface BiometricAuthResult {
 
 const WEBAUTHN_CRED_STORAGE_KEY = 'thari_webauthn_cred_id';
 
-// Helper: Convert ArrayBuffer to Base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -57,7 +63,6 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return window.btoa(binary);
 }
 
-// Helper: Convert Base64 to Uint8Array
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = window.atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -78,7 +83,7 @@ export async function checkBiometricAvailable(): Promise<BiometricAvailability> 
     try {
       const res: CheckBiometryResult = await BiometricAuth.checkBiometry();
       if (res.isAvailable) {
-        let typeName = 'بصمة الإصبع / Face ID';
+        let typeName = 'Face ID / بصمة الإصبع';
         let isFace = false;
 
         if (res.biometryType === BiometryType.faceId || res.biometryType === BiometryType.faceAuthentication) {
@@ -225,7 +230,7 @@ export async function authenticateBiometrics(
       return { 
         success: false, 
         isCancelled: false, 
-        error: nativeErr?.message || 'تعذر مطابقة البصمة، يرجى إدخال رمز PIN' 
+        error: nativeErr?.message || 'تعذر مطابقة البصمة، يرجى إعادة المحاولة' 
       };
     }
   }

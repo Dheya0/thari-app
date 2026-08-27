@@ -697,33 +697,6 @@ export default function Settings({
         </div>
       )}
 
-      {installPrompt && (
-        <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 p-5 rounded-[2.5rem] border border-indigo-500/20 flex items-center justify-between gap-4 shadow-xl">
-           <div className="flex gap-3 items-center">
-              <Sparkles size={24} className="text-indigo-400 shrink-0" />
-              <div>
-                 <p className="text-xs font-black text-white">{t.installThari}</p>
-                 <p className="text-[10px] text-slate-400 font-bold leading-relaxed">{t.installThariDesc}</p>
-              </div>
-           </div>
-           <button onClick={handleInstallClick} className="px-5 py-2.5 bg-indigo-500 text-white font-black text-xs rounded-xl active:scale-95 transition-all shrink-0 shadow-lg shadow-indigo-500/25">{t.installApp}</button>
-        </div>
-      )}
-
-      {!installPrompt && isIOS && !isStandalone && (
-        <div className="bg-gradient-to-br from-indigo-500/10 to-blue-500/10 p-5 rounded-[2.5rem] border border-indigo-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
-           <div className="flex gap-3 items-center">
-              <Sparkles size={24} className="text-indigo-400 shrink-0" />
-              <div>
-                 <p className="text-xs font-black text-white">{t.installThariIOS}</p>
-                 <p className="text-[10px] text-slate-400 font-bold leading-relaxed">
-                   {t.installIOSInstructions}
-                 </p>
-              </div>
-           </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
          <button type="button" onClick={() => setActiveSection('wallets')} className="bg-[#11161C] p-5 rounded-[2rem] border border-white/10 flex flex-col items-center gap-3 text-[#F4F1EA] font-bold hover:bg-white/[0.03] transition-all active:scale-95 shadow-xl">
             <div className="w-11 h-11 bg-[#D9B978]/10 text-[#D9B978] flex items-center justify-center rounded-2xl"><WalletIcon size={22} /></div>
@@ -950,7 +923,8 @@ export default function Settings({
                         <div dir="ltr" className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${isBiometricEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`} onClick={() => {
                             const nextBio = !isBiometricEnabled;
                             setIsBiometricEnabled(nextBio);
-                            onUpdateSettings({ isBiometricEnabled: nextBio });
+                            setLocalRequireBiometricOnOpen(nextBio);
+                            onUpdateSettings({ isBiometricEnabled: nextBio, requireBiometricOnOpen: nextBio });
                             showToast(nextBio ? t.biometricEnabled : t.biometricDisabled);
                         }}>
                             <div className={`w-4 h-4 bg-[#0A0D10] rounded-full shadow-md transition-transform ${isBiometricEnabled ? 'translate-x-6' : 'translate-x-0'}`} />

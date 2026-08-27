@@ -1,22 +1,67 @@
 <svg width="2732" height="2732" viewBox="0 0 2732 2732" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background: Deep Carbon (#0A0D10) -->
-  <rect width="2732" height="2732" fill="#0A0D10" />
+  <defs>
+    <linearGradient id="splashMatte" x1="0" y1="0" x2="2732" y2="2732" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#16191E"/>
+      <stop offset="50%" stop-color="#0E1013"/>
+      <stop offset="100%" stop-color="#060709"/>
+    </linearGradient>
 
-  <!-- Center Luxury THARI Emblem -->
-  <g transform="translate(854, 854)">
-    <!-- Left Pillar -->
-    <rect x="312" y="430" width="76" height="190" rx="38" fill="#D9B978" />
+    <linearGradient id="satinGold" x1="280" y1="200" x2="744" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F7EEDF"/>
+      <stop offset="35%" stop-color="#E5D6BD"/>
+      <stop offset="70%" stop-color="#CBB794"/>
+      <stop offset="100%" stop-color="#A89470"/>
+    </linearGradient>
 
-    <!-- Center Pillar -->
-    <rect x="474" y="270" width="76" height="350" rx="38" fill="#D9B978" />
+    <linearGradient id="pearlGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAF3E8"/>
+      <stop offset="100%" stop-color="#D6C4A6"/>
+    </linearGradient>
 
-    <!-- Right Pillar -->
-    <rect x="636" y="350" width="76" height="270" rx="38" fill="#D9B978" />
+    <radialGradient id="gentleWarmth" cx="50%" cy="45%" r="45%">
+      <stop offset="0%" stop-color="#D6C4A6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
 
-    <!-- Foundation Cradle Curve -->
-    <path d="M 270 700 C 410 820 614 820 754 700" stroke="#D9B978" stroke-width="44" stroke-linecap="round" fill="none" />
+  <rect width="2732" height="2732" fill="url(#splashMatte)"/>
+  <circle cx="1366" cy="1180" r="750" fill="url(#gentleWarmth)"/>
 
-    <!-- Diamond Star -->
-    <polygon points="512,170 522,192 544,202 522,212 512,234 502,212 480,202 502,192" fill="#D9B978" />
+  <!-- Centered Scaled Emblem Card -->
+  <g transform="translate(1366, 1140) scale(1.6) translate(-512, -512)">
+    <rect x="36" y="36" width="952" height="952" rx="240" fill="#111418"/>
+    <rect x="36" y="36" width="952" height="952" rx="240" stroke="#E5D6BD" stroke-width="1.6" stroke-opacity="0.25"/>
+    <rect x="50" y="50" width="924" height="924" rx="226" stroke="#E5D6BD" stroke-width="0.8" stroke-opacity="0.08"/>
+
+    <!-- Pearls of "ث" -->
+    <circle cx="512" cy="275" r="38" fill="url(#pearlGrad)"/>
+    <circle cx="395" cy="375" r="38" fill="url(#pearlGrad)"/>
+    <circle cx="629" cy="375" r="38" fill="url(#pearlGrad)"/>
+
+    <!-- Pillar -->
+    <path 
+      d="M494 370 H530 C533 370, 535 372, 535 375 V660 C535 663, 533 665, 530 665 H494 C491 665, 489 663, 489 660 V375 C489 372, 491 370, 494 370 Z" 
+      fill="url(#satinGold)" 
+      opacity="0.9"
+    />
+
+    <!-- Classic Arch -->
+    <path 
+      d="M260 480 C260 625, 372 742, 512 742 C652 742, 764 625, 764 480 C764 465, 745 458, 735 470 C702 508, 620 540, 512 540 C404 540, 322 508, 289 470 C279 458, 260 465, 260 480 Z" 
+      fill="url(#satinGold)" 
+      opacity="0.18"
+    />
+
+    <path 
+      d="M740 470 C745 590, 650 710, 512 710 C374 710, 279 590, 284 470 C286 450, 312 445, 324 462 C356 508, 424 550, 512 550 C600 550, 668 508, 700 462 C712 445, 738 450, 740 470 Z" 
+      fill="url(#satinGold)"
+    />
+
+    <circle cx="512" cy="512" r="160" stroke="url(#satinGold)" stroke-width="1.8" stroke-dasharray="3 5" opacity="0.35"/>
+    <rect x="424" y="690" width="176" height="6" rx="3" fill="url(#satinGold)" opacity="0.6"/>
   </g>
+
+  <!-- Typography Under Logo -->
+  <text x="1366" y="2140" text-anchor="middle" fill="#F7F1E6" font-size="108" font-weight="700" font-family="system-ui, -apple-system, sans-serif" letter-spacing="-1">ثـري</text>
+  <text x="1366" y="2240" text-anchor="middle" fill="#D4C19C" font-size="28" font-weight="600" font-family="system-ui, -apple-system, sans-serif" letter-spacing="18">THARI FINANCIAL</text>
 </svg>
