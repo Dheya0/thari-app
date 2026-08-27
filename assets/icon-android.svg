@@ -1,0 +1,21 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="circleBg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 300) rotate(90) scale(740)">
+      <stop stop-color="#151C23"/>
+      <stop offset="1" stop-color="#090C10"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="320" y1="170" x2="704" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAD7A4"/>
+      <stop offset="1" stop-color="#CBAA68"/>
+    </linearGradient>
+  </defs>
+  <circle cx="512" cy="512" r="448" fill="url(#circleBg)"/>
+  <circle cx="512" cy="512" r="448" stroke="rgba(217,185,120,0.35)" stroke-width="12"/>
+  <g>
+    <rect x="312" y="430" width="76" height="190" rx="38" fill="url(#gold)"/>
+    <rect x="474" y="270" width="76" height="350" rx="38" fill="url(#gold)"/>
+    <rect x="636" y="350" width="76" height="270" rx="38" fill="url(#gold)"/>
+    <path d="M270 700C410 820 614 820 754 700" stroke="url(#gold)" stroke-width="44" stroke-linecap="round"/>
+    <polygon points="512,170 522,192 544,202 522,212 512,234 502,212 480,202 502,192" fill="url(#gold)"/>
+  </g>
+</svg>

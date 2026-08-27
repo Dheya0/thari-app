@@ -1,0 +1,22 @@
+<svg width="2732" height="2732" viewBox="0 0 2732 2732" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background: Deep Carbon (#0A0D10) -->
+  <rect width="2732" height="2732" fill="#0A0D10" />
+
+  <!-- Center Luxury THARI Emblem -->
+  <g transform="translate(854, 854)">
+    <!-- Left Pillar -->
+    <rect x="312" y="430" width="76" height="190" rx="38" fill="#D9B978" />
+
+    <!-- Center Pillar -->
+    <rect x="474" y="270" width="76" height="350" rx="38" fill="#D9B978" />
+
+    <!-- Right Pillar -->
+    <rect x="636" y="350" width="76" height="270" rx="38" fill="#D9B978" />
+
+    <!-- Foundation Cradle Curve -->
+    <path d="M 270 700 C 410 820 614 820 754 700" stroke="#D9B978" stroke-width="44" stroke-linecap="round" fill="none" />
+
+    <!-- Diamond Star -->
+    <polygon points="512,170 522,192 544,202 522,212 512,234 502,212 480,202 502,192" fill="#D9B978" />
+  </g>
+</svg>

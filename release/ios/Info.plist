@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>ar</string>
+	<key>CFBundleDisplayName</key>
+	<string>ثري</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.2.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	
+	<!-- 1. Biometric Security Permissions (Face ID & Touch ID) -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>يتطلب تطبيق ثري استخدام Face ID لتأمين محفظتك وسجلاتك المالية ومنع الوصول غير المصرح به.</string>
+
+	<!-- 2. Camera & Photo Library for Receipts -->
+	<key>NSCameraUsageDescription</key>
+	<string>يسمح لتطبيق ثري بالتقاط صور الفواتير وإيصالات العمليات المالية لإرفاقها بالسجلات.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>يسمح باختيار صور الفواتير والمستندات المالية من مكتبة الصور لإرفاقها بالعمليات.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>يسمح بحفظ التقارير المالية وكشوف الحسابات المصدرة إلى مكتبة الصور.</string>
+
+	<!-- 3. Safe Area & Display Configuration -->
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+
+	<!-- 4. Export Compliance & Privacy -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	
+	<!-- 5. Deep Linking Schemes -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.thari.finance.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>thariapp</string>
+				<string>thari</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

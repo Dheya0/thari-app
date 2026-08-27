@@ -1,0 +1,364 @@
+# ==============================================================================
+# ملف تكوين البناء والنشر الآلي المعتمد لتطبيق ثري — THARI
+# يدعم بناء الحزم الأصلية حصراً لمنصتي Android و iOS
+# ==============================================================================
+
+workflows:
+  # ----------------------------------------------------------------------------
+  # 1. مسار بناء أندرويد الرسمي (Google Play AAB & Universal APK)
+  # ----------------------------------------------------------------------------
+  android-workflow:
+    name: Android Release Pipeline (Google Play AAB & Universal APK)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      java: 17
+      groups:
+        - android_signing
+        - google_play_credentials
+      vars:
+        PACKAGE_NAME: "com.thari.finance.app"
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+          source: true
+        - pattern: 'release/*'
+          include: true
+          source: true
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    scripts:
+      - name: Print environment and tool versions
+        script: |
+          set -e
+          node --version
+          npm --version
+          java -version
+
+      - name: Install Node dependencies
+        script: |
+          set -e
+          npm ci --prefer-offline || npm install
+
+      - name: Code quality linting and TypeScript validation
+        script: |
+          set -e
+          npm run lint
+
+      - name: Generate High-Resolution Platform Assets & Bundle Web Assets
+        script: |
+          set -e
+          node generate-assets.cjs
+          npm run build
+          test -f dist/index.html
+
+      - name: Capacitor Android platform preparation and synchronization
+        script: |
+          set -e
+          if [ ! -f "android/build.gradle" ] || [ ! -f "android/gradlew" ]; then
+            echo "Scaffolding pristine Capacitor Android project..."
+            rm -rf android
+            npx cap add android
+          fi
+
+          npx cap sync android
+
+          # تطبيق ملف الصلاحيات والإعدادات المعتمد
+          if [ -f "release/android/AndroidManifest.xml" ]; then
+            echo "Applying optimized AndroidManifest.xml..."
+            cp -f release/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          fi
+
+          chmod +x android/gradlew
+
+      - name: Configure Android release keystore signing
+        script: |
+          set -e
+          if [ -n "$CM_KEYSTORE" ]; then
+            echo "Injecting release keystore credentials..."
+            echo "$CM_KEYSTORE" | base64 --decode > /tmp/keystore.jks
+            cat >> android/app/build.gradle <<EOF
+
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file('/tmp/keystore.jks')
+                      storePassword System.getenv("CM_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("CM_KEY_ALIAS")
+                      keyPassword System.getenv("CM_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          EOF
+          else
+            echo "CM_KEYSTORE not configured; building unsigned release package."
+          fi
+
+      - name: Build Android App Bundle (AAB for Google Play)
+        script: |
+          set -e
+          cd android
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Build Android APK (Universal testing package)
+        script: |
+          set -e
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
+    artifacts:
+      - "android/app/build/outputs/bundle/release/*.aab"
+      - "android/app/build/outputs/apk/release/*.apk"
+    publishing:
+      email:
+        recipients:
+          - thari-app@inbox.ru
+          - Dia840990@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ----------------------------------------------------------------------------
+  # 2. مسار بناء آبل iOS المتكامل (TestFlight / App Store IPA)
+  # ----------------------------------------------------------------------------
+  ios-workflow:
+    name: iOS Release Pipeline (App Store / TestFlight IPA)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+      groups:
+        - app_store_credentials
+        - ios_signing
+      vars:
+        BUNDLE_ID: "com.thari.finance.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+          source: true
+        - pattern: 'release/*'
+          include: true
+          source: true
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    scripts:
+      - name: Print environment and tool versions
+        script: |
+          set -e
+          node --version
+          npm --version
+          xcodebuild -version
+          pod --version
+
+      - name: Install Node dependencies
+        script: |
+          set -e
+          npm ci --prefer-offline || npm install
+
+      - name: Code quality linting and TypeScript validation
+        script: |
+          set -e
+          npm run lint
+
+      - name: Generate Assets and Build Web Assets for Capacitor
+        script: |
+          set -e
+          node generate-assets.cjs
+          npm run build
+          test -f dist/index.html
+
+      - name: Capacitor iOS platform preparation and CocoaPods sync
+        script: |
+          set -e
+          if [ ! -f "ios/App/Podfile" ]; then
+            echo "Scaffolding pristine Capacitor iOS project..."
+            rm -rf ios
+            npx cap add ios
+          fi
+
+          if [ -f "ios/App/Podfile" ]; then
+            perl -0pi -e "s/platform :ios, '.*?'/platform :ios, '15.0'/" ios/App/Podfile
+          fi
+
+          if [ -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
+            perl -0pi -e "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g" ios/App/App.xcodeproj/project.pbxproj
+          fi
+
+          npx cap sync ios
+
+          # تطبيق ملف Info.plist المعتمد (المصادقة البيومترية ودعم اللغة العربية)
+          if [ -f "release/ios/Info.plist" ]; then
+            echo "Applying optimized Info.plist..."
+            cp -f release/ios/Info.plist ios/App/App/Info.plist
+          fi
+
+      - name: Set up code signing profiles
+        script: |
+          set -e
+          if [ -n "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -n "$CERTIFICATE_PRIVATE_KEY" ]; then
+            xcode-project use-profiles
+          else
+            echo "Configuring automatic code signing fallback..."
+            cd ios/App
+            plutil -replace CFBundleIdentifier -string "com.thari.finance.app" App/Info.plist || true
+            cd ../..
+          fi
+
+      - name: Create export_options.plist if missing
+        script: |
+          if [ ! -f "/Users/builder/export_options.plist" ]; then
+            echo "Creating default export_options.plist..."
+            cat <<EOF > /Users/builder/export_options.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>signingStyle</key>
+              <string>automatic</string>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+          fi
+
+      - name: Build IPA package for App Store distribution
+        script: |
+          set -e
+          cd ios/App
+          agvtool new-version -all $(($BUILD_NUMBER + 10200)) || true
+          cd ../..
+
+          if [ -n "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -n "$CERTIFICATE_PRIVATE_KEY" ]; then
+            xcode-project build-ipa \
+              --workspace "$XCODE_WORKSPACE" \
+              --scheme "$XCODE_SCHEME" \
+              --export-options-plist /Users/builder/export_options.plist
+          else
+            echo "⚠️ Skipping IPA signing because code signing credentials are not configured in Codemagic."
+            echo "To build signed IPAs for TestFlight / App Store, please configure your App Store Connect API key and iOS signing certificates in Codemagic."
+          fi
+    artifacts:
+      - "build/ios/ipa/*.ipa"
+      - "/tmp/xcodebuild_logs/*.log"
+      - "*.dSYM.zip"
+    publishing:
+      email:
+        recipients:
+          - thari-app@inbox.ru
+          - Dia840990@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ----------------------------------------------------------------------------
+  # 3. مسار بناء آبل iOS غير الموقع (للتثبيت المجاني عبر Sideloadly / AltStore)
+  # ----------------------------------------------------------------------------
+  ios-unsigned-workflow:
+    name: iOS Unsigned Build (Sideloading & Testing)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install Node dependencies
+        script: |
+          set -e
+          npm ci --prefer-offline || npm install
+
+      - name: Generate Assets and Build Web Assets for Capacitor
+        script: |
+          set -e
+          node generate-assets.cjs
+          npm run build
+          test -f dist/index.html
+
+      - name: Capacitor iOS platform preparation and CocoaPods sync
+        script: |
+          set -e
+          if [ ! -f "ios/App/Podfile" ]; then
+            echo "Creating Capacitor iOS project..."
+            rm -rf ios
+            npx cap add ios
+          fi
+
+          if [ -f "ios/App/Podfile" ]; then
+            perl -0pi -e "s/platform :ios, '.*?'/platform :ios, '15.0'/" ios/App/Podfile
+          fi
+
+          if [ -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
+            perl -0pi -e "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g" ios/App/App.xcodeproj/project.pbxproj
+          fi
+
+          npx cap sync ios
+
+          if [ -f "release/ios/Info.plist" ]; then
+            cp -f release/ios/Info.plist ios/App/App/Info.plist
+          fi
+
+      - name: Build iOS Application Package (Ad-Hoc / Sideloading)
+        script: |
+          set -e
+          cd ios/App
+          pod install
+
+          xcodebuild build \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$CM_BUILD_DIR/build" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE="Manual" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Package to Unsigned IPA
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          rm -rf Payload Thari_unsigned_app.ipa
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr Thari_unsigned_app.ipa Payload
+          echo "Unsigned IPA package created successfully at $CM_BUILD_DIR/Thari_unsigned_app.ipa"
+          
+    artifacts:
+      - Thari_unsigned_app.ipa
+    publishing:
+      email:
+        recipients:
+          - thari-app@inbox.ru
+          - Dia840990@gmail.com
+        notify:
+          success: true
+          failure: true

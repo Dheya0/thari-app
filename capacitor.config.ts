@@ -1,0 +1,55 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.thari.finance.app',
+  appName: 'ثري — THARI',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https',
+    cleartext: false,
+    allowNavigation: [
+      'generativelanguage.googleapis.com',
+      'fonts.googleapis.com',
+      'fonts.gstatic.com'
+    ]
+  },
+  plugins: {
+    Keyboard: {
+      resize: 'body',
+      style: 'DARK',
+      scrollToInput: true,
+    },
+    StatusBar: {
+      style: 'DARK',
+      overlaysWebView: true,
+      backgroundColor: '#0A0D10'
+    },
+    SplashScreen: {
+      launchShowDuration: 1800,
+      launchAutoHide: true,
+      backgroundColor: '#0A0D10',
+      showSpinner: false,
+      androidSplashResourceName: 'splash',
+      iosSplashResourceName: 'Default',
+      splashFullScreen: true,
+      splashImmersive: true
+    },
+    Haptics: {
+      enabled: true
+    }
+  },
+  ios: {
+    contentInset: 'always',
+    preferredContentMode: 'mobile',
+    scheme: 'thariapp',
+    limitsNavigationsToAppBoundDomains: true
+  },
+  android: {
+    backgroundColor: '#0A0D10',
+    allowMixedContent: false,
+    captureInput: true,
+    webContentsDebuggingEnabled: false
+  }
+};
+
+export default config;

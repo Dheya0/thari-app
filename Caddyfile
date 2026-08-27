@@ -1,0 +1,33 @@
+:3000, :80 {
+    root * dist
+    encode gzip zstd
+    try_files {path} /index.html
+    file_server {
+        precompressed gzip zstd
+    }
+
+    # Security & PWA Headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    # Disable caching for SW and Manifest
+    @nocache {
+        path /sw.js /manifest.json
+    }
+    header @nocache {
+        Cache-Control "public, max-age=0, must-revalidate"
+        Service-Worker-Allowed "/"
+    }
+
+    # Cache static assets
+    @assets {
+        path /assets/*
+    }
+    header @assets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+}
