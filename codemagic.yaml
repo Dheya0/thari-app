@@ -76,6 +76,10 @@ workflows:
             echo "Applying optimized AndroidManifest.xml..."
             cp -f release/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           fi
+          if [ -f "release/android/build.gradle" ]; then
+            echo "Applying optimized app build.gradle..."
+            cp -f release/android/build.gradle android/app/build.gradle
+          fi
 
           chmod +x android/gradlew
 
