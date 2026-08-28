@@ -92,9 +92,17 @@ workflows:
           set -e
           if [ -n "$CM_KEYSTORE" ]; then
             echo "Injecting release keystore credentials to /tmp/keystore.jks..."
-            node -e 'const fs = require("fs"); const b64 = (process.env.CM_KEYSTORE || "").trim(); if (b64) fs.writeFileSync("/tmp/keystore.jks", Buffer.from(b64, "base64"));'
+            node -e '
+              const fs = require("fs");
+              const raw = process.env.CM_KEYSTORE || "";
+              const clean = raw.replace(/\s+/g, "");
+              if (clean.length > 0) {
+                fs.writeFileSync("/tmp/keystore.jks", Buffer.from(clean, "base64"));
+                console.log("Keystore decoded successfully, size:", fs.statSync("/tmp/keystore.jks").size, "bytes");
+              }
+            '
           else
-            echo "CM_KEYSTORE not configured; building unsigned release package."
+            echo "CM_KEYSTORE not configured; Gradle will build an unsigned release package."
           fi
 
       - name: Build Android App Bundle (AAB for Google Play)

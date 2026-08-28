@@ -140,7 +140,6 @@ export async function exportAndShareNativeFile(
 
       await Share.share({
         title: dialogTitle,
-        text: fileName,
         url: result.uri,
         dialogTitle: dialogTitle,
       });

@@ -43,7 +43,25 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
     const x = info.offset.x;
     const velocity = info.velocity.x;
 
-    // Determine snap state based on distance and velocity
+    if (swipeOffset !== 0) {
+      // If currently swiped left (offset < 0) and dragged rightwards, or vice-versa, return to closed state
+      if (swipeOffset < 0 && (x > 25 || velocity > 120)) {
+        setSwipeOffset(0);
+        setShowDeleteConfirm(false);
+        return;
+      }
+      if (swipeOffset > 0 && (x < -25 || velocity < -120)) {
+        setSwipeOffset(0);
+        setShowDeleteConfirm(false);
+        return;
+      }
+      // If dragged further in the same direction, stay open
+      if ((swipeOffset < 0 && x < -20) || (swipeOffset > 0 && x > 20)) {
+        return;
+      }
+    }
+
+    // Determine snap state from closed initial position
     if (x < -45 || velocity < -200) {
       // Swiped Left (reveal right actions)
       setSwipeOffset(-130);
@@ -155,14 +173,20 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       {/* Foreground Draggable Card */}
       <motion.div
         drag={disabled ? false : 'x'}
-        dragConstraints={{ left: -140, right: 140 }}
-        dragElastic={0.15}
+        dragConstraints={
+          swipeOffset < 0
+            ? { left: -140, right: 140 }
+            : swipeOffset > 0
+            ? { left: -140, right: 140 }
+            : { left: -140, right: 140 }
+        }
+        dragElastic={0.2}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         animate={{ x: swipeOffset }}
         transition={{ type: 'spring', stiffness: 450, damping: 32 }}
         onClick={handleRowClick}
-        className="relative z-10 w-full"
+        className="relative z-10 w-full cursor-grab active:cursor-grabbing"
       >
         {children}
       </motion.div>

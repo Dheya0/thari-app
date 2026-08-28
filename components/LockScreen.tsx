@@ -35,6 +35,7 @@ const LockScreen: React.FC<LockScreenProps> = ({
   const isScanningRef = useRef(false);
   const lastAttemptTimeRef = useRef(0);
   const hasAutoTriggeredRef = useRef(false);
+  const isUnlockedRef = useRef(false);
 
   const hasPinConfigured = Boolean(savedPin && savedPin.trim().length > 0);
 
@@ -58,10 +59,10 @@ const LockScreen: React.FC<LockScreenProps> = ({
   }, []);
 
   const triggerBiometricAuth = useCallback(async (isAutoTrigger = false) => {
-    if (isScanningRef.current) return;
+    if (isScanningRef.current || isUnlockedRef.current) return;
     
     const now = Date.now();
-    if (now - lastAttemptTimeRef.current < 800) return;
+    if (now - lastAttemptTimeRef.current < 1200) return;
     lastAttemptTimeRef.current = now;
 
     isScanningRef.current = true;
@@ -72,14 +73,13 @@ const LockScreen: React.FC<LockScreenProps> = ({
     try {
       const result = await authenticateBiometrics('تأكيد الهوية لفتح تطبيق ثري');
       if (result.success) {
+        isUnlockedRef.current = true;
         setBioStatus('success');
         setBioFeedback('تم تأكيد الهوية بنجاح!');
         clearRateLimit();
         if (typeof window !== 'undefined' && window.navigator.vibrate) {
           window.navigator.vibrate([20, 40, 20]);
         }
-        // Guard against any re-trigger during unmount transition
-        isScanningRef.current = true;
         setTimeout(() => {
           onUnlock();
         }, 150);
@@ -111,7 +111,7 @@ const LockScreen: React.FC<LockScreenProps> = ({
     }
   }, [biometricType, onUnlock]);
 
-  // Initial availability check & auto-trigger on mount
+  // Initial availability check & auto-trigger once on mount
   useEffect(() => {
     let isMounted = true;
     checkBiometricAvailable().then((res) => {
@@ -126,31 +126,35 @@ const LockScreen: React.FC<LockScreenProps> = ({
           if (isBiometricEnabled && !hasAutoTriggeredRef.current) {
             hasAutoTriggeredRef.current = true;
             setTimeout(() => {
-              if (isMounted) triggerBiometricAuth(true);
-            }, 300);
+              if (isMounted && !isUnlockedRef.current) triggerBiometricAuth(true);
+            }, 350);
           }
         } else if (isBiometricEnabled && !hasAutoTriggeredRef.current) {
-          // Attempt biometric trigger even if availability check was restrictive
           hasAutoTriggeredRef.current = true;
           setTimeout(() => {
-            if (isMounted) triggerBiometricAuth(true);
-          }, 400);
+            if (isMounted && !isUnlockedRef.current) triggerBiometricAuth(true);
+          }, 450);
         }
       }
     });
     return () => { isMounted = false; };
   }, [isBiometricEnabled, triggerBiometricAuth]);
 
-  // Re-trigger biometric scan automatically when app comes to foreground (Native iOS/Android & Web/PWA)
+  // Re-trigger biometric scan ONLY when user manually returns to app from background
   useEffect(() => {
     if (!isBiometricEnabled) return;
 
     const handleResume = () => {
-      if (!isScanningRef.current) {
-        lastAttemptTimeRef.current = 0; // Reset debounce on fresh app resume
+      // Do not re-trigger if already unlocked or currently scanning
+      if (!isScanningRef.current && !isUnlockedRef.current && hasAutoTriggeredRef.current) {
+        const now = Date.now();
+        // Prevent immediate loop if app state changed during biometric prompt dismiss
+        if (now - lastAttemptTimeRef.current < 1500) return;
         setTimeout(() => {
-          triggerBiometricAuth(true);
-        }, 300);
+          if (!isUnlockedRef.current) {
+            triggerBiometricAuth(true);
+          }
+        }, 500);
       }
     };
 

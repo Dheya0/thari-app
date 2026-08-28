@@ -1081,13 +1081,14 @@ const App: React.FC = () => {
       />
       
       <div className="flex flex-col flex-1 print:hidden relative z-20 overflow-hidden">
-        <header className="sticky top-0 shrink-0 px-4 pb-3 md:px-6 md:py-4 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/85" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}>
-          <div className="flex justify-between items-center max-w-6xl mx-auto w-full">
-            <div className="flex items-center gap-3">
-              <Logo size={28} showText />
+        <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 pb-2.5 sm:pb-3 md:py-4 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
+          <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-2 min-w-0">
+            {/* App Branding */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+              <Logo size={24} showText />
               {/* Offline-First Sovereignty Badge - 100% Local */}
               <div
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
                 title="تطبيق ثري يعمل بالكامل محلياً دون الحاجة لأي إنترنت (0 نت)"
               >
                 <WifiOff size={11} />
@@ -1095,23 +1096,24 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex gap-2 items-center">
-              {/* Wallet Quick Selector Button (Same styling as Currency Button) */}
+            {/* Header Actions & Selectors */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Wallet Quick Selector Button */}
               <button
                 type="button"
                 onClick={() => setShowWalletSelector(true)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#141B24] hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-xl bg-[#141B24] hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[110px] sm:max-w-[160px]"
                 title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
               >
-                <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[11px] flex items-center justify-center shadow-xs">
+                <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 shadow-xs">
                   <WalletIcon size={12} />
                 </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-bold text-white tracking-wide">
+                <div className="flex items-baseline gap-1 min-w-0 truncate">
+                  <span className="font-bold text-white tracking-wide truncate text-[11px] sm:text-xs">
                     {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
                   </span>
                 </div>
-                <ChevronDown size={14} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform" />
+                <ChevronDown size={13} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
               </button>
 
               {/* Currency Badge / Interactive Quick Selector */}
@@ -1121,17 +1123,17 @@ const App: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowCurrencySelector(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#141B24] hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24] hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
                     title={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
                   >
-                    <div className="w-5 h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[11px] flex items-center justify-center shadow-xs">
+                    <div className="w-5 h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 shadow-xs">
                       {currentCurrLoc.symbol}
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="font-bold text-white tracking-wide">{state.currency.code}</span>
-                      <span className="text-[10px] text-slate-400 font-normal hidden md:inline">({currentCurrLoc.name})</span>
+                      <span className="font-bold text-white tracking-wide text-[11px] sm:text-xs">{state.currency.code}</span>
+                      <span className="text-[10px] text-slate-400 font-normal hidden lg:inline">({currentCurrLoc.name})</span>
                     </div>
-                    <ChevronDown size={14} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform" />
+                    <ChevronDown size={13} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform shrink-0" />
                   </button>
                 );
               })()}
@@ -1140,10 +1142,10 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowToolsHub(true)}
-                className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all"
+                className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
                 title="مركز الأدوات والتقارير"
               >
-                <Sparkles size={16} />
+                <Sparkles size={15} />
                 {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
                 )}
@@ -1152,14 +1154,14 @@ const App: React.FC = () => {
               {/* Settings Shortcut */}
               <button 
                 onClick={() => setActiveTab('settings')} 
-                className={`flex items-center justify-center w-9 h-9 rounded-xl border transition-all shrink-0 active:scale-95 backdrop-blur-md ${
+                className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl border transition-all shrink-0 active:scale-95 backdrop-blur-md ${
                   activeTab === 'settings' 
                     ? 'bg-[#D9B978] text-slate-950 border-[#D9B978] shadow-[0_0_20px_rgba(217,185,120,0.4)]' 
                     : 'bg-white/5 border-white/10 text-slate-400 hover:text-[#D9B978] hover:border-[#D9B978]/50'
                 }`} 
                 title="الإعدادات"
               >
-                <SettingsIcon size={16} />
+                <SettingsIcon size={15} />
               </button>
             </div>
           </div>

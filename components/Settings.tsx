@@ -69,9 +69,17 @@ const ColorPicker = ({ selected, onSelect, t }: { selected: string, onSelect: (c
 const ToastNotification = ({ toast }: { toast: { message: string, type: 'success' | 'error' } | null }) => {
   if (!toast) return null;
   return (
-    <div className={`fixed top-6 start-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl shadow-2xl z-[500] flex items-center gap-3 animate-fade ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
-      {toast.type === 'success' ? <Check size={18} /> : <AlertCircle size={18} />}
-      <span className="font-bold text-sm">{toast.message}</span>
+    <div className="fixed top-8 left-0 right-0 z-[9999] flex justify-center items-center pointer-events-none px-4 no-print">
+      <div className={`pointer-events-auto max-w-md px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border backdrop-blur-xl animate-slide-down ${
+        toast.type === 'success' 
+          ? 'bg-[#11161C]/95 border-[#10b981]/40 text-[#10b981] shadow-[0_10px_30px_rgba(16,185,129,0.25)]' 
+          : 'bg-[#11161C]/95 border-rose-500/40 text-rose-400 shadow-[0_10px_30px_rgba(244,63,94,0.25)]'
+      }`}>
+        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-[#10b981]/15 text-[#10b981]' : 'bg-rose-500/15 text-rose-400'}`}>
+          {toast.type === 'success' ? <Check size={18} strokeWidth={2.5} /> : <AlertCircle size={18} strokeWidth={2.5} />}
+        </div>
+        <span className="font-bold text-sm text-[#F4F1EA] leading-snug">{toast.message}</span>
+      </div>
     </div>
   );
 };
