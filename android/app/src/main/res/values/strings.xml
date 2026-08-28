@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ثري</string>
-    <string name="title_activity_main">ثري</string>
+    <string name="app_name">ثري — THARI</string>
+    <string name="title_activity_main">ثري — THARI</string>
     <string name="package_name">com.thari.finance.app</string>
-    <string name="custom_url_scheme">thari</string>
+    <string name="custom_url_scheme">com.thari.finance.app</string>
 </resources>

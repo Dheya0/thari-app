@@ -61,16 +61,13 @@ workflows:
       - name: Capacitor Android platform preparation and synchronization
         script: |
           set -e
-          if [ ! -f "android/build.gradle" ] || [ ! -f "android/gradlew" ]; then
-            echo "Scaffolding pristine Capacitor Android project..."
-            rm -rf android
-            npx cap add android
-          fi
-
           npx cap sync android
 
           # تطبيق ملف الصلاحيات والإعدادات المعتمد ومسارات الملفات
           mkdir -p android/app/src/main/res/xml
+          mkdir -p android/app/src/main/res/layout
+          mkdir -p android/app/src/main/java/com/thari/finance/app
+
           if [ -f "release/android/file_paths.xml" ]; then
             echo "Applying file_paths.xml..."
             cp -f release/android/file_paths.xml android/app/src/main/res/xml/file_paths.xml
@@ -86,26 +83,8 @@ workflows:
         script: |
           set -e
           if [ -n "$CM_KEYSTORE" ]; then
-            echo "Injecting release keystore credentials..."
+            echo "Injecting release keystore credentials to /tmp/keystore.jks..."
             echo "$CM_KEYSTORE" | base64 --decode > /tmp/keystore.jks
-            cat >> android/app/build.gradle <<EOF
-
-          android {
-              signingConfigs {
-                  release {
-                      storeFile file('/tmp/keystore.jks')
-                      storePassword (System.getenv("CM_KEYSTORE_PASSWORD") ?: "")
-                      keyAlias (System.getenv("CM_KEY_ALIAS") ?: "")
-                      keyPassword (System.getenv("CM_KEY_PASSWORD") ?: "")
-                  }
-              }
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.release
-                  }
-              }
-          }
-          EOF
           else
             echo "CM_KEYSTORE not configured; building unsigned release package."
           fi
