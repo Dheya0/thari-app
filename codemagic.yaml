@@ -69,7 +69,12 @@ workflows:
 
           npx cap sync android
 
-          # تطبيق ملف الصلاحيات والإعدادات المعتمد
+          # تطبيق ملف الصلاحيات والإعدادات المعتمد ومسارات الملفات
+          mkdir -p android/app/src/main/res/xml
+          if [ -f "release/android/file_paths.xml" ]; then
+            echo "Applying file_paths.xml..."
+            cp -f release/android/file_paths.xml android/app/src/main/res/xml/file_paths.xml
+          fi
           if [ -f "release/android/AndroidManifest.xml" ]; then
             echo "Applying optimized AndroidManifest.xml..."
             cp -f release/android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
@@ -89,9 +94,9 @@ workflows:
               signingConfigs {
                   release {
                       storeFile file('/tmp/keystore.jks')
-                      storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-                      keyAlias System.getenv("CM_KEY_ALIAS")
-                      keyPassword System.getenv("CM_KEY_PASSWORD")
+                      storePassword (System.getenv("CM_KEYSTORE_PASSWORD") ?: "")
+                      keyAlias (System.getenv("CM_KEY_ALIAS") ?: "")
+                      keyPassword (System.getenv("CM_KEY_PASSWORD") ?: "")
                   }
               }
               buildTypes {

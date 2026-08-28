@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.thari.finance.app">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Essential Native Permissions for THARI Financial Application -->
     <!-- 1. Biometric Authentication (Hardware KeyStore / Fingerprint / Face Unlock) -->
