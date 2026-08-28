@@ -92,7 +92,7 @@ workflows:
           set -e
           if [ -n "$CM_KEYSTORE" ]; then
             echo "Injecting release keystore credentials to /tmp/keystore.jks..."
-            echo "$CM_KEYSTORE" | base64 --decode > /tmp/keystore.jks
+            node -e 'const fs = require("fs"); const b64 = (process.env.CM_KEYSTORE || "").trim(); if (b64) fs.writeFileSync("/tmp/keystore.jks", Buffer.from(b64, "base64"));'
           else
             echo "CM_KEYSTORE not configured; building unsigned release package."
           fi
