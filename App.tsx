@@ -26,7 +26,7 @@ import BudgetManager from './components/BudgetManager';
 import GoalTracker from './components/GoalTracker';
 import AIChat from './components/AIChat';
 import Settings from './components/Settings';
-import PrivacyPolicy from './components/PrivacyPolicy';
+import { AboutAndPrivacy } from './components/AboutAndPrivacy';
 import WelcomeScreen from './components/WelcomeScreen';
 import LockScreen from './components/LockScreen';
 import Logo from './components/Logo';
@@ -1028,7 +1028,7 @@ const App: React.FC = () => {
   }
 
   if (showPrivacyPolicy) {
-    return <PrivacyPolicy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} />;
+    return <AboutAndPrivacy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} initialTab="privacy" />;
   }
 
   if (!isHydratedRef.current && !state.hasAcceptedTerms) {
@@ -1432,7 +1432,7 @@ const App: React.FC = () => {
                 t={t}
               />
           )}
-          {showPrivacyPolicy && <PrivacyPolicy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} />}
+          {showPrivacyPolicy && <AboutAndPrivacy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} initialTab="privacy" />}
           {showCurrencySelector && (
             <CurrencySelectorModal
               isOpen={showCurrencySelector}
