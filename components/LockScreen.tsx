@@ -78,12 +78,16 @@ const LockScreen: React.FC<LockScreenProps> = ({
         if (typeof window !== 'undefined' && window.navigator.vibrate) {
           window.navigator.vibrate([20, 40, 20]);
         }
-        setTimeout(onUnlock, 200);
+        // Guard against any re-trigger during unmount transition
+        isScanningRef.current = true;
+        setTimeout(() => {
+          onUnlock();
+        }, 150);
       } else {
+        isScanningRef.current = false;
         if (result.needsUserGesture) {
           setBioStatus('idle');
           setBioFeedback('انقر على الزر للتحقق بـ Face ID');
-          isScanningRef.current = false;
           return;
         }
 
@@ -101,10 +105,9 @@ const LockScreen: React.FC<LockScreenProps> = ({
       }
     } catch (e) {
       console.warn('Biometric unlock error:', e);
+      isScanningRef.current = false;
       setBioStatus('failed');
       setBioFeedback('تعذر التحقق من البصمة، يرجى النقر لإعادة المحاولة');
-    } finally {
-      isScanningRef.current = false;
     }
   }, [biometricType, onUnlock]);
 

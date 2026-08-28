@@ -1,4 +1,5 @@
 import { Debt, DebtPayment, DebtStatus } from '../types';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from './mathPrecision';
 
 export interface DebtCalculation {
   originalAmount: number;
@@ -49,20 +50,20 @@ export interface OverallDebtStats {
  * Calculates remaining balance for a debt
  */
 export const getDebtRemaining = (debt: Debt): number => {
-  const original = debt.originalAmount || debt.amount || 0;
-  const paid = debt.paidAmount || 0;
-  return Math.max(0, original - paid);
+  const original = Number(debt.originalAmount || debt.amount) || 0;
+  const paid = Number(debt.paidAmount) || 0;
+  return roundToCurrency(Math.max(0, safeSub(original, paid)));
 };
 
 /**
  * Returns full calculations and interpreted financial state for a single debt
  */
 export const getDebtCalculations = (debt: Debt, language: 'ar' | 'en' = 'ar'): DebtCalculation => {
-  const originalAmount = debt.originalAmount || debt.amount || 0;
-  const paidAmount = debt.paidAmount || 0;
-  const remainingAmount = Math.max(0, originalAmount - paidAmount);
+  const originalAmount = Number(debt.originalAmount || debt.amount) || 0;
+  const paidAmount = Number(debt.paidAmount) || 0;
+  const remainingAmount = roundToCurrency(Math.max(0, safeSub(originalAmount, paidAmount)));
   const progressPercent = originalAmount > 0 
-    ? Math.min(100, Math.max(0, (paidAmount / originalAmount) * 100))
+    ? Math.min(100, Math.max(0, safeMul(safeDiv(paidAmount, originalAmount), 100)))
     : 0;
   
   const paymentsCount = debt.payments?.length || (paidAmount > 0 ? 1 : 0);
@@ -70,8 +71,8 @@ export const getDebtCalculations = (debt: Debt, language: 'ar' | 'en' = 'ar'): D
   // Check if fully settled
   if (remainingAmount <= 0.001 || debt.isPaid || progressPercent >= 99.99) {
     return {
-      originalAmount,
-      paidAmount,
+      originalAmount: roundToCurrency(originalAmount),
+      paidAmount: roundToCurrency(paidAmount),
       remainingAmount: 0,
       progressPercent: 100,
       status: 'settled',
@@ -91,10 +92,10 @@ export const getDebtCalculations = (debt: Debt, language: 'ar' | 'en' = 'ar'): D
     const nowTime = new Date(today).getTime();
     const daysDiff = Math.max(1, Math.ceil((nowTime - dueTime) / (1000 * 60 * 60 * 24)));
     return {
-      originalAmount,
-      paidAmount,
+      originalAmount: roundToCurrency(originalAmount),
+      paidAmount: roundToCurrency(paidAmount),
       remainingAmount,
-      progressPercent,
+      progressPercent: roundToCurrency(progressPercent),
       status: 'overdue',
       statusLabel: language === 'en' ? `Overdue (${daysDiff} d)` : `متأخر (${daysDiff} يوم)`,
       statusColor: 'rose',
@@ -107,10 +108,10 @@ export const getDebtCalculations = (debt: Debt, language: 'ar' | 'en' = 'ar'): D
   // Partial or active
   if (paidAmount > 0) {
     return {
-      originalAmount,
-      paidAmount,
+      originalAmount: roundToCurrency(originalAmount),
+      paidAmount: roundToCurrency(paidAmount),
       remainingAmount,
-      progressPercent,
+      progressPercent: roundToCurrency(progressPercent),
       status: 'partial',
       statusLabel: language === 'en' ? 'Partially Paid' : 'مسدد جزئياً',
       statusColor: 'amber',
@@ -120,8 +121,8 @@ export const getDebtCalculations = (debt: Debt, language: 'ar' | 'en' = 'ar'): D
   }
 
   return {
-    originalAmount,
-    paidAmount,
+    originalAmount: roundToCurrency(originalAmount),
+    paidAmount: roundToCurrency(paidAmount),
     remainingAmount,
     progressPercent: 0,
     status: 'active',
@@ -173,13 +174,13 @@ export const groupDebtsByPerson = (debts: Debt[]): PersonDebtSummary[] => {
       }
 
       if (d.type === 'to_me') {
-        totalOwedToMeOriginal += calc.originalAmount;
-        totalOwedToMePaid += calc.paidAmount;
-        totalOwedToMeRemaining += calc.remainingAmount;
+        totalOwedToMeOriginal = safeAdd(totalOwedToMeOriginal, calc.originalAmount);
+        totalOwedToMePaid = safeAdd(totalOwedToMePaid, calc.paidAmount);
+        totalOwedToMeRemaining = safeAdd(totalOwedToMeRemaining, calc.remainingAmount);
       } else {
-        totalIOweOriginal += calc.originalAmount;
-        totalIOwePaid += calc.paidAmount;
-        totalIOweRemaining += calc.remainingAmount;
+        totalIOweOriginal = safeAdd(totalIOweOriginal, calc.originalAmount);
+        totalIOwePaid = safeAdd(totalIOwePaid, calc.paidAmount);
+        totalIOweRemaining = safeAdd(totalIOweRemaining, calc.remainingAmount);
       }
 
       if (d.payments && d.payments.length > 0) {
@@ -190,11 +191,11 @@ export const groupDebtsByPerson = (debts: Debt[]): PersonDebtSummary[] => {
     // Sort payments newest first
     allPayments.sort((a, b) => new Date(b.date || b.createdAt).getTime() - new Date(a.date || a.createdAt).getTime());
 
-    const netBalance = totalOwedToMeRemaining - totalIOweRemaining;
+    const netBalance = roundToCurrency(safeSub(totalOwedToMeRemaining, totalIOweRemaining));
     let netStatus: 'receivable' | 'payable' | 'settled' = 'settled';
-    if (netBalance > 0.01) {
+    if (netBalance > 0.001) {
       netStatus = 'receivable'; // You are owed net
-    } else if (netBalance < -0.01) {
+    } else if (netBalance < -0.001) {
       netStatus = 'payable'; // You owe net
     }
 
@@ -202,12 +203,12 @@ export const groupDebtsByPerson = (debts: Debt[]): PersonDebtSummary[] => {
       personName,
       personPhone: firstWithPhone?.personPhone,
       personTag: firstWithTag?.personTag,
-      totalOwedToMeOriginal,
-      totalOwedToMePaid,
-      totalOwedToMeRemaining,
-      totalIOweOriginal,
-      totalIOwePaid,
-      totalIOweRemaining,
+      totalOwedToMeOriginal: roundToCurrency(totalOwedToMeOriginal),
+      totalOwedToMePaid: roundToCurrency(totalOwedToMePaid),
+      totalOwedToMeRemaining: roundToCurrency(totalOwedToMeRemaining),
+      totalIOweOriginal: roundToCurrency(totalIOweOriginal),
+      totalIOwePaid: roundToCurrency(totalIOwePaid),
+      totalIOweRemaining: roundToCurrency(totalIOweRemaining),
       netBalance,
       netStatus,
       debts: personDebts.sort((a, b) => (a.isPaid === b.isPaid ? (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : a.isPaid ? 1 : -1)),
@@ -219,8 +220,8 @@ export const groupDebtsByPerson = (debts: Debt[]): PersonDebtSummary[] => {
 
   // Sort: persons with active balances first, then alphabetically
   return summaries.sort((a, b) => {
-    const aHasActive = (a.totalOwedToMeRemaining + a.totalIOweRemaining) > 0;
-    const bHasActive = (b.totalOwedToMeRemaining + b.totalIOweRemaining) > 0;
+    const aHasActive = safeAdd(a.totalOwedToMeRemaining, a.totalIOweRemaining) > 0;
+    const bHasActive = safeAdd(b.totalOwedToMeRemaining, b.totalIOweRemaining) > 0;
     if (aHasActive && !bHasActive) return -1;
     if (!aHasActive && bHasActive) return 1;
     return Math.abs(b.netBalance) - Math.abs(a.netBalance);
@@ -261,23 +262,23 @@ export const getOverallDebtStats = (debts: Debt[]): OverallDebtStats => {
     }
 
     if (d.type === 'on_me') {
-      totalOriginalIOwe += calc.originalAmount;
-      totalPaidIOwe += calc.paidAmount;
-      totalIOweRemaining += calc.remainingAmount;
+      totalOriginalIOwe = safeAdd(totalOriginalIOwe, calc.originalAmount);
+      totalPaidIOwe = safeAdd(totalPaidIOwe, calc.paidAmount);
+      totalIOweRemaining = safeAdd(totalIOweRemaining, calc.remainingAmount);
     } else {
-      totalOriginalOwedToMe += calc.originalAmount;
-      totalPaidOwedToMe += calc.paidAmount;
-      totalOwedToMeRemaining += calc.remainingAmount;
+      totalOriginalOwedToMe = safeAdd(totalOriginalOwedToMe, calc.originalAmount);
+      totalPaidOwedToMe = safeAdd(totalPaidOwedToMe, calc.paidAmount);
+      totalOwedToMeRemaining = safeAdd(totalOwedToMeRemaining, calc.remainingAmount);
     }
   }
 
   return {
-    totalIOweRemaining,
-    totalOwedToMeRemaining,
-    totalOriginalIOwe,
-    totalOriginalOwedToMe,
-    totalPaidIOwe,
-    totalPaidOwedToMe,
+    totalIOweRemaining: roundToCurrency(totalIOweRemaining),
+    totalOwedToMeRemaining: roundToCurrency(totalOwedToMeRemaining),
+    totalOriginalIOwe: roundToCurrency(totalOriginalIOwe),
+    totalOriginalOwedToMe: roundToCurrency(totalOriginalOwedToMe),
+    totalPaidIOwe: roundToCurrency(totalPaidIOwe),
+    totalPaidOwedToMe: roundToCurrency(totalPaidOwedToMe),
     activeCount,
     overdueCount,
     settledCount,

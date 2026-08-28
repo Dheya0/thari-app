@@ -551,8 +551,8 @@ export function runBalanceEngineAudit(): {
   });
 
   // Scenario 2: Cross-Currency Expense from Yemeni Wallet ($100 USD spent from YER_ADEN wallet)
-  // Rate: 1 USD = 3.75 SAR, 1 SAR = 430 YER_ADEN => 1 USD = 1612.5 YER_ADEN
-  // 100 USD = 161,250 YER_ADEN. Opening: 500,000 YER_ADEN. Expected Remaining: 338,750 YER_ADEN.
+  // Rate: 100 USD = 157,600 YER_ADEN (1 USD = 1576 YER_ADEN)
+  // 100 USD = 157,600 YER_ADEN. Opening: 500,000 YER_ADEN. Expected Remaining: 342,400 YER_ADEN.
   const crossWallets: Wallet[] = [
     { id: 'w-yer-main', name: 'محفظة يمنية', currencyCode: 'YER_ADEN', color: '#10b981', openingBalance: 500000 },
   ];
@@ -571,19 +571,375 @@ export function runBalanceEngineAudit(): {
   ];
 
   const crossBalances = calculateWalletBalances(crossWallets, crossTx, DEFAULT_EXCHANGE_RATES);
-  const expectedRemaining = 500000 - 161250; // 338,750
+  const expectedRemaining = 500000 - 157600; // 342,400
   const crossExpensePassed = Math.abs(crossBalances['w-yer-main'].currentBalance - expectedRemaining) < 0.01;
   testResults.push({
     testName: 'Cross-Currency Expense ($100 USD from Yemeni Wallet)',
     passed: crossExpensePassed,
-    details: `100 USD expense from 500k YER wallet should leave 338,750 YER (1 USD = 1612.5 YER)`,
+    details: `100 USD expense from 500k YER wallet should leave 342,400 YER (100 USD = 157,600 YER)`,
     expected: expectedRemaining,
     actual: crossBalances['w-yer-main'].currentBalance,
+  });
+
+  // Scenario 3: Diagnostic tool testing (Calculated Balance vs Transaction History consistency & AuditLogs)
+  const diagnosticReport = diagnoseWalletBalanceDiscrepancies(crossWallets, crossTx, DEFAULT_EXCHANGE_RATES, 0.005, true);
+  const diagnosticPassed = diagnosticReport.isConsistent && diagnosticReport.walletReports[0]?.isConsistent;
+  testResults.push({
+    testName: 'Diagnostic Reconciliation & AuditLogs Check',
+    passed: diagnosticPassed,
+    details: `Calculated balance must reconcile with raw transaction history and log into AuditLogs`,
+    expected: true,
+    actual: diagnosticPassed,
   });
 
   const allPassed = testResults.every(r => r.passed);
   return { allPassed, testResults };
 }
+
+export interface BalanceAuditLogEntry {
+  id: string;
+  timestamp: string;
+  walletId: string;
+  walletName: string;
+  currencyCode: string;
+  calculatedBalance: number;
+  transactionHistoryBalance: number;
+  discrepancy: number; // Math.abs(calculatedBalance - transactionHistoryBalance)
+  hasDiscrepancy: boolean;
+  severity: 'info' | 'warning' | 'error';
+  reason: string;
+  resolution?: string;
+  details: {
+    openingBalance: number;
+    totalInflowHistory: number;
+    totalOutflowHistory: number;
+    totalTransferInHistory: number;
+    totalTransferOutHistory: number;
+    totalAdjustmentHistory: number;
+    crossCurrencyTxCount: number;
+    conversionDriftAmount: number;
+    totalTransactionsAnalyzed: number;
+    crossCurrencyTransactions: Array<{
+      txId: string;
+      date: string;
+      type: string;
+      originalAmount: number;
+      originalCurrency: string;
+      convertedAmountInWalletCurrency: number;
+      rateUsed?: number;
+    }>;
+  };
+}
+
+export interface WalletBalanceDiagnosticReport {
+  walletId: string;
+  walletName: string;
+  currencyCode: string;
+  calculatedBalance: number;
+  transactionHistoryBalance: number;
+  discrepancy: number;
+  isConsistent: boolean;
+  hasCurrencyConversionDrift: boolean;
+  conversionDriftAmount: number;
+  crossCurrencyTransactionsCount: number;
+  totalTransactionsCount: number;
+  status: 'CONSISTENT' | 'MINOR_DRIFT' | 'DISCREPANCY';
+  auditLogId?: string;
+}
+
+export interface BalanceReconciliationDiagnosticResult {
+  timestamp: string;
+  isConsistent: boolean;
+  totalWalletsAudited: number;
+  consistentWalletsCount: number;
+  discrepantWalletsCount: number;
+  totalDiscrepancyBase: number;
+  hasConversionDrifts: boolean;
+  walletReports: WalletBalanceDiagnosticReport[];
+  auditLogs: BalanceAuditLogEntry[];
+  summaryMessage: string;
+}
+
+/**
+ * Global audit log repository for balance discrepancy diagnostics
+ */
+export const AuditLogs: BalanceAuditLogEntry[] = [];
+
+/**
+ * Get a copy of current AuditLogs entries
+ */
+export function getAuditLogs(): BalanceAuditLogEntry[] {
+  return [...AuditLogs];
+}
+
+/**
+ * Records an entry into the system AuditLogs
+ */
+export function recordAuditLog(
+  entry: Omit<BalanceAuditLogEntry, 'id' | 'timestamp'> & { id?: string; timestamp?: string }
+): BalanceAuditLogEntry {
+  const newLog: BalanceAuditLogEntry = {
+    id: entry.id || `audit-bal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: entry.timestamp || new Date().toISOString(),
+    ...entry,
+  };
+  AuditLogs.unshift(newLog);
+  if (AuditLogs.length > 300) {
+    AuditLogs.length = 300; // retain up to 300 entries in rolling memory
+  }
+  return newLog;
+}
+
+/**
+ * Clears recorded audit logs
+ */
+export function clearAuditLogs(): void {
+  AuditLogs.length = 0;
+}
+
+/**
+ * Diagnostic tool: Deep comparison between Calculated Balance and Transaction History.
+ * 
+ * Objectives:
+ * 1. Independently calculates ledger balances from raw transaction history.
+ * 2. Compares against the balance engine's calculated balance.
+ * 3. Identifies and quantifies cumulative discrepancies arising from multi-currency conversions and rate rounding.
+ * 4. Automatically registers any discrepancies and drifts into AuditLogs.
+ */
+export function diagnoseWalletBalanceDiscrepancies(
+  wallets: Wallet[],
+  transactions: Transaction[],
+  exchangeRates: Record<string, number> = DEFAULT_EXCHANGE_RATES,
+  tolerance: number = 0.005,
+  logAllChecks: boolean = false
+): BalanceReconciliationDiagnosticResult {
+  const activeTxs = getActiveTransactions(transactions);
+  const activeWallets = wallets || [];
+  const walletReports: WalletBalanceDiagnosticReport[] = [];
+  const generatedLogs: BalanceAuditLogEntry[] = [];
+
+  // Calculate standard calculated balances from the engine
+  const calculatedSummaries = calculateWalletBalances(activeWallets, activeTxs, exchangeRates);
+
+  let totalDiscrepancyBase = 0;
+  let hasGlobalConversionDrift = false;
+
+  activeWallets.forEach(wallet => {
+    const calculatedBal = calculatedSummaries[wallet.id]?.currentBalance ?? (Number(wallet.openingBalance) || 0);
+    const openingBalance = Number(wallet.openingBalance) || 0;
+    const walletCurrency = wallet.currencyCode || 'SAR';
+
+    let rawHistoryBalance = openingBalance;
+    let totalInflows = 0;
+    let totalOutflows = 0;
+    let totalTransfersIn = 0;
+    let totalTransfersOut = 0;
+    let totalAdjustments = 0;
+    let crossCurrencyTxCount = 0;
+    let conversionDriftSum = 0;
+    const crossCurrencyTxs: Array<{
+      txId: string;
+      date: string;
+      type: string;
+      originalAmount: number;
+      originalCurrency: string;
+      convertedAmountInWalletCurrency: number;
+      rateUsed?: number;
+    }> = [];
+
+    // Analyze each transaction impacting this wallet
+    activeTxs.forEach(tx => {
+      const rawAmount = Number(tx.amount) || 0;
+      if (rawAmount === 0) return;
+      const amount = Math.abs(rawAmount);
+
+      // Impact on Source Wallet
+      if (tx.walletId === wallet.id) {
+        const txCurrency = tx.currency || walletCurrency;
+        const isCrossCurrency = txCurrency !== walletCurrency;
+
+        let convertedInWallet = amount;
+        if (isCrossCurrency) {
+          crossCurrencyTxCount++;
+          // Stored converted amount vs on-the-fly calculation
+          const dynamicallyConverted = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
+          const recordedConverted = Number(tx.convertedAmountInWalletCurrency) || dynamicallyConverted;
+          convertedInWallet = recordedConverted;
+
+          const drift = Math.abs(safeSub(dynamicallyConverted, recordedConverted));
+          conversionDriftSum = safeAdd(conversionDriftSum, drift);
+
+          crossCurrencyTxs.push({
+            txId: tx.id,
+            date: tx.date,
+            type: tx.type,
+            originalAmount: amount,
+            originalCurrency: txCurrency,
+            convertedAmountInWalletCurrency: roundToCurrency(convertedInWallet),
+            rateUsed: tx.exchangeRateUsed,
+          });
+        }
+
+        if (tx.type === 'income') {
+          totalInflows = safeAdd(totalInflows, convertedInWallet);
+          rawHistoryBalance = safeAdd(rawHistoryBalance, convertedInWallet);
+        } else if (tx.type === 'expense' || tx.type === 'transfer_to_goal') {
+          totalOutflows = safeAdd(totalOutflows, convertedInWallet);
+          rawHistoryBalance = safeSub(rawHistoryBalance, convertedInWallet);
+        } else if (tx.type === 'transfer') {
+          totalTransfersOut = safeAdd(totalTransfersOut, convertedInWallet);
+          rawHistoryBalance = safeSub(rawHistoryBalance, convertedInWallet);
+        } else if (tx.type === 'adjustment') {
+          totalAdjustments = safeAdd(totalAdjustments, convertedInWallet);
+          rawHistoryBalance = safeAdd(rawHistoryBalance, convertedInWallet);
+        }
+      }
+
+      // Impact on Destination Wallet (Internal Transfer In)
+      if (tx.destinationWalletId === wallet.id && tx.type === 'transfer') {
+        const txCurrency = tx.currency || walletCurrency;
+        const isCrossCurrency = txCurrency !== walletCurrency;
+
+        let receivedAmount = amount;
+        if (tx.destinationAmount !== undefined && tx.destinationAmount !== null && Number(tx.destinationAmount) > 0) {
+          receivedAmount = Number(tx.destinationAmount);
+        } else if (isCrossCurrency) {
+          receivedAmount = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
+        }
+
+        if (isCrossCurrency) {
+          crossCurrencyTxCount++;
+          crossCurrencyTxs.push({
+            txId: tx.id,
+            date: tx.date,
+            type: 'transfer_in',
+            originalAmount: amount,
+            originalCurrency: txCurrency,
+            convertedAmountInWalletCurrency: roundToCurrency(receivedAmount),
+            rateUsed: tx.exchangeRateUsed,
+          });
+        }
+
+        totalTransfersIn = safeAdd(totalTransfersIn, receivedAmount);
+        rawHistoryBalance = safeAdd(rawHistoryBalance, receivedAmount);
+      }
+    });
+
+    const roundedCalculated = roundToCurrency(calculatedBal);
+    const roundedHistory = roundToCurrency(rawHistoryBalance);
+    const discrepancy = roundToCurrency(Math.abs(safeSub(roundedCalculated, roundedHistory)));
+    const hasDiscrepancy = discrepancy > tolerance;
+    const hasDrift = conversionDriftSum > tolerance;
+
+    if (hasDrift) {
+      hasGlobalConversionDrift = true;
+    }
+
+    if (hasDiscrepancy) {
+      const inBaseDiscrepancy = convertCurrency(discrepancy, walletCurrency, 'SAR', exchangeRates);
+      totalDiscrepancyBase = safeAdd(totalDiscrepancyBase, inBaseDiscrepancy);
+    }
+
+    let status: 'CONSISTENT' | 'MINOR_DRIFT' | 'DISCREPANCY' = 'CONSISTENT';
+    if (hasDiscrepancy) {
+      status = 'DISCREPANCY';
+    } else if (hasDrift) {
+      status = 'MINOR_DRIFT';
+    }
+
+    let auditLogId: string | undefined;
+
+    // Record into AuditLogs if discrepancy is found or drift detected or full logging requested
+    if (hasDiscrepancy || hasDrift || logAllChecks) {
+      const severity: 'info' | 'warning' | 'error' = hasDiscrepancy
+        ? (discrepancy >= 1.0 ? 'error' : 'warning')
+        : (hasDrift ? 'warning' : 'info');
+
+      let reason = 'تطابق كامل وتام بين الرصيد المحسوب وسجل المعاملات';
+      let resolution = 'لا يوجد أي إجراء مطلوب';
+
+      if (hasDiscrepancy) {
+        reason = `تم رصد تباين بقيمة ${discrepancy} ${walletCurrency} بين الرصيد المحسوب (${roundedCalculated}) وسجل المعاملات الفعلي (${roundedHistory})`;
+        resolution = hasDrift 
+          ? 'يوصى بتحديث وتثبيت أسعار الصرف التاريخية للعمليات متعددة العملات ومزامنة الرصيد'
+          : 'يوصى بإعادة مزامنة الرصيد الافتتاحي وتدقيق العمليات المرتبطة بالمحفظة';
+      } else if (hasDrift) {
+        reason = `تم رصد فروقات تحويل عملات تراكمية ضئيلة بقيمة ${roundToCurrency(conversionDriftSum)} ${walletCurrency} ناتجة عن تقلبات أسعار الصرف`;
+        resolution = 'تثبيت أسعار الصرف التاريخية في حقل exchangeRateUsed لكل عملية';
+      }
+
+      const logEntry = recordAuditLog({
+        walletId: wallet.id,
+        walletName: wallet.name,
+        currencyCode: walletCurrency,
+        calculatedBalance: roundedCalculated,
+        transactionHistoryBalance: roundedHistory,
+        discrepancy,
+        hasDiscrepancy,
+        severity,
+        reason,
+        resolution,
+        details: {
+          openingBalance,
+          totalInflowHistory: roundToCurrency(totalInflows),
+          totalOutflowHistory: roundToCurrency(totalOutflows),
+          totalTransferInHistory: roundToCurrency(totalTransfersIn),
+          totalTransferOutHistory: roundToCurrency(totalTransfersOut),
+          totalAdjustmentHistory: roundToCurrency(totalAdjustments),
+          crossCurrencyTxCount,
+          conversionDriftAmount: roundToCurrency(conversionDriftSum),
+          totalTransactionsAnalyzed: activeTxs.length,
+          crossCurrencyTransactions: crossCurrencyTxs,
+        },
+      });
+
+      auditLogId = logEntry.id;
+      generatedLogs.push(logEntry);
+    }
+
+    walletReports.push({
+      walletId: wallet.id,
+      walletName: wallet.name,
+      currencyCode: walletCurrency,
+      calculatedBalance: roundedCalculated,
+      transactionHistoryBalance: roundedHistory,
+      discrepancy,
+      isConsistent: !hasDiscrepancy,
+      hasCurrencyConversionDrift: hasDrift,
+      conversionDriftAmount: roundToCurrency(conversionDriftSum),
+      crossCurrencyTransactionsCount: crossCurrencyTxCount,
+      totalTransactionsCount: activeTxs.length,
+      status,
+      auditLogId,
+    });
+  });
+
+  const discrepantCount = walletReports.filter(r => !r.isConsistent).length;
+  const consistentCount = walletReports.length - discrepantCount;
+  const isOverallConsistent = discrepantCount === 0;
+
+  const summaryMessage = isOverallConsistent
+    ? `تم فحص جميع المحافظ (${activeWallets.length}): الأرصدة المحسوبة مطابقة تماماً لسجل المعاملات الفعلي بدون أي فروقات تراكمية.`
+    : `تم رصد عدم تطابق في ${discrepantCount} محفظة بإجمالي فروقات تقديرية تعادل ${roundToCurrency(totalDiscrepancyBase)} SAR. تم تسجيل التفاصيل في AuditLogs.`;
+
+  return {
+    timestamp: new Date().toISOString(),
+    isConsistent: isOverallConsistent,
+    totalWalletsAudited: activeWallets.length,
+    consistentWalletsCount: consistentCount,
+    discrepantWalletsCount: discrepantCount,
+    totalDiscrepancyBase: roundToCurrency(totalDiscrepancyBase),
+    hasConversionDrifts: hasGlobalConversionDrift,
+    walletReports,
+    auditLogs: generatedLogs,
+    summaryMessage,
+  };
+}
+
+/**
+ * Direct alias for diagnoseWalletBalanceDiscrepancies
+ */
+export const compareCalculatedBalanceWithHistory = diagnoseWalletBalanceDiscrepancies;
 
 /**
  * Validate transaction integrity before saving

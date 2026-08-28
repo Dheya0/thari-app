@@ -31,8 +31,11 @@ const STRINGS = {
     walletsSub: 'محافظ نشطة',
     recurringCount: 'القواعد المجدولة',
     recurringSub: 'دورية',
+    reconciliationSuite: 'مطابقة الأرصدة مع سجل العمليات (Balance & History Reconciliation)',
+    reconciliationPassed: 'مطابقة تامة 100%',
+    reconciliationFailed: 'تم رصد تباين',
     invariantsSuite: 'اختبارات الثبات المحاسبي (Accounting Invariants Suite)',
-    suitePassed: 'ناجحة بالكامل (7/7)',
+    suitePassed: 'ناجحة بالكامل (8/8)',
     suiteFailed: 'فشلت بعض الاختبارات',
     issuesHeader: 'الملاحظات المرصودة',
     autoFixable: 'قابل للإصلاح التلقائي',
@@ -57,8 +60,11 @@ const STRINGS = {
     walletsSub: 'Active accounts',
     recurringCount: 'Scheduled Rules',
     recurringSub: 'Recurring',
+    reconciliationSuite: 'Balance & Transaction History Reconciliation',
+    reconciliationPassed: '100% Consistent',
+    reconciliationFailed: 'Discrepancy Detected',
     invariantsSuite: 'Accounting Invariants Test Suite',
-    suitePassed: 'All Passed (7/7)',
+    suitePassed: 'All Passed (8/8)',
     suiteFailed: 'Tests Failed',
     issuesHeader: 'Detected Observations',
     autoFixable: 'Auto-repairable',
@@ -228,6 +234,51 @@ export const SystemDiagnosticsModal: React.FC<SystemDiagnosticsModalProps> = ({
               ))}
             </div>
           </div>
+
+          {/* Balance vs Transaction History Reconciliation Block */}
+          {report.balanceReconciliation && (
+            <div className="bg-[#0A0D10]/40 border border-white/5 rounded-2xl p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
+                  <CheckCircle2 size={16} className={report.balanceReconciliation.isConsistent ? 'text-[#8EB9A7]' : 'text-[#C98387]'} />
+                  <span>{t.reconciliationSuite}</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  report.balanceReconciliation.isConsistent ? 'bg-[#8EB9A7]/15 text-[#8EB9A7] border border-[#8EB9A7]/30' : 'bg-[#C98387]/15 text-[#C98387] border border-[#C98387]/30'
+                }`}>
+                  {report.balanceReconciliation.isConsistent ? t.reconciliationPassed : t.reconciliationFailed}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                {report.balanceReconciliation.walletReports.map((wReport) => (
+                  <div key={wReport.walletId} className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-[#171D24] border border-white/5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-200 font-medium">{wReport.walletName}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">({wReport.currencyCode})</span>
+                      {wReport.crossCurrencyTransactionsCount > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-[#D9B978]">
+                          {wReport.crossCurrencyTransactionsCount} {language === 'ar' ? 'عمليات متعددة العملات' : 'cross-currency txs'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 font-mono text-[11px]">
+                      <span className="text-slate-300">
+                        {wReport.calculatedBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} {wReport.currencyCode}
+                      </span>
+                      {wReport.isConsistent ? (
+                        <CheckCircle2 size={13} className="text-[#8EB9A7] shrink-0" />
+                      ) : (
+                        <span className="text-[#C98387] text-[10px] font-bold">
+                          Δ {wReport.discrepancy}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Issues List */}
           {report.issues.length > 0 && (

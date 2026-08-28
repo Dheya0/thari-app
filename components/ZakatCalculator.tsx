@@ -31,6 +31,7 @@ import { formatFinancialNumber } from './ElegantDashboard';
 import { StatsGrid } from './StatsGrid';
 import { AssetItemRow } from './AssetItemRow';
 import { ZakatAssetConfigModal, ZakatModalCategory } from './ZakatAssetConfigModal';
+import { safeAdd, safeSub, safeMul, safeDiv, safePercent, roundToCurrency } from '../utils/mathPrecision';
 
 interface ZakatCalculatorProps {
   totalBalance?: number;
@@ -80,12 +81,12 @@ export function calculateAssetZakat(
   const g18 = Number(profile.gold18Grams) || 0;
   const silver = Number(profile.silverGrams) || 0;
 
-  const val24 = g24 * rates.price24k;
-  const val21 = g21 * rates.price21k;
-  const val18 = g18 * rates.price18k;
-  const totalGoldVal = val24 + val21 + val18;
-  const totalSilverVal = silver * rates.priceSilver;
-  const totalMetalsVal = totalGoldVal + totalSilverVal;
+  const val24 = safeMul(g24, rates.price24k);
+  const val21 = safeMul(g21, rates.price21k);
+  const val18 = safeMul(g18, rates.price18k);
+  const totalGoldVal = safeAdd(val24, val21, val18);
+  const totalSilverVal = safeMul(silver, rates.priceSilver);
+  const totalMetalsVal = safeAdd(totalGoldVal, totalSilverVal);
 
   const tradeInv = Number(profile.tradeInventoryValue) || 0;
   const tradingStocks = Number(profile.tradingStocksValue) || 0;
@@ -95,20 +96,20 @@ export function calculateAssetZakat(
 
   let longTermBase = 0;
   if (profile.investmentStocksMethod === 'liquid_ratio') {
-    longTermBase = (Number(profile.longTermStocksValue) || 0) * 0.10;
+    longTermBase = safeMul(Number(profile.longTermStocksValue) || 0, 0.10);
   } else {
     longTermBase = Number(profile.longTermDividendsValue) || 0;
   }
 
-  const totalCommercial = tradeInv + tradingStocks + longTermBase + reTrade + fundsVal + rentIncome;
+  const totalCommercial = safeAdd(tradeInv, tradingStocks, longTermBase, reTrade, fundsVal, rentIncome);
 
-  const grossAssets = scopedCashInBase + debtsToMeIncluded + totalMetalsVal + totalCommercial;
+  const grossAssets = safeAdd(scopedCashInBase, debtsToMeIncluded, totalMetalsVal, totalCommercial);
   const customDeductions = Number(profile.customDeductions) || 0;
-  const totalDeductions = debtsOnMeIncluded + customDeductions;
-  const netBase = Math.max(0, grossAssets - totalDeductions);
+  const totalDeductions = safeAdd(debtsOnMeIncluded, customDeductions);
+  const netBase = Math.max(0, safeSub(grossAssets, totalDeductions));
 
-  const nisabThreshold = 85 * rates.price24k;
-  const silverNisabThreshold = 595 * rates.priceSilver;
+  const nisabThreshold = safeMul(85, rates.price24k);
+  const silverNisabThreshold = safeMul(595, rates.priceSilver);
   const hasReachedNisab = netBase >= nisabThreshold && nisabThreshold > 0;
 
   const startDate = profile.hawlStartDate ? new Date(profile.hawlStartDate) : new Date();
@@ -119,7 +120,7 @@ export function calculateAssetZakat(
   const isHawlCompleted = elapsedDays >= totalHawlDays;
 
   const zakatRate = 0.025;
-  const estimatedZakat = hasReachedNisab ? netBase * zakatRate : 0;
+  const estimatedZakat = hasReachedNisab ? roundToCurrency(safePercent(netBase, 2.5), 2) : 0;
 
   return {
     g24, g21, g18, silver,

@@ -11,6 +11,7 @@ import { processDueRecurringRules } from './services/recurringService';
 import { isNativeCapacitorEnvironment } from './services/biometricService';
 import { WidgetService } from './services/widgetService';
 import { getTranslation, getLocalizedCurrency } from './utils/translations';
+import { NativeKeyboard, NativeHaptics } from './services/nativeServices';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Filesystem } from '@capacitor/filesystem';
@@ -197,6 +198,13 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Configure Native Keyboard defaults
+    if (NativeKeyboard.isAvailable()) {
+      NativeKeyboard.setStyle('DARK').catch(() => {});
+      NativeKeyboard.setResizeMode('body').catch(() => {});
+      NativeKeyboard.setAccessoryBarVisible(false).catch(() => {});
+    }
+
     const updateViewport = () => {
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
       document.documentElement.style.setProperty('--vh', `${viewportHeight}px`);
@@ -962,6 +970,10 @@ const App: React.FC = () => {
             debtId: newDebtId,
             isFinancing: true,
             amount: debtData.amount,
+            foreignAmount: debtData.foreignAmount,
+            foreignCurrency: debtData.foreignCurrency,
+            exchangeRate: debtData.exchangeRate,
+            conversionNote: debtData.conversionNote,
             type: debtData.type === 'to_me' ? 'expense' : 'income',
             categoryId: debtData.type === 'to_me' ? '12' : '11', 
             walletId: walletId,
@@ -1198,7 +1210,7 @@ const App: React.FC = () => {
                 )}
                 
                 {activeTab === 'goals' && <GoalTracker goals={state.goals} wallets={state.wallets} transactions={state.transactions} onAddGoal={(g) => setState(p => ({ ...p, goals: [...p.goals, { ...g, id: 'g-'+Date.now() }] }))} onUpdateGoalAmount={(id, amt) => setState(p => ({ ...p, goals: p.goals.map(g => g.id === id ? { ...g, currentAmount: g.currentAmount + amt } : g) }))} currencySymbol={localizedCurrency.symbol} apiKey={state.apiKey} language={activeLanguage} />}
-                {activeTab === 'budgets' && <BudgetManager budgets={state.budgets} categories={state.categories} transactions={filteredTransactions} onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
+                {activeTab === 'budgets' && <BudgetManager budgets={state.budgets} categories={state.categories} transactions={filteredTransactions} onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} exchangeRates={state.exchangeRates} language={activeLanguage} />}
                 {activeTab === 'chat' && <AIChat history={state.chatHistory} transactions={filteredTransactions} categories={state.categories} currency={localizedCurrency.symbol} onSendMessage={(msg) => setState(p => ({ ...p, chatHistory: [...p.chatHistory, msg].slice(-30) }))} apiKey={state.apiKey} language={activeLanguage} />}
                 {activeTab === 'debts' && <DebtManager debts={state.debts} wallets={state.wallets} onAddDebt={handleAddDebt} onUpdateDebt={handleUpdateDebt} onSettleDebt={handleSettleDebt} onPayDebt={handlePayDebt} onDeleteDebt={(id) => setState(p => ({ ...p, debts: p.debts.filter(d => d.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
                 {activeTab === 'subscriptions' && <SubscriptionManager subscriptions={state.subscriptions} categories={state.categories} onAdd={(sub) => setState(p => ({ ...p, subscriptions: [{...sub, id: 's-'+Date.now()}, ...p.subscriptions] }))} onRemove={(id) => setState(p => ({ ...p, subscriptions: p.subscriptions.filter(s => s.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
@@ -1291,8 +1303,12 @@ const App: React.FC = () => {
                 <motion.button 
                   whileHover={{ scale: 1.06 }}
                   whileTap={{ scale: 0.94 }}
-                  onClick={() => { setEditingTransaction(null); setShowAddForm(true); }}
-                  className="w-14 h-14 bg-[#D9B978] hover:bg-[#D9B978]/90 text-slate-950 rounded-[1.5rem] shadow-[0_10px_25px_rgba(217,185,120,0.35)] flex items-center justify-center z-50 border-[4px] border-[#11161C] mx-1 shrink-0"
+                  onClick={() => { 
+                    NativeHaptics.impact('MEDIUM').catch(() => {});
+                    setEditingTransaction(null); 
+                    setShowAddForm(true); 
+                  }}
+                  className="w-14 h-14 bg-[#D9B978] hover:bg-[#D9B978]/90 text-slate-950 rounded-[1.5rem] shadow-[0_10px_25px_rgba(217,185,120,0.35)] flex items-center justify-center z-50 border-[4px] border-[#11161C] mx-1 shrink-0 active:scale-95 transition-transform"
                 >
                   <Plus size={28} strokeWidth={3.5} />
                 </motion.button>
@@ -1405,6 +1421,7 @@ const App: React.FC = () => {
                 transactions={state.transactions}
                 debts={state.debts}
                 onSubmit={handleSubmitTransaction} 
+                onDelete={handleDeleteTransaction}
                 onAddDebt={handleAddDebt}
                 onPayDebt={handlePayDebt}
                 onClose={() => { setShowAddForm(false); setEditingTransaction(null); setFormDefaultType(undefined); }} 
@@ -1450,7 +1467,10 @@ const App: React.FC = () => {
 const NavButton = ({ icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
   <motion.button 
     whileTap={{ scale: 0.92 }}
-    onClick={onClick} 
+    onClick={() => {
+      NativeHaptics.selection().catch(() => {});
+      onClick();
+    }} 
     className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 min-w-[60px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
   >
     <div className={`p-2 rounded-xl transition-all duration-300 relative ${active ? 'bg-[#D9B978]/10 text-[#D9B978]' : 'group-hover:bg-white/5'}`}>

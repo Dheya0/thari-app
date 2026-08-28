@@ -3,6 +3,8 @@ import { Target, TriangleAlert, Award, TrendingUp, Sparkles, AlertCircle, Coins,
 import { Budget, Category, Transaction } from '../types';
 import { getLocalizedCurrency, getTranslation, LanguageKey } from '../utils/translations';
 import { parseArabicNumber } from '../utils/formatters';
+import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
 interface BudgetManagerProps {
   budgets: Budget[];
@@ -11,6 +13,7 @@ interface BudgetManagerProps {
   onSetBudget: (catId: string, amount: number) => void;
   currencySymbol: string;
   currencyCode?: string;
+  exchangeRates?: Record<string, number>;
   language?: LanguageKey;
 }
 
@@ -21,6 +24,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
   onSetBudget, 
   currencySymbol,
   currencyCode = 'SAR',
+  exchangeRates = DEFAULT_EXCHANGE_RATES,
   language = 'ar'
 }) => {
   const t = getTranslation(language);
@@ -35,15 +39,29 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
+  // Filter active operating transactions
+  const activeTxs = useMemo(() => {
+    return (transactions || []).filter(t => !t.isDeleted && !t.isFinancing);
+  }, [transactions]);
+
   // 1. Calculate General Financial KPIs & Abundance Score (تنمية العوائد والادخار)
   const abundanceData = useMemo(() => {
-    const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    activeTxs.forEach(t => {
+      const conv = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
+      if (t.type === 'income') {
+        totalIncome = safeAdd(totalIncome, conv);
+      } else if (t.type === 'expense') {
+        totalExpense = safeAdd(totalExpense, conv);
+      }
+    });
     
     // Calculate investments or savings allocation (e.g. transactions categorized as investment or savings)
     // For general tracking, we treat (Total Income - Total Expense) as general savings allocation
-    const savings = Math.max(0, totalIncome - totalExpense);
-    const savingsRate = totalIncome > 0 ? (savings / totalIncome) * 100 : 0;
+    const savings = Math.max(0, safeSub(totalIncome, totalExpense));
+    const savingsRate = totalIncome > 0 ? safeMul(safeDiv(savings, totalIncome), 100) : 0;
     
     // Abundance score out of 100
     // +40 points: savings rate (up to 30% savings rate yields max points)
@@ -53,9 +71,13 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
     
     let activeBudgetsExceeded = 0;
     budgets.forEach(b => {
-      const spent = transactions
+      let spent = 0;
+      activeTxs
         .filter(t => t.categoryId === b.categoryId && t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .forEach(t => {
+          const conv = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
+          spent = safeAdd(spent, conv);
+        });
       if (spent > b.amount) activeBudgetsExceeded++;
     });
 
@@ -74,17 +96,23 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
       burnRate,
       activeBudgetsExceeded
     };
-  }, [transactions, budgets]);
+  }, [activeTxs, budgets, currencyCode, exchangeRates]);
 
-  const budgetStats = budgets.map(b => {
-    const category = categories.find(c => c.id === b.categoryId);
-    const spent = transactions
-      .filter(t => t.categoryId === b.categoryId && t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const percentage = Math.min((spent / b.amount) * 100, 100);
-    
-    return { ...b, category, spent, percentage };
-  });
+  const budgetStats = useMemo(() => {
+    return budgets.map(b => {
+      const category = categories.find(c => c.id === b.categoryId);
+      let spent = 0;
+      activeTxs
+        .filter(t => t.categoryId === b.categoryId && t.type === 'expense')
+        .forEach(t => {
+          const conv = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
+          spent = safeAdd(spent, conv);
+        });
+      const percentage = b.amount > 0 ? Math.min(safeMul(safeDiv(spent, b.amount), 100), 100) : 0;
+      
+      return { ...b, category, spent: roundToCurrency(spent), percentage };
+    });
+  }, [budgets, categories, activeTxs, currencyCode, exchangeRates]);
 
   return (
     <div className="space-y-6 pb-24 animate-luxury-pop">

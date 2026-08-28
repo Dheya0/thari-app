@@ -1,5 +1,7 @@
 import { Category, Transaction, Wallet } from '../../types';
 import { convertCurrency } from '../../constants';
+import { calculateWalletBalances } from '../balanceEngine';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../../utils/mathPrecision';
 import {
   CurrencyMetadata,
   formatCurrencyAmount,
@@ -89,17 +91,60 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     baseCurrency: baseCurrencyMeta,
   };
 
-  // 2. Calculate Opening Balance from prior transactions
+  // 2. Calculate Opening Balance from prior transactions and initial wallet balances
   let openingBalance = 0;
-  priorTransactions.forEach(t => {
-    const converted = isSingleCurrency && t.currency === filteredCurrencyCode
-      ? t.amount
-      : convertCurrency(t.amount, t.currency, targetCurrencyCode, exchangeRates);
 
-    if (t.type === 'income') {
-      openingBalance += converted;
+  if (filteredWalletId) {
+    const w = wallets.find(wal => wal.id === filteredWalletId);
+    if (w) {
+      const initialBal = Number(w.openingBalance) || 0;
+      openingBalance = isSingleCurrency && w.currencyCode === filteredCurrencyCode
+        ? initialBal
+        : convertCurrency(initialBal, w.currencyCode, targetCurrencyCode, exchangeRates);
+    }
+  } else {
+    wallets.forEach(w => {
+      const initialBal = Number(w.openingBalance) || 0;
+      const conv = isSingleCurrency && w.currencyCode === filteredCurrencyCode
+        ? initialBal
+        : (isSingleCurrency ? 0 : convertCurrency(initialBal, w.currencyCode, targetCurrencyCode, exchangeRates));
+      openingBalance = safeAdd(openingBalance, conv);
+    });
+  }
+
+  priorTransactions.forEach(t => {
+    const rawAmt = Number(t.amount) || 0;
+    if (rawAmt === 0) return;
+    const amount = Math.abs(rawAmt);
+
+    const converted = isSingleCurrency && t.currency === filteredCurrencyCode
+      ? amount
+      : convertCurrency(amount, t.currency, targetCurrencyCode, exchangeRates);
+
+    if (filteredWalletId) {
+      if (t.type === 'income') {
+        openingBalance = safeAdd(openingBalance, converted);
+      } else if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+        openingBalance = safeSub(openingBalance, converted);
+      } else if (t.type === 'transfer') {
+        if (t.walletId === filteredWalletId) {
+          openingBalance = safeSub(openingBalance, converted);
+        } else if (t.destinationWalletId === filteredWalletId) {
+          const destAmt = (t.destinationAmount !== undefined && t.destinationAmount !== null && t.destinationAmount > 0)
+            ? Number(t.destinationAmount)
+            : amount;
+          const destConverted = isSingleCurrency && t.currency === filteredCurrencyCode
+            ? destAmt
+            : convertCurrency(destAmt, t.currency || targetCurrencyCode, targetCurrencyCode, exchangeRates);
+          openingBalance = safeAdd(openingBalance, destConverted);
+        }
+      }
     } else {
-      openingBalance -= converted;
+      if (t.type === 'income') {
+        openingBalance = safeAdd(openingBalance, converted);
+      } else if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+        openingBalance = safeSub(openingBalance, converted);
+      }
     }
   });
 
@@ -124,24 +169,24 @@ export function buildReportModel(context: AggregationContext): ReportModel {
       : convertCurrency(t.amount, t.currency, targetCurrencyCode, exchangeRates);
 
     if (t.type === 'income') {
-      currencyGroupMap[tCurr].income += t.amount;
-      totalIncome += converted;
+      currencyGroupMap[tCurr].income = safeAdd(currencyGroupMap[tCurr].income, t.amount);
+      totalIncome = safeAdd(totalIncome, converted);
       incomeCount += 1;
     } else if (t.type === 'expense') {
-      currencyGroupMap[tCurr].expense += t.amount;
-      totalExpense += converted;
+      currencyGroupMap[tCurr].expense = safeAdd(currencyGroupMap[tCurr].expense, t.amount);
+      totalExpense = safeAdd(totalExpense, converted);
       expenseCount += 1;
     } else if (t.type === 'transfer_to_goal') {
-      currencyGroupMap[tCurr].expense += t.amount;
-      totalExpense += converted;
+      currencyGroupMap[tCurr].expense = safeAdd(currencyGroupMap[tCurr].expense, t.amount);
+      totalExpense = safeAdd(totalExpense, converted);
       transferCount += 1;
     }
   });
 
-  const netSavings = totalIncome - totalExpense;
-  const closingBalance = openingBalance + netSavings;
-  const savingsRatePercent = totalIncome > 0 ? Math.max(0, (netSavings / totalIncome) * 100) : 0;
-  const expenseRatioPercent = totalIncome > 0 ? (totalExpense / totalIncome) * 100 : (totalExpense > 0 ? 100 : 0);
+  const netSavings = safeSub(totalIncome, totalExpense);
+  const closingBalance = safeAdd(openingBalance, netSavings);
+  const savingsRatePercent = totalIncome > 0 ? Math.max(0, safeMul(safeDiv(netSavings, totalIncome), 100)) : 0;
+  const expenseRatioPercent = totalIncome > 0 ? safeMul(safeDiv(totalExpense, totalIncome), 100) : (totalExpense > 0 ? 100 : 0);
 
   // 4. Currency Breakdown Array
   const currencyBreakdown: ReportCurrencyBreakdown[] = Object.keys(currencyGroupMap).map(currCode => {
@@ -220,24 +265,18 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     };
   }).sort((a, b) => b.totalAmount - a.totalAmount);
 
-  // 6. Wallet Summary Breakdown
+  // 6. Wallet Summary Breakdown (derived strictly from Single Source of Truth calculateWalletBalances)
+  const walletEngineBalances = calculateWalletBalances(wallets, transactions, exchangeRates);
   let totalWealthConverted = 0;
+
   const walletSummaries: ReportWalletSummary[] = wallets
     .filter(w => !filteredWalletId || w.id === filteredWalletId)
     .map(w => {
-      // Calculate wallet balance from all transactions for that wallet
-      const walletTxs = transactions.filter(t => t.walletId === w.id);
-      let rawBalance = 0;
-      let convertedBalance = 0;
+      const summary = walletEngineBalances[w.id];
+      const rawBalance = summary ? summary.currentBalance : (Number(w.openingBalance) || 0);
+      const convertedBalance = convertCurrency(rawBalance, w.currencyCode, targetCurrencyCode, exchangeRates);
 
-      walletTxs.forEach(t => {
-        const sign = t.type === 'income' ? 1 : -1;
-        rawBalance += t.amount * sign;
-        const conv = convertCurrency(t.amount, t.currency, targetCurrencyCode, exchangeRates);
-        convertedBalance += conv * sign;
-      });
-
-      totalWealthConverted += Math.max(0, convertedBalance);
+      totalWealthConverted = safeAdd(totalWealthConverted, Math.max(0, convertedBalance));
 
       return {
         id: w.id,
@@ -246,13 +285,13 @@ export function buildReportModel(context: AggregationContext): ReportModel {
         color: w.color || '#3b82f6',
         rawBalance,
         convertedBalance,
-        percentageOfTotalWealth: 0, // Computed below
+        percentageOfTotalWealth: 0,
       };
     });
 
   walletSummaries.forEach(w => {
     w.percentageOfTotalWealth = totalWealthConverted > 0 && w.convertedBalance > 0
-      ? (w.convertedBalance / totalWealthConverted) * 100
+      ? safeMul(safeDiv(w.convertedBalance, totalWealthConverted), 100)
       : 0;
   });
 
@@ -317,6 +356,10 @@ export function buildReportModel(context: AggregationContext): ReportModel {
       isCrossCurrencyWithWallet: isCrossWithWallet,
       exchangeRateToWallet: rateToWallet,
       note: t.note || '',
+      foreignAmount: t.foreignAmount,
+      foreignCurrency: t.foreignCurrency,
+      exchangeRate: t.exchangeRate,
+      conversionNote: t.conversionNote,
       originalAmount: t.amount,
       currencyCode: tCurr,
       currencySymbol: currMeta.symbol,

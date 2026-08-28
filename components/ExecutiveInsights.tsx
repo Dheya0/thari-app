@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { Award, Shield, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { Transaction, Budget, Debt } from '../types';
+import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
 interface ExecutiveInsightsProps {
   transactions: Transaction[];
@@ -8,12 +10,22 @@ interface ExecutiveInsightsProps {
   debts: Debt[];
   totalBalance?: number;
   currencySymbol: string;
+  currencyCode?: string;
+  exchangeRates?: Record<string, number>;
 }
 
-const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ transactions = [], budgets = [], debts = [], totalBalance = 0, currencySymbol = 'ر.س' }) => {
+const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ 
+  transactions = [], 
+  budgets = [], 
+  debts = [], 
+  totalBalance = 0, 
+  currencySymbol = 'ر.س',
+  currencyCode = 'SAR',
+  exchangeRates = DEFAULT_EXCHANGE_RATES
+}) => {
   const calculations = useMemo(() => {
     const safeTotalBalance = typeof totalBalance === 'number' && !isNaN(totalBalance) ? totalBalance : 0;
-    const safeTransactions = transactions || [];
+    const safeTransactions = (transactions || []).filter(t => !t.isDeleted && !t.isFinancing);
     const safeDebts = debts || [];
 
     // 30 days of transactions for active burn rate calculation
@@ -25,33 +37,55 @@ const ExecutiveInsights: React.FC<ExecutiveInsightsProps> = ({ transactions = []
       return diffDays <= 30;
     });
 
-    const totalIncome = safeTransactions.filter(t => t.type === 'income').reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const totalExpense = safeTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    safeTransactions.forEach(t => {
+      const conv = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
+      if (t.type === 'income') {
+        totalIncome = safeAdd(totalIncome, conv);
+      } else if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+        totalExpense = safeAdd(totalExpense, conv);
+      }
+    });
     
     // Monthly burn rate (default to general average if no 30 days transactions exist)
-    let burnRate = last30Days.filter(t => t.type === 'expense').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    let burnRate30Days = 0;
+    last30Days.forEach(t => {
+      if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+        const conv = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
+        burnRate30Days = safeAdd(burnRate30Days, conv);
+      }
+    });
+
+    let burnRate = burnRate30Days;
     if (burnRate === 0) {
       burnRate = totalExpense > 0 ? (totalExpense / Math.max(1, Math.ceil(safeTransactions.length / 5))) : 0;
     }
 
     // Runway (شهور الأمان المالي)
-    const runwayMonths = burnRate > 0 ? (safeTotalBalance / burnRate) : Infinity;
+    const runwayMonths = burnRate > 0 ? safeDiv(safeTotalBalance, burnRate) : Infinity;
 
     // Active Debts
-    const activeDebts = safeDebts.filter(d => !d.isPaid && d.type === 'on_me').reduce((s, d) => s + Math.max(0, (Number(d.amount) || 0) - (Number(d.paidAmount) || 0)), 0);
+    let activeDebts = 0;
+    safeDebts.filter(d => !d.isPaid && d.type === 'on_me').forEach(d => {
+      const remaining = Math.max(0, safeSub(Number(d.originalAmount || d.amount) || 0, Number(d.paidAmount) || 0));
+      const conv = convertCurrency(remaining, d.currency || currencyCode, currencyCode, exchangeRates);
+      activeDebts = safeAdd(activeDebts, conv);
+    });
 
     // Savings rate
-    const savingsRatio = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
+    const savingsRatio = totalIncome > 0 ? safeMul(safeDiv(safeSub(totalIncome, totalExpense), totalIncome), 100) : 0;
 
     return {
-      burnRate,
+      burnRate: roundToCurrency(burnRate),
       runwayMonths,
-      activeDebts,
+      activeDebts: roundToCurrency(activeDebts),
       savingsRatio,
-      totalIncome,
-      totalExpense
+      totalIncome: roundToCurrency(totalIncome),
+      totalExpense: roundToCurrency(totalExpense)
     };
-  }, [transactions, debts, totalBalance]);
+  }, [transactions, debts, totalBalance, currencyCode, exchangeRates]);
 
   // Generate elegant Executive Briefing in Natural Language
   const briefing = useMemo(() => {

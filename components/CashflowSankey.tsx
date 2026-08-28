@@ -1,65 +1,81 @@
 import React, { useMemo, useState } from 'react';
 import { TrendingUp, ArrowRight, Wallet, TrendingDown, ArrowDownLeft, Shield, Sparkles } from 'lucide-react';
 import { Transaction, Category } from '../types';
+import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
 interface CashflowSankeyProps {
   transactions: Transaction[];
   categories: Category[];
   currencySymbol: string;
+  currencyCode?: string;
+  exchangeRates?: Record<string, number>;
 }
 
-const CashflowSankey: React.FC<CashflowSankeyProps> = ({ transactions, categories, currencySymbol }) => {
+const CashflowSankey: React.FC<CashflowSankeyProps> = ({ 
+  transactions, 
+  categories, 
+  currencySymbol,
+  currencyCode = 'SAR',
+  exchangeRates = DEFAULT_EXCHANGE_RATES
+}) => {
   const [activeNode, setActiveNode] = useState<string | null>(null);
 
   const stats = useMemo(() => {
-    // 1. Calculate Income sources
+    // Filter active operating transactions
+    const activeTxs = (transactions || []).filter(t => !t.isDeleted && !t.isFinancing);
+
+    // 1. Calculate Income and Expense sources
     const incomeSourceMap: Record<string, { name: string; amount: number; percentage: number }> = {};
     const expenseSourceMap: Record<string, { name: string; amount: number; percentage: number }> = {};
     
     let totalIncome = 0;
     let totalExpense = 0;
 
-    transactions.forEach(t => {
+    activeTxs.forEach(t => {
       const cat = categories.find(c => c.id === t.categoryId);
-      const catName = cat ? cat.name : 'أخرى';
+      const catName = cat ? cat.name : (t.type === 'income' ? 'دخل عام' : 'مصروف عام');
+      const convertedAmt = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
       
       if (t.type === 'income') {
-        totalIncome += t.amount;
+        totalIncome = safeAdd(totalIncome, convertedAmt);
         if (!incomeSourceMap[catName]) {
           incomeSourceMap[catName] = { name: catName, amount: 0, percentage: 0 };
         }
-        incomeSourceMap[catName].amount += t.amount;
-      } else {
-        totalExpense += t.amount;
+        incomeSourceMap[catName].amount = safeAdd(incomeSourceMap[catName].amount, convertedAmt);
+      } else if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+        totalExpense = safeAdd(totalExpense, convertedAmt);
         if (!expenseSourceMap[catName]) {
           expenseSourceMap[catName] = { name: catName, amount: 0, percentage: 0 };
         }
-        expenseSourceMap[catName].amount += t.amount;
+        expenseSourceMap[catName].amount = safeAdd(expenseSourceMap[catName].amount, convertedAmt);
       }
     });
 
     const incomeSources = Object.values(incomeSourceMap).map(item => ({
       ...item,
+      amount: roundToCurrency(item.amount),
       percentage: totalIncome > 0 ? (item.amount / totalIncome) * 100 : 0
     })).sort((a, b) => b.amount - a.amount);
 
     const expenseSources = Object.values(expenseSourceMap).map(item => ({
       ...item,
+      amount: roundToCurrency(item.amount),
       percentage: totalExpense > 0 ? (item.amount / totalExpense) * 100 : 0
     })).sort((a, b) => b.amount - a.amount);
 
-    const netWorthGrowth = Math.max(0, totalIncome - totalExpense);
-    const savingsRatio = totalIncome > 0 ? (netWorthGrowth / totalIncome) * 100 : 0;
+    const netWorthGrowth = Math.max(0, safeSub(totalIncome, totalExpense));
+    const savingsRatio = totalIncome > 0 ? safeMul(safeDiv(netWorthGrowth, totalIncome), 100) : 0;
 
     return {
-      totalIncome,
-      totalExpense,
+      totalIncome: roundToCurrency(totalIncome),
+      totalExpense: roundToCurrency(totalExpense),
       incomeSources,
       expenseSources,
-      netWorthGrowth,
+      netWorthGrowth: roundToCurrency(netWorthGrowth),
       savingsRatio
     };
-  }, [transactions, categories]);
+  }, [transactions, categories, currencyCode, exchangeRates]);
 
   if (stats.totalIncome === 0) {
     return (

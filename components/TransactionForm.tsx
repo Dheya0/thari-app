@@ -19,6 +19,8 @@ import {
 import { getIcon, DEFAULT_CURRENCIES, convertCurrency } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
 import { getCurrencySymbol, parseArabicNumber, sanitizeNumericInput } from '../utils/formatters';
+import { safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { NativeKeyboard, NativeHaptics } from '../services/nativeServices';
 
 interface TransactionFormProps {
   categories: Category[];
@@ -26,6 +28,7 @@ interface TransactionFormProps {
   transactions?: Transaction[];
   debts?: Debt[];
   onSubmit: (transaction: Omit<Transaction, 'id'> & { id?: string }) => void;
+  onDelete?: (id: string) => void;
   onAddDebt?: (debt: Omit<Debt, 'id'>, walletId?: string) => void;
   onPayDebt?: (
     id: string, 
@@ -49,6 +52,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   transactions = [],
   debts = [],
   onSubmit,
+  onDelete,
   onAddDebt,
   onPayDebt,
   onClose,
@@ -107,8 +111,141 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   );
 
   const [actualRealBalance, setActualRealBalance] = useState('');
-
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    // 1. Configure Capacitor Native Keyboard
+    if (NativeKeyboard.isAvailable()) {
+      NativeKeyboard.setStyle('DARK').catch(() => {});
+      NativeKeyboard.setResizeMode('body').catch(() => {});
+      NativeKeyboard.setAccessoryBarVisible(false).catch(() => {});
+    }
+
+    let isSubscribed = true;
+    let removeNativeListeners: Array<() => void> = [];
+
+    const registerNativeKeyboard = async () => {
+      try {
+        const willShow = await NativeKeyboard.addListener('keyboardWillShow', (info) => {
+          if (!isSubscribed) return;
+          const h = info?.keyboardHeight || 0;
+          setKeyboardHeight(h);
+          setIsKeyboardOpen(true);
+        });
+        const didShow = await NativeKeyboard.addListener('keyboardDidShow', (info) => {
+          if (!isSubscribed) return;
+          const h = info?.keyboardHeight || 0;
+          setKeyboardHeight(h);
+          setIsKeyboardOpen(true);
+        });
+        const willHide = await NativeKeyboard.addListener('keyboardWillHide', () => {
+          if (!isSubscribed) return;
+          setKeyboardHeight(0);
+          setIsKeyboardOpen(false);
+        });
+        const didHide = await NativeKeyboard.addListener('keyboardDidHide', () => {
+          if (!isSubscribed) return;
+          setKeyboardHeight(0);
+          setIsKeyboardOpen(false);
+        });
+
+        removeNativeListeners.push(
+          () => willShow.remove(),
+          () => didShow.remove(),
+          () => willHide.remove(),
+          () => didHide.remove()
+        );
+      } catch (err) {
+        console.warn('Native keyboard listeners fallback:', err);
+      }
+    };
+
+    registerNativeKeyboard();
+
+    // 2. Web Visual Viewport Fallback for Browser / PWA
+    const handleViewportChange = () => {
+      if (!isSubscribed) return;
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        const diff = window.innerHeight - window.visualViewport.height;
+        const keyboardActive = diff > 110;
+        setIsKeyboardOpen(keyboardActive);
+        if (!NativeKeyboard.isAvailable()) {
+          setKeyboardHeight(keyboardActive ? Math.max(0, diff) : 0);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
+    }
+
+    return () => {
+      isSubscribed = false;
+      removeNativeListeners.forEach(fn => {
+        try { fn(); } catch {}
+      });
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
+      }
+    };
+  }, []);
+
+  const dismissKeyboard = () => {
+    NativeKeyboard.hide().catch(() => {});
+    if (typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement)?.blur();
+    }
+    setKeyboardHeight(0);
+    setIsKeyboardOpen(false);
+  };
+
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setIsKeyboardOpen(true);
+    const target = e.target;
+    setTimeout(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+  };
+
+  const handleInputBlur = () => {
+    setTimeout(() => {
+      if (typeof document !== 'undefined') {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea' && activeTag !== 'select') {
+          setIsKeyboardOpen(false);
+        }
+      }
+    }, 180);
+  };
+
+  const handleKeyDownPreventEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      dismissKeyboard();
+    }
+  };
+
+  const addQuickAmount = (val: number) => {
+    NativeHaptics.impact('LIGHT').catch(() => {});
+    const current = parseArabicNumber(amount) || 0;
+    setAmount((current + val).toString());
+  };
+
+  const handleDeleteCurrent = () => {
+    NativeHaptics.notification('WARNING').catch(() => {});
+    const idToDelete = initialData?.id || selectedTxForEdit;
+    if (idToDelete && onDelete) {
+      onDelete(idToDelete);
+      onClose();
+    }
+  };
   
   const selectedSourceWallet = wallets.find(w => w.id === walletId) || wallets[0];
   const selectedDestWallet = wallets.find(w => w.id === destinationWalletId) || (wallets.length > 1 ? wallets[1] : undefined);
@@ -116,6 +253,72 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [inputCurrency, setInputCurrency] = useState(
     initialData?.currency || selectedSourceWallet?.currencyCode || 'SAR'
   );
+
+  // 💱 Agreed Rate & Foreign Currency Lock States
+  const [hasAgreedRate, setHasAgreedRate] = useState<boolean>(
+    Boolean(initialData?.foreignAmount || initialData?.exchangeRate || initialData?.conversionNote)
+  );
+  const [foreignAmountInput, setForeignAmountInput] = useState<string>(
+    initialData?.foreignAmount ? initialData.foreignAmount.toString() : ''
+  );
+  const [foreignCurrencyInput, setForeignCurrencyInput] = useState<string>(
+    initialData?.foreignCurrency || 'USD'
+  );
+  const [agreedRateInput, setAgreedRateInput] = useState<string>(
+    initialData?.exchangeRate ? initialData.exchangeRate.toString() : ''
+  );
+  const [customConversionNote, setCustomConversionNote] = useState<string>(
+    initialData?.conversionNote || ''
+  );
+
+  const handleAmountChange = (val: string) => {
+    const sanitized = sanitizeNumericInput(val);
+    setAmount(sanitized);
+    if (hasAgreedRate && agreedRateInput) {
+      const amtNum = parseArabicNumber(sanitized);
+      const rateNum = parseArabicNumber(agreedRateInput);
+      if (!isNaN(amtNum) && amtNum > 0 && !isNaN(rateNum) && rateNum > 0) {
+        setForeignAmountInput(roundToCurrency(safeDiv(amtNum, rateNum)).toString());
+      }
+    }
+  };
+
+  const handleForeignAmountChange = (val: string) => {
+    const sanitized = sanitizeNumericInput(val);
+    setForeignAmountInput(sanitized);
+    const fNum = parseArabicNumber(sanitized);
+    const rateNum = parseArabicNumber(agreedRateInput);
+    if (!isNaN(fNum) && fNum > 0 && !isNaN(rateNum) && rateNum > 0) {
+      setAmount(roundToCurrency(safeMul(fNum, rateNum)).toString());
+    }
+  };
+
+  const handleAgreedRateChange = (val: string) => {
+    const sanitized = sanitizeNumericInput(val);
+    setAgreedRateInput(sanitized);
+    const fNum = parseArabicNumber(foreignAmountInput);
+    const rateNum = parseArabicNumber(sanitized);
+    if (!isNaN(fNum) && fNum > 0 && !isNaN(rateNum) && rateNum > 0) {
+      setAmount(roundToCurrency(safeMul(fNum, rateNum)).toString());
+    }
+  };
+
+  const effectiveConversionNotePreview = useMemo(() => {
+    const fAmt = foreignAmountInput ? parseArabicNumber(foreignAmountInput) : 0;
+    const exRate = agreedRateInput ? parseArabicNumber(agreedRateInput) : 0;
+    const currentTotal = amount ? parseArabicNumber(amount) : (fAmt * exRate);
+    const baseCurrSymbol = getCurrencySymbol(inputCurrency || selectedSourceWallet?.currencyCode || 'SAR');
+    const forCurrSymbol = getCurrencySymbol(foreignCurrencyInput || 'USD');
+
+    if (fAmt > 0 && exRate > 0) {
+      return language === 'ar'
+        ? `تمت عملية ${fAmt} ${forCurrSymbol} بسعر صرف ${exRate.toLocaleString()} • الإجمالي: ${currentTotal.toLocaleString()} ${baseCurrSymbol}`
+        : `Recorded: ${fAmt} ${foreignCurrencyInput || 'USD'} @ ${exRate.toLocaleString()} • Total: ${currentTotal.toLocaleString()} ${baseCurrSymbol}`;
+    }
+    return language === 'ar'
+      ? `يرجى تحديد المبلغ بالعملة الأجنبية وسعر الصرف المتفق عليه ليتم توثيق القيد تلقائياً.`
+      : `Specify foreign amount & agreed exchange rate to lock transaction parameters.`;
+  }, [foreignAmountInput, agreedRateInput, amount, inputCurrency, selectedSourceWallet, foreignCurrencyInput, language]);
 
   useEffect(() => {
     if (selectedEvent === 'expense' && !categoryId) {
@@ -163,6 +366,20 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     setDate(tx.date);
     setTime(tx.time || '12:00');
     setReceipt(tx.receipt);
+
+    if (tx.foreignAmount || tx.exchangeRate || tx.conversionNote) {
+      setHasAgreedRate(true);
+      setForeignAmountInput(tx.foreignAmount ? tx.foreignAmount.toString() : '');
+      setForeignCurrencyInput(tx.foreignCurrency || 'USD');
+      setAgreedRateInput(tx.exchangeRate ? tx.exchangeRate.toString() : '');
+      setCustomConversionNote(tx.conversionNote || '');
+    } else {
+      setHasAgreedRate(false);
+      setForeignAmountInput('');
+      setForeignCurrencyInput('USD');
+      setAgreedRateInput('');
+      setCustomConversionNote('');
+    }
 
     if (tx.type === 'income') setSelectedEvent('income');
     else if (tx.type === 'transfer') setSelectedEvent('transfer');
@@ -215,6 +432,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     const numAmount = parseArabicNumber(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
+      NativeHaptics.notification('ERROR').catch(() => {});
       setErrorMessage('الرجاء إدخال مبلغ صحيح أكبر من الصفر');
       return;
     }
@@ -222,6 +440,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     setIsSubmitting(true);
 
     try {
+      NativeHaptics.notification('SUCCESS').catch(() => {});
       if (selectedEvent === 'expense') {
         const sourceCurrency = inputCurrency || selectedSourceWallet?.currencyCode || 'SAR';
         const walletCurrency = selectedSourceWallet?.currencyCode || sourceCurrency;
@@ -396,19 +615,33 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
+      style={{
+        paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined,
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) {
+          if (isKeyboardOpen) {
+            dismissKeyboard();
+          } else {
+            onClose();
+          }
+        }
       }}
     >
       <motion.div 
-        initial={{ scale: 0.95, opacity: 0, y: 15 }}
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.95, opacity: 0, y: 15 }}
-        className="w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[calc(100dvh-1rem)]"
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        style={{
+          maxHeight: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight + 12}px)` : undefined,
+        }}
+        className={`w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-[max-height] duration-150 ${
+          keyboardHeight > 0 ? 'max-h-[calc(100dvh-12px)]' : 'max-h-[94dvh] sm:max-h-[90vh]'
+        }`}
       >
         {/* TOP BAR / NAVIGATION */}
-        <div className="p-4 sm:p-5 border-b border-[#D9B978]/10 flex items-center justify-between bg-[#11161C]">
+        <div className="p-4 sm:p-5 border-b border-[#D9B978]/10 flex items-center justify-between bg-[#11161C] shrink-0">
           <div className="flex items-center gap-2.5">
             {selectedEvent && !initialData && (
               <button 
@@ -416,6 +649,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 onClick={() => {
                   setSelectedEvent(null);
                   setErrorMessage('');
+                  dismissKeyboard();
                 }}
                 className="w-11 h-11 rounded-xl bg-[#11161C] hover:bg-[#D9B978]/15 text-[#F4F1EA] flex items-center justify-center transition-all duration-200 active:scale-95 border border-[#D9B978]/20"
                 title="الرجوع لقائمة الأحداث"
@@ -447,6 +681,19 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Direct Keyboard Dismissal Button */}
+            {selectedEvent && (
+              <button
+                type="button"
+                onClick={dismissKeyboard}
+                className="px-3 min-h-[40px] rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 border border-[#D9B978]/40 bg-[#D9B978]/15 text-[#D9B978] hover:bg-[#D9B978]/25 shadow-xs"
+                title="إخفاء لوحة المفاتيح والرجوع للنموذج"
+              >
+                <Check size={15} strokeWidth={2.5} />
+                <span>إخفاء الكيبورد</span>
+              </button>
+            )}
+
             {!selectedEvent && transactions.length > 0 && !initialData && (
               <button
                 type="button"
@@ -479,7 +726,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* ERROR BANNER */}
         {errorMessage && (
-          <div className="mx-4 mt-3 p-3 bg-[#C98387]/15 border border-[#C98387]/30 rounded-2xl flex items-center gap-2.5 text-[#C98387] text-xs font-bold">
+          <div className="mx-4 mt-3 p-3 bg-[#C98387]/15 border border-[#C98387]/30 rounded-2xl flex items-center gap-2.5 text-[#C98387] text-xs font-bold shrink-0">
             <AlertCircle size={16} className="shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -487,7 +734,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* SCREEN 1: EVENT SELECTION GRID ("ماذا حدث؟") */}
         {!selectedEvent && (
-          <div className="p-4 sm:p-6 space-y-4 bg-[#0A0D10]">
+          <div className="p-4 sm:p-6 space-y-4 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar">
             {isEditingExisting && (
               <div className="p-3.5 bg-[#11161C] rounded-2xl border border-[#D9B978]/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -681,7 +928,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* SCREEN 2: DEDICATED EVENT FORM */}
         {selectedEvent && (
-          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[calc(100dvh-9rem)] overflow-y-auto custom-scrollbar bg-[#0A0D10] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
+          <form 
+            ref={formRef}
+            onSubmit={handleSubmit} 
+            className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10] pb-28 sm:pb-8"
+          >
             
             {/* === 1. EXPENSE VIEW === */}
             {selectedEvent === 'expense' && (
@@ -697,8 +948,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       autoFocus
                       placeholder="0.00"
                       value={amount}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#C98387] focus:outline-none placeholder-[#F4F1EA]/30"
+                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#C98387] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
                     />
                     <select
                       value={inputCurrency}
@@ -709,6 +963,28 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
                       ))}
                     </select>
+                  </div>
+                  {/* Quick amount increment pills */}
+                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
+                    {[50, 100, 500, 1000].map(inc => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => addQuickAmount(inc)}
+                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
+                      >
+                        +{inc}
+                      </button>
+                    ))}
+                    {amount && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                      >
+                        مسح
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -775,8 +1051,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       autoFocus
                       placeholder="0.00"
                       value={amount}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30"
+                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
                     />
                     <select
                       value={inputCurrency}
@@ -787,6 +1066,28 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
                       ))}
                     </select>
+                  </div>
+                  {/* Quick amount increment pills */}
+                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
+                    {[100, 500, 1000, 5000].map(inc => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => addQuickAmount(inc)}
+                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#8EB9A7]/20 text-[#8EB9A7] text-[11px] font-bold border border-[#8EB9A7]/25 shrink-0 active:scale-95 transition-all"
+                      >
+                        +{inc}
+                      </button>
+                    ))}
+                    {amount && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                      >
+                        مسح
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -898,9 +1199,33 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     autoFocus
                     placeholder="0.00"
                     value={amount}
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
+                    onKeyDown={handleKeyDownPreventEnter}
                     onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                    className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30"
+                    className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
                   />
+                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
+                    {[50, 100, 500, 1000].map(inc => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => addQuickAmount(inc)}
+                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
+                      >
+                        +{inc}
+                      </button>
+                    ))}
+                    {amount && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                      >
+                        مسح
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {selectedSourceWallet?.currencyCode !== selectedDestWallet?.currencyCode && selectedDestWallet && (
@@ -917,8 +1242,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       enterKeyHint="done"
                       placeholder="0.00"
                       value={destinationAmount}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setDestinationAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-sm text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
+                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-sm text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978] font-numeric"
                     />
                   </div>
                 )}
@@ -939,6 +1267,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     autoFocus
                     placeholder="e.g. Ahmad, Company..."
                     value={personName}
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#8EB9A7]"
                   />
@@ -968,8 +1298,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       required
                       placeholder="0.00"
                       value={amount}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30"
+                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
                     />
                     <select
                       value={inputCurrency}
@@ -980,6 +1313,27 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
+                    {[100, 500, 1000, 5000].map(inc => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => addQuickAmount(inc)}
+                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#8EB9A7]/20 text-[#8EB9A7] text-[11px] font-bold border border-[#8EB9A7]/25 shrink-0 active:scale-95 transition-all"
+                      >
+                        +{inc}
+                      </button>
+                    ))}
+                    {amount && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                      >
+                        مسح
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1015,6 +1369,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <input
                       type="date"
                       value={debtDueDate}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
                       onChange={(e) => setDebtDueDate(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1023,8 +1379,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.phoneOptional}</label>
                     <input
                       type="tel"
+                      inputMode="tel"
                       placeholder="05XXXXXXXX"
                       value={personPhone}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setPersonPhone(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1047,6 +1407,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     autoFocus
                     placeholder="e.g. Bank, Supplier..."
                     value={personName}
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
                   />
@@ -1076,8 +1438,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       required
                       placeholder="0.00"
                       value={amount}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30"
+                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
                     />
                     <select
                       value={inputCurrency}
@@ -1091,6 +1456,27 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         );
                       })}
                     </select>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
+                    {[100, 500, 1000, 5000].map(inc => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => addQuickAmount(inc)}
+                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
+                      >
+                        +{inc}
+                      </button>
+                    ))}
+                    {amount && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                      >
+                        مسح
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1126,6 +1512,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <input
                       type="date"
                       value={debtDueDate}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
                       onChange={(e) => setDebtDueDate(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1134,8 +1522,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.phoneOptional}</label>
                     <input
                       type="tel"
+                      inputMode="tel"
                       placeholder="05XXXXXXXX"
                       value={personPhone}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
+                      onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setPersonPhone(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1191,7 +1583,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                         <div className="text-start">
                           <span className="text-[10px] text-[#F4F1EA]/60 block">{t.remainingBalance}:</span>
-                          <span className="font-black text-[#D9B978] text-sm">
+                          <span className="font-black text-[#D9B978] text-sm font-numeric">
                             {Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0)).toLocaleString()} {getLocalizedCurrency(currentSelectedDebt.currency || 'SAR', undefined, undefined, language).symbol}
                           </span>
                         </div>
@@ -1207,11 +1599,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         required
                         placeholder="0.00"
                         value={amount}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
+                        onKeyDown={handleKeyDownPreventEnter}
                         onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                        className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30"
+                        className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
                       />
                       {currentSelectedDebt && (
-                        <div className="flex gap-2 pt-1">
+                        <div className="flex flex-wrap gap-2 pt-1">
                           <button
                             type="button"
                             onClick={() => {
@@ -1232,6 +1627,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                           >
                             {t.halfAmount50}
                           </button>
+                          {amount && (
+                            <button
+                              type="button"
+                              onClick={() => setAmount('')}
+                              className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[10px] font-bold border border-[#C98387]/30 shrink-0"
+                            >
+                              مسح
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1293,7 +1697,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-3">
                     <div className="flex justify-between items-center text-xs pb-2 border-b border-[#D9B978]/10">
                       <span className="text-[#F4F1EA]/70 font-bold">{t.ledgerBalanceApp}</span>
-                      <span className="text-[#F4F1EA] font-black text-sm">{adjustmentCalc.current.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol}</span>
+                      <span className="text-[#F4F1EA] font-black text-sm font-numeric">{adjustmentCalc.current.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol}</span>
                     </div>
 
                     <div className="space-y-1.5">
@@ -1306,8 +1710,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         autoFocus
                         placeholder="0.00"
                         value={actualRealBalance}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
+                        onKeyDown={handleKeyDownPreventEnter}
                         onChange={(e) => setActualRealBalance(sanitizeNumericInput(e.target.value))}
-                        className="w-full bg-[#0A0D10] border border-[#D9B978]/40 rounded-xl px-3.5 py-2.5 text-xl font-black text-[#F4F1EA] focus:outline-none focus:border-[#D9B978]"
+                        className="w-full bg-[#0A0D10] border border-[#D9B978]/40 rounded-xl px-3.5 py-2.5 text-xl font-black text-[#F4F1EA] focus:outline-none focus:border-[#D9B978] font-numeric"
                       />
                     </div>
 
@@ -1318,7 +1725,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                           : 'bg-[#C98387]/15 border-[#C98387]/30 text-[#C98387]'
                       }`}>
                         <span>{t.discrepancyDiff}</span>
-                        <span className="font-black text-sm">
+                        <span className="font-black text-sm font-numeric">
                           {adjustmentCalc.isIncrease ? '+' : '-'}{adjustmentCalc.absDiff?.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol} ({adjustmentCalc.isIncrease ? t.increaseWord : t.decreaseWord})
                         </span>
                       </div>
@@ -1339,6 +1746,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   type="date"
                   required
                   value={date}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                 />
@@ -1353,6 +1762,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   type="time"
                   required
                   value={time}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
                   onChange={(e) => setTime(e.target.value)}
                   className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                 />
@@ -1368,6 +1779,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 type="text"
                 placeholder={t.notePlaceholderDetail}
                 value={note}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                onKeyDown={handleKeyDownPreventEnter}
                 onChange={(e) => setNote(e.target.value)}
                 className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2 text-xs text-[#F4F1EA] font-medium focus:outline-none focus:border-[#D9B978]"
               />
@@ -1418,7 +1832,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               </div>
             )}
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-2">
               <button
                 type="submit"
                 disabled={isSubmitting || (selectedEvent === 'debt_repayment' && activeDebts.length === 0)}
@@ -1437,7 +1851,82 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   }
                 </span>
               </button>
+
+              {(initialData || (isEditingExisting && selectedTxForEdit)) && onDelete && (
+                <div>
+                  {!showDeleteConfirm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="w-full py-3 px-4 rounded-2xl font-bold text-xs text-[#C98387] bg-[#C98387]/10 hover:bg-[#C98387]/20 border border-[#C98387]/30 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={16} />
+                      <span>{t.deleteTransaction}</span>
+                    </button>
+                  ) : (
+                    <div className="p-3 bg-[#C98387]/15 border border-[#C98387]/40 rounded-2xl space-y-2 text-center animate-fade">
+                      <p className="text-xs font-bold text-[#C98387]">{t.confirmDeleteTransaction}</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleDeleteCurrent}
+                          className="flex-1 py-2 rounded-xl bg-[#C98387] text-white font-black text-xs hover:bg-[#C98387]/90 active:scale-95 transition-all"
+                        >
+                          {t.confirm}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:text-white active:scale-95 transition-all"
+                        >
+                          {t.cancel}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* STICKY BOTTOM KEYBOARD TOOLBAR */}
+            <AnimatePresence>
+              {isKeyboardOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  transition={{ duration: 0.15 }}
+                  className="sticky bottom-0 inset-x-0 z-30 p-2.5 bg-[#11161C]/95 backdrop-blur-md border-t border-[#D9B978]/30 flex items-center justify-between gap-2 shadow-2xl rounded-t-2xl mt-auto"
+                >
+                  <button
+                    type="button"
+                    onClick={dismissKeyboard}
+                    className="px-3 py-2 rounded-xl bg-[#171D24] text-[#F4F1EA] hover:bg-[#D9B978]/20 border border-[#D9B978]/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <X size={14} />
+                    <span>إخفاء الكيبورد</span>
+                  </button>
+
+                  <div className="text-center font-numeric text-xs font-black text-[#D9B978] truncate max-w-[120px]">
+                    {amount ? `${parseFloat(amount) ? parseFloat(amount).toLocaleString() : amount} ${inputCurrency}` : ''}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dismissKeyboard();
+                      if (formRef.current) {
+                        formRef.current.requestSubmit();
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#D9B978] text-[#0A0D10] font-black text-xs flex items-center gap-1.5 active:scale-95 shadow-md transition-all hover:bg-[#D9B978]/90"
+                  >
+                    <Check size={15} strokeWidth={3} />
+                    <span>تسجيل</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </form>
         )}
 

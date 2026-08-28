@@ -25,10 +25,13 @@ html, body {
     -webkit-overflow-scrolling: touch;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 body { 
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+    font-family: 'Readex Pro', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
     background-color: #0A0D10; 
     color: #F4F1EA; 
     user-select: text;
@@ -39,10 +42,21 @@ body {
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+::selection {
+    background-color: rgba(217, 185, 120, 0.35);
+    color: #F4F1EA;
+}
+
+/* Fast tap response without delay on mobile */
+button, a, input, select, textarea, [role="button"] {
+    touch-action: manipulation;
+}
+
 input, textarea, select {
     font-size: 16px;
     -webkit-appearance: none;
     appearance: none;
+    caret-color: #D9B978;
 }
 
 input:focus, textarea:focus, select:focus {
@@ -50,6 +64,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .font-numeric {
+    font-family: 'Plus Jakarta Sans', 'Readex Pro', -apple-system, sans-serif;
     font-feature-settings: "tnum" 1, "cv01" 1, "cv02" 1;
     font-variant-numeric: tabular-nums;
 }

@@ -108,6 +108,10 @@ export interface Transaction {
   walletCurrency?: string;      // العملة الأساسية للمحفظة المصدر
   convertedAmountInWalletCurrency?: number; // المبلغ المحول والمخصوم فعلياً من المحفظة
   exchangeRateUsed?: number;    // سعر الصرف المعتمد وقت العملية
+  foreignAmount?: number;       // المبلغ بالعملة الأجنبية
+  foreignCurrency?: string;     // رمز العملة الأجنبية (USD, SAR, etc.)
+  exchangeRate?: number;        // سعر الصرف المتفق عليه والمثبت
+  conversionNote?: string;      // نص التوثيق المعتمد لسعر الصرف لمنع النزاع
   categoryId: string;
   type: TransactionType;
   amount: number;
@@ -187,6 +191,10 @@ export interface DebtPayment {
   note?: string;
   receipt?: ReceiptAttachment;
   createdAt: string;
+  foreignAmount?: number;
+  foreignCurrency?: string;
+  exchangeRate?: number;
+  conversionNote?: string;
 }
 
 export type DebtStatus = 'active' | 'partial' | 'settled' | 'overdue';
@@ -208,6 +216,11 @@ export interface Debt {
   currency: string;
   payments?: DebtPayment[]; // سجل الدفعات التفصيلي
   installments?: DebtInstallment[]; // أقساط اختيارية
+  // Agreed Exchange Rate & Currency Lock (توثيق وتثبيت سعر الصرف لمنع الاحتيال والنزاع)
+  foreignAmount?: number; // المبلغ بالعملة الأجنبية مثلاً 104
+  foreignCurrency?: string; // العملة الأجنبية مثلاً USD
+  exchangeRate?: number; // سعر الصرف المعتمد المتفق عليه مثلاً 1600
+  conversionNote?: string; // نص الملاحظة التوثيقية المطبوعة (مثل: تمت العملية: 104 $ بسعر 1,600 = الإجمالي: 166,400 ر.ي)
 }
 
 export interface Budget {

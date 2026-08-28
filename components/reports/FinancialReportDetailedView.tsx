@@ -146,8 +146,17 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                       </td>
 
                       {/* Note / Statement Description */}
-                      <td className="py-2.5 px-3 text-slate-600 text-[11px] max-w-[180px] truncate">
-                        {t.note || <span className="text-slate-400 italic">بدون ملاحظات</span>}
+                      <td className="py-2.5 px-3 text-slate-600 text-[11px] max-w-[220px]">
+                        <div className="truncate">
+                          {t.note || <span className="text-slate-400 italic">بدون ملاحظات</span>}
+                        </div>
+                        {(t.conversionNote || (t.foreignAmount && t.exchangeRate)) && (
+                          <div className="text-[9px] font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300/80 mt-1 inline-flex items-center gap-1 max-w-full truncate" title={t.conversionNote}>
+                            <span className="shrink-0">💱</span>
+                            <span className="truncate">{t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}</span>
+                            <span className="text-[8px] font-black text-amber-900 bg-amber-200/80 px-1 rounded shrink-0">🔒 موثق</span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Currency Badge */}

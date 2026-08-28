@@ -7,12 +7,15 @@ import {
   ChevronLeft, 
   ChevronRight,
   ArrowUp, 
-  ArrowDown
+  ArrowDown,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { Wallet, Transaction, Category, Currency, Debt } from '../types';
 import { convertCurrency } from '../constants';
-import { calculateDateBasedGrowth } from '../services/balanceEngine';
+import { calculateDateBasedGrowth, calculateWalletBalances } from '../services/balanceEngine';
 import { getTranslation } from '../utils/translations';
+import { SwipeableRow } from './SwipeableRow';
 
 interface ElegantDashboardProps {
   userName: string;
@@ -116,48 +119,18 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
     return calculateDateBasedGrowth(transactions, currency.code, exchangeRates);
   }, [transactions, currency.code, exchangeRates]);
 
-  const currencyBalances = useMemo(() => {
-    const map: Record<string, number> = {};
-    wallets.forEach(w => {
-      let balance = 0;
-      transactions.forEach(tx => {
-        if (tx.isDeleted) return;
-        const amt = Number(tx.amount) || 0;
-        const conv = Number(tx.convertedAmountInWalletCurrency) || amt;
+  const calculatedBalances = useMemo(() => {
+    return calculateWalletBalances(wallets, transactions, exchangeRates);
+  }, [wallets, transactions, exchangeRates]);
 
-        if (tx.walletId === w.id) {
-          if (tx.type === 'income') balance += conv;
-          else if (tx.type === 'expense') balance -= conv;
-          else if (tx.type === 'transfer') balance -= amt;
-          else if (tx.type === 'adjustment') balance = amt;
-        } else if (tx.destinationWalletId === w.id && tx.type === 'transfer') {
-          const destAmt = Number(tx.destinationAmount) || amt;
-          balance += destAmt;
-        }
-      });
-      map[w.currencyCode] = (map[w.currencyCode] || 0) + balance;
-    });
-    return map;
-  }, [wallets, transactions]);
+  const currencyBalances = useMemo(() => {
+    return calculatedBalances.currencyBalances || {};
+  }, [calculatedBalances]);
 
   const walletRows = useMemo(() => {
+    const balanceMap = calculatedBalances.walletBalances || {};
     return wallets.map(wallet => {
-      let balance = 0;
-      transactions.forEach(tx => {
-        if (tx.isDeleted) return;
-        const amt = Number(tx.amount) || 0;
-        const conv = Number(tx.convertedAmountInWalletCurrency) || amt;
-
-        if (tx.walletId === wallet.id) {
-          if (tx.type === 'income') balance += conv;
-          else if (tx.type === 'expense') balance -= conv;
-          else if (tx.type === 'transfer') balance -= amt;
-          else if (tx.type === 'adjustment') balance = amt;
-        } else if (tx.destinationWalletId === wallet.id && tx.type === 'transfer') {
-          const destAmt = Number(tx.destinationAmount) || amt;
-          balance += destAmt;
-        }
-      });
+      const balance = balanceMap[wallet.id] ?? (Number(wallet.openingBalance) || 0);
 
       const walletCurr = currencies.find(c => c.code === wallet.currencyCode) || {
         code: wallet.currencyCode,
@@ -174,7 +147,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         currencyObj: walletCurr,
       };
     });
-  }, [wallets, transactions, currencies, currency, exchangeRates]);
+  }, [wallets, calculatedBalances, currencies, currency, exchangeRates]);
 
   const recentTransactions = useMemo(() => {
     return transactions
@@ -459,7 +432,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             </button>
           </div>
         ) : (
-          <div className="divide-y divide-white/[0.04] border-y border-white/[0.05]">
+          <div className="space-y-2">
             {recentTransactions.map(tx => {
               const category = categories.find(c => c.id === tx.categoryId);
               const wallet = wallets.find(w => w.id === tx.walletId);
@@ -468,52 +441,90 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
               const isTransfer = tx.type === 'transfer';
 
               return (
-                <div
+                <SwipeableRow
                   key={tx.id}
+                  id={tx.id}
+                  onEdit={() => onEditTransaction(tx)}
+                  onDelete={() => onDeleteTransaction(tx.id)}
                   onClick={() => onEditTransaction(tx)}
-                  className="flex items-center justify-between py-4 px-3 hover:bg-white/[0.03] transition-all duration-200 active:scale-[0.99] rounded-xl cursor-pointer group min-h-[54px]"
+                  editLabel={isEn ? 'Edit' : 'تعديل'}
+                  deleteLabel={isEn ? 'Delete' : 'حذف'}
+                  className="rounded-2xl"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                      isIncome 
-                        ? 'bg-[#8EB9A7]/15 text-[#8EB9A7]' 
-                        : isExpense 
-                        ? 'bg-[#C98387]/15 text-[#C98387]' 
-                        : 'bg-[#759BC8]/15 text-[#759BC8]'
-                    }`}>
-                      {isIncome && <ArrowUpRight size={16} />}
-                      {isExpense && <ArrowDownLeft size={16} />}
-                      {isTransfer && <ArrowLeftRight size={16} />}
+                  <div
+                    className="flex items-center justify-between py-3.5 px-3.5 bg-[#171D24]/80 hover:bg-[#171D24] border border-white/[0.05] hover:border-[#D9B978]/30 transition-all duration-200 rounded-2xl cursor-pointer group min-h-[56px]"
+                    title="اسحب لليمين/اليسار لتعديل أو حذف المعاملة"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                        isIncome 
+                          ? 'bg-[#8EB9A7]/15 text-[#8EB9A7]' 
+                          : isExpense 
+                          ? 'bg-[#C98387]/15 text-[#C98387]' 
+                          : 'bg-[#759BC8]/15 text-[#759BC8]'
+                      }`}>
+                        {isIncome && <ArrowUpRight size={17} />}
+                        {isExpense && <ArrowDownLeft size={17} />}
+                        {isTransfer && <ArrowLeftRight size={17} />}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-semibold text-[#F4F1EA] group-hover:text-[#D9B978] transition-colors block truncate">
+                          {tx.note || category?.name || (isTransfer ? (isEn ? 'Transfer between wallets' : 'تحويل بين المحافظ') : (isEn ? 'Financial operation' : 'عملية مالية'))}
+                        </span>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <span className="truncate max-w-[100px]">{wallet?.name || t.wallet}</span>
+                          <span>•</span>
+                          <span className="shrink-0">{tx.date}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium text-[#F4F1EA] group-hover:text-[#D9B978] transition-colors block truncate">
-                        {tx.note || category?.name || (isTransfer ? (isEn ? 'Transfer between wallets' : 'تحويل بين المحافظ') : (isEn ? 'Financial operation' : 'عملية مالية'))}
-                      </span>
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <span className="truncate">{wallet?.name || t.wallet}</span>
-                        <span>•</span>
-                        <span className="shrink-0">{tx.date}</span>
+                    <div className="flex items-center gap-2.5 shrink-0 ms-2">
+                      <div className="text-end font-numeric">
+                        <span className={`text-sm sm:text-base font-semibold ${
+                          isIncome 
+                            ? 'text-[#8EB9A7]' 
+                            : isExpense 
+                            ? 'text-[#F4F1EA]' 
+                            : 'text-[#759BC8]'
+                        }`}>
+                          {isIncome ? '+' : isExpense ? '-' : ''}
+                          {formatFinancialNumber(tx.amount)}
+                        </span>
+                        <span className="text-xs text-slate-400 ms-1 font-normal">
+                          {tx.currency || currency.symbol}
+                        </span>
+                      </div>
+
+                      {/* Desktop quick action icons */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditTransaction(tx);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-[#D9B978] transition-colors"
+                          title="تعديل"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteTransaction(tx.id);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-[#C98387] transition-colors"
+                          title="حذف"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  <div className="text-end font-numeric shrink-0 ms-3">
-                    <span className={`text-sm sm:text-base font-semibold ${
-                      isIncome 
-                        ? 'text-[#8EB9A7]' 
-                        : isExpense 
-                        ? 'text-[#F4F1EA]' 
-                        : 'text-[#759BC8]'
-                    }`}>
-                      {isIncome ? '+' : isExpense ? '-' : ''}
-                      {formatFinancialNumber(tx.amount)}
-                    </span>
-                    <span className="text-xs text-slate-400 ms-1 font-normal">
-                      {tx.currency || currency.symbol}
-                    </span>
-                  </div>
-                </div>
+                </SwipeableRow>
               );
             })}
           </div>

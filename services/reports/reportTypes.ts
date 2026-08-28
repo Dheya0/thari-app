@@ -117,6 +117,10 @@ export interface ReportLedgerEntry {
   isCrossCurrencyWithWallet?: boolean;
   exchangeRateToWallet?: number;
   note: string;
+  foreignAmount?: number;
+  foreignCurrency?: string;
+  exchangeRate?: number;
+  conversionNote?: string;
   originalAmount: number;
   currencyCode: string;
   currencySymbol: string;

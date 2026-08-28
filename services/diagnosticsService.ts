@@ -5,7 +5,7 @@
  */
 
 import { AppState, Transaction, Wallet, Category, RecurringRule } from '../types';
-import { calculateWalletBalances, runBalanceEngineAudit } from './balanceEngine';
+import { calculateWalletBalances, runBalanceEngineAudit, diagnoseWalletBalanceDiscrepancies, BalanceReconciliationDiagnosticResult } from './balanceEngine';
 
 export interface IntegrityIssue {
   id: string;
@@ -41,6 +41,7 @@ export interface DiagnosticsReport {
   recurringRulesCount: number;
   engineAuditPassed: boolean;
   engineAuditResults: any[];
+  balanceReconciliation?: BalanceReconciliationDiagnosticResult;
   issues: IntegrityIssue[];
   auditLogs?: RepairAuditLogEntry[];
 }
@@ -185,7 +186,33 @@ export function runFullSystemDiagnostics(state: AppState): DiagnosticsReport {
     });
   }
 
-  // 7. Balance Engine Invariant Verification (Synthetic Mathematical Simulation)
+  // 7. Wallet Balance vs Transaction History Discrepancy & Currency Drift Check
+  const balanceReconciliation = diagnoseWalletBalanceDiscrepancies(wallets, transactions, exchangeRates, 0.005);
+  if (!balanceReconciliation.isConsistent) {
+    const discrepantWallets = balanceReconciliation.walletReports.filter(r => !r.isConsistent);
+    issues.push({
+      id: 'balance-history-discrepancy',
+      type: 'error',
+      category: 'wallet',
+      title: 'تباين بين الرصيد المحسوب وسجل العمليات الفعلي',
+      description: `تم رصد تباين في ${discrepantWallets.length} محفظة بإجمالي فروقات تقدر بـ ${balanceReconciliation.totalDiscrepancyBase} ر.س. تم تسجيل تفاصيل التدقيق في AuditLogs.`,
+      affectedIds: discrepantWallets.map(w => w.walletId),
+      canAutoFix: true,
+    });
+  } else if (balanceReconciliation.hasConversionDrifts) {
+    const driftWallets = balanceReconciliation.walletReports.filter(r => r.hasCurrencyConversionDrift);
+    issues.push({
+      id: 'currency-conversion-drift',
+      type: 'warning',
+      category: 'currency',
+      title: 'فروقات طفيفة ناتجة عن تحويل العملات',
+      description: `يوجد فروقات كسور طفيفة ناتجة عن تقلب أسعار الصرف في ${driftWallets.length} محفظة. تم توثيقها في AuditLogs.`,
+      affectedIds: driftWallets.map(w => w.walletId),
+      canAutoFix: true,
+    });
+  }
+
+  // 8. Balance Engine Invariant Verification (Synthetic Mathematical Simulation)
   const engineAudit = runBalanceEngineAudit();
 
   let status: 'HEALTHY' | 'WARNINGS' | 'CRITICAL' = 'HEALTHY';
@@ -206,6 +233,7 @@ export function runFullSystemDiagnostics(state: AppState): DiagnosticsReport {
     recurringRulesCount: recurringRules.length,
     engineAuditPassed: engineAudit.allPassed,
     engineAuditResults: engineAudit.testResults,
+    balanceReconciliation,
     issues,
   };
 }

@@ -3,6 +3,7 @@ import { Download, Printer, FileText, TrendingUp, TrendingDown, Minus, Filter, S
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { convertCurrency, DEFAULT_CURRENCIES } from '../constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
 interface AnalyticsProps {
   transactions: Transaction[];
@@ -58,30 +59,40 @@ const Analytics: React.FC<AnalyticsProps> = ({
     return Array.from(set);
   }, [transactions]);
 
-  // Active transactions for Analytics view
+  // Active transactions for Analytics view (filtered from deleted & financing)
   const activeAnalyticsTxs = useMemo(() => {
+    const validTxs = (transactions || []).filter(t => !t.isDeleted && !t.isFinancing);
     if (reportMode === 'by-wallet' && selectedReportWallet) {
-      return transactions.filter(t => t.walletId === selectedReportWallet);
+      return validTxs.filter(t => t.walletId === selectedReportWallet);
     }
     if (reportMode === 'by-currency' && selectedReportCurrency) {
-      return transactions.filter(t => t.currency === selectedReportCurrency);
+      return validTxs.filter(t => t.currency === selectedReportCurrency);
     }
-    return transactions;
+    return validTxs;
   }, [transactions, reportMode, selectedReportWallet, selectedReportCurrency]);
 
   const stats = useMemo(() => {
-    const totalIncome = activeAnalyticsTxs
-      .filter(t => t.type === 'income')
-      .reduce((s, t) => s + convertCurrency(t.amount, t.currency, currentCurrencyCode, exchangeRates), 0);
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    activeAnalyticsTxs.forEach(t => {
+      const converted = convertCurrency(Number(t.amount) || 0, t.currency || currentCurrencyCode, currentCurrencyCode, exchangeRates);
+      if (t.type === 'income') {
+        totalIncome = safeAdd(totalIncome, converted);
+      } else if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+        totalExpense = safeAdd(totalExpense, converted);
+      }
+    });
     
-    const totalExpense = activeAnalyticsTxs
-      .filter(t => t.type === 'expense')
-      .reduce((s, t) => s + convertCurrency(t.amount, t.currency, currentCurrencyCode, exchangeRates), 0);
-    
-    const netSavings = totalIncome - totalExpense;
-    const savingsRatio = totalIncome > 0 ? Math.max(0, Math.round((netSavings / totalIncome) * 100)) : 0;
+    const netSavings = safeSub(totalIncome, totalExpense);
+    const savingsRatio = totalIncome > 0 ? Math.max(0, Math.round(safeMul(safeDiv(netSavings, totalIncome), 100))) : 0;
         
-    return { totalIncome, totalExpense, netSavings, savingsRatio };
+    return { 
+      totalIncome: roundToCurrency(totalIncome), 
+      totalExpense: roundToCurrency(totalExpense), 
+      netSavings: roundToCurrency(netSavings), 
+      savingsRatio 
+    };
   }, [activeAnalyticsTxs, currentCurrencyCode, exchangeRates]);
 
   const momStats = useMemo(() => {
@@ -92,10 +103,16 @@ const Analytics: React.FC<AnalyticsProps> = ({
     const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
     const getMonthlyTotal = (month: number, year: number, type: 'income' | 'expense') => {
-      return activeAnalyticsTxs.filter(t => {
+      let sum = 0;
+      activeAnalyticsTxs.forEach(t => {
         const d = new Date(t.date);
-        return d.getMonth() === month && d.getFullYear() === year && t.type === type;
-      }).reduce((s, t) => s + convertCurrency(t.amount, t.currency, currentCurrencyCode, exchangeRates), 0);
+        const matchType = type === 'expense' ? (t.type === 'expense' || t.type === 'transfer_to_goal') : t.type === 'income';
+        if (d.getMonth() === month && d.getFullYear() === year && matchType) {
+          const converted = convertCurrency(Number(t.amount) || 0, t.currency || currentCurrencyCode, currentCurrencyCode, exchangeRates);
+          sum = safeAdd(sum, converted);
+        }
+      });
+      return sum;
     };
 
     const curInc = getMonthlyTotal(currentMonth, currentYear, 'income');
@@ -103,32 +120,35 @@ const Analytics: React.FC<AnalyticsProps> = ({
     const prevInc = getMonthlyTotal(prevMonth, prevYear, 'income');
     const prevExp = getMonthlyTotal(prevMonth, prevYear, 'expense');
 
-    const calcChange = (cur: number, prev: number) => prev === 0 ? 0 : ((cur - prev) / prev) * 100;
+    const calcChange = (cur: number, prev: number) => {
+      if (prev === 0) return cur > 0 ? 100 : 0;
+      return safeMul(safeDiv(safeSub(cur, prev), prev), 100);
+    };
 
     return {
       incomeChange: calcChange(curInc, prevInc),
       expenseChange: calcChange(curExp, prevExp),
-      curInc, 
-      curExp,
-      prevInc,
-      prevExp
+      curInc: roundToCurrency(curInc), 
+      curExp: roundToCurrency(curExp),
+      prevInc: roundToCurrency(prevInc),
+      prevExp: roundToCurrency(prevExp)
     };
   }, [activeAnalyticsTxs, currentCurrencyCode, exchangeRates]);
 
   const expenseData = useMemo(() => {
-    const expenses = activeAnalyticsTxs.filter(t => t.type === 'expense');
+    const expenses = activeAnalyticsTxs.filter(t => t.type === 'expense' || t.type === 'transfer_to_goal');
     const categoryTotals: Record<string, number> = {};
     
     expenses.forEach(t => { 
-      const convertedAmount = convertCurrency(t.amount, t.currency, currentCurrencyCode, exchangeRates);
-      categoryTotals[t.categoryId] = (categoryTotals[t.categoryId] || 0) + convertedAmount; 
+      const convertedAmount = convertCurrency(Number(t.amount) || 0, t.currency || currentCurrencyCode, currentCurrencyCode, exchangeRates);
+      categoryTotals[t.categoryId] = safeAdd(categoryTotals[t.categoryId] || 0, convertedAmount); 
     });
 
     return Object.keys(categoryTotals).map(catId => {
       const cat = categories.find(c => c.id === catId);
       return { 
         name: cat?.name || 'أخرى', 
-        value: Math.round(categoryTotals[catId]), 
+        value: roundToCurrency(categoryTotals[catId]), 
         color: cat?.color || '#f59e0b' 
       };
     }).sort((a, b) => b.value - a.value);

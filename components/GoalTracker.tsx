@@ -4,6 +4,7 @@ import { Goal, Wallet, Transaction } from '../types';
 import { getGoalAdvice } from '../services/geminiService';
 import { parseArabicNumber } from '../utils/formatters';
 import { getTranslation, LanguageKey } from '../utils/translations';
+import { safeDiv, safeMul, roundToCurrency } from '../utils/mathPrecision';
 
 interface GoalTrackerProps {
   goals: Goal[];
@@ -62,7 +63,9 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
         )}
 
         {goals.map((goal) => {
-          const progress = Math.min(100, (goal.currentAmount / goal.targetAmount) * 100);
+          const currentAmt = Number(goal.currentAmount) || 0;
+          const targetAmt = Number(goal.targetAmount) || 0;
+          const progress = targetAmt > 0 ? Math.min(100, Math.max(0, safeMul(safeDiv(currentAmt, targetAmt), 100))) : 0;
           const isCompleted = progress >= 100;
           const linkedWallet = wallets.find(w => w.id === goal.walletId);
           const advice = goalAdvices[goal.id];

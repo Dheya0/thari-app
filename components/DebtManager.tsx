@@ -31,7 +31,16 @@ import {
   History,
   Phone,
   Tag,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Bell,
+  Send,
+  Share2,
+  Copy,
+  ExternalLink,
+  CalendarPlus,
+  MessageSquare,
+  AlertTriangle,
+  Sparkles
 } from 'lucide-react';
 import { Debt, Wallet, DebtInstallment, DebtPayment } from '../types';
 import { 
@@ -43,6 +52,8 @@ import {
   DebtCalculation 
 } from '../utils/debtModel';
 import { getTranslation, getLocalizedCurrency, LanguageKey } from '../utils/translations';
+import { parseArabicNumber } from '../utils/formatters';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
 interface DebtManagerProps {
   debts: Debt[];
@@ -103,6 +114,26 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   const [expandedPersonName, setExpandedPersonName] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // Reminder Modal State
+  const [reminderModalData, setReminderModalData] = useState<{
+    personName: string;
+    personPhone?: string;
+    amount: number;
+    currency: string;
+    dueDate?: string;
+    type: 'to_me' | 'on_me';
+    debtId?: string;
+    conversionNote?: string;
+    isPersonStatement?: boolean;
+    totalOwedToMe?: number;
+    totalIOwe?: number;
+    netBalance?: number;
+  } | null>(null);
+  const [reminderTemplateType, setReminderTemplateType] = useState<'friendly' | 'formal' | 'urgent' | 'statement'>('friendly');
+  const [customReminderText, setCustomReminderText] = useState('');
+  const [reminderRecipientPhone, setReminderRecipientPhone] = useState('');
+  const [copiedSuccess, setCopiedSuccess] = useState(false);
+
   // Form State (New / Edit Debt)
   const [personName, setPersonName] = useState('');
   const [personPhone, setPersonPhone] = useState('');
@@ -116,6 +147,13 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   // Installments in Form
   const [enableInstallments, setEnableInstallments] = useState(false);
   const [installmentCount, setInstallmentCount] = useState<number>(3);
+
+  // Agreed Exchange Rate & Currency Lock State (تثبيت سعر الصرف وتوثيق العملة الأجنبية لمنع النزاع)
+  const [hasAgreedRate, setHasAgreedRate] = useState(false);
+  const [foreignAmountInput, setForeignAmountInput] = useState('');
+  const [foreignCurrencyInput, setForeignCurrencyInput] = useState('USD');
+  const [agreedRateInput, setAgreedRateInput] = useState('');
+  const [customConversionNote, setCustomConversionNote] = useState('');
   
   // Wallet Transaction Link in Form
   const [includeWalletTransaction, setIncludeWalletTransaction] = useState(true);
@@ -127,10 +165,195 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   const [payDateInput, setPayDateInput] = useState(new Date().toISOString().split('T')[0]);
   const [payNoteInput, setPayNoteInput] = useState('');
   const [payExternalOnly, setPayExternalOnly] = useState(false);
+  const [payHasAgreedRate, setPayHasAgreedRate] = useState(false);
+  const [payForeignAmountInput, setPayForeignAmountInput] = useState('');
+  const [payForeignCurrencyInput, setPayForeignCurrencyInput] = useState('USD');
+  const [payAgreedRateInput, setPayAgreedRateInput] = useState('');
 
   // Global calculations
   const stats = useMemo(() => getOverallDebtStats(debts), [debts]);
   const personSummaries = useMemo(() => groupDebtsByPerson(debts), [debts]);
+
+  // Urgent & Upcoming Dues Calculation
+  const upcomingAndOverdueDebts = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return debts
+      .filter(d => !d.isPaid && d.dueDate)
+      .map(d => {
+        const due = new Date(d.dueDate!);
+        due.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const calc = getDebtCalculations(d);
+        return {
+          debt: d,
+          calc,
+          diffDays,
+          isOverdue: diffDays < 0,
+          isDueToday: diffDays === 0,
+          isDueSoon: diffDays > 0 && diffDays <= 7
+        };
+      })
+      .filter(item => item.isOverdue || item.isDueToday || item.isDueSoon)
+      .sort((a, b) => a.diffDays - b.diffDays);
+  }, [debts]);
+
+  // Helper to generate formatted reminder text
+  const generateReminderMessage = (
+    data: {
+      personName: string;
+      amount: number;
+      currency: string;
+      dueDate?: string;
+      type: 'to_me' | 'on_me';
+      conversionNote?: string;
+      isPersonStatement?: boolean;
+      totalOwedToMe?: number;
+      totalIOwe?: number;
+      netBalance?: number;
+    },
+    template: 'friendly' | 'formal' | 'urgent' | 'statement'
+  ): string => {
+    const formattedAmount = data.amount.toLocaleString();
+    const currSym = getDebtCurrencySymbol(data.currency);
+    const dateStr = data.dueDate || (isRtl ? 'غير محدد' : 'N/A');
+    const docNoteStr = data.conversionNote 
+      ? (isRtl ? `\n📌 ملاحظة التوثيق وسعر الصرف المتفق عليه:\n(${data.conversionNote})\n` : `\n📌 Agreed Exchange Rate & Documentation:\n(${data.conversionNote})\n`)
+      : '';
+
+    if (data.isPersonStatement) {
+      const net = data.netBalance || 0;
+      const isPos = net > 0;
+      return isRtl
+        ? `السلام عليكم ورحمة الله،\nكشف حساب مالي للأخ/الأخت: ${data.personName}\n\n• إجمالي المستحق لك: ${(data.totalIOwe || 0).toLocaleString()} ${currSym}\n• إجمالي المستحق عليك: ${(data.totalOwedToMe || 0).toLocaleString()} ${currSym}\n• صافي الرصيد الحالي: ${Math.abs(net).toLocaleString()} ${currSym} (${isPos ? 'مستحق لك' : 'مستحق عليك'})\n\nشاكرين ومقدرين حسن تعاونكم الدائم.`
+        : `Financial Statement Summary\nContact: ${data.personName}\n\n• Owed To You: ${(data.totalIOwe || 0).toLocaleString()} ${currSym}\n• Owed By You: ${(data.totalOwedToMe || 0).toLocaleString()} ${currSym}\n• Net Position: ${Math.abs(net).toLocaleString()} ${currSym} (${isPos ? 'Receivable' : 'Payable'})\n\nThank you for your cooperation.`;
+    }
+
+    if (data.type === 'to_me') {
+      switch (template) {
+        case 'formal':
+          return isRtl
+            ? `إشعار مالي / تذكير استحقاق:\nإلى الأخ/الأخت: ${data.personName}\nالمبلغ المتبقي: ${formattedAmount} ${currSym}\nتاريخ الاستحقاق: ${dateStr}${docNoteStr}\nنرجو التكرم بالاطلاع والتنسيق للسداد عند الإمكان، شاكرين لكم طيب تعاونكم.`
+            : `Payment Reminder Notice:\nTo: ${data.personName}\nOutstanding Amount: ${formattedAmount} ${currSym}\nDue Date: ${dateStr}${docNoteStr}\nPlease arrange for payment at your convenience. Thank you.`;
+        case 'urgent':
+          return isRtl
+            ? `تذكير هام وعاجل:\nالأخ/الأخت ${data.personName}، نود لفت عنايتكم الكريمة بحلول موعد سداد الدين المستحق بتاريخ ${dateStr} بمبلغ ${formattedAmount} ${currSym}.${docNoteStr}\nنرجو المبادرة بالسداد في أقرب فرصة ممكنة، جزاكم الله خيراً.`
+            : `Urgent Payment Reminder:\nDear ${data.personName}, this is an urgent reminder that payment of ${formattedAmount} ${currSym} was due on ${dateStr}.${docNoteStr}\nPlease initiate payment as soon as possible.`;
+        case 'friendly':
+        default:
+          return isRtl
+            ? `السلام عليكم ورحمة الله أخي الكريم ${data.personName}،\nأتمنى أن تكون بأتم الصحة والعافية.\nأود تذكيرك بلطف بمبلغ ${formattedAmount} ${currSym} المستحق بتاريخ ${dateStr}.${docNoteStr}\nجزاك الله خيراً وبارك فيك.`
+            : `Hello ${data.personName},\nHope you're doing well! Just a friendly reminder regarding the remaining balance of ${formattedAmount} ${currSym} due on ${dateStr}.${docNoteStr}\nThank you so much!`;
+      }
+    } else {
+      // on_me (I owe them)
+      switch (template) {
+        case 'formal':
+          return isRtl
+            ? `إشعار تأكيد سداد والتزام مالي:\nإلى: ${data.personName}\nأؤكد لكم التزامي بسداد المبلغ المستحق لكم وقدره ${formattedAmount} ${currSym}، والمحدد بتاريخ ${dateStr}.${docNoteStr}\nسأقوم بالتحويل وفق الموعد بإذن الله.`
+            : `Payment Confirmation Notice:\nTo: ${data.personName}\nConfirming my commitment to settle the balance of ${formattedAmount} ${currSym} on or before ${dateStr}.${docNoteStr}\nThank you for your patience.`;
+        case 'friendly':
+        default:
+          return isRtl
+            ? `السلام عليكم أخي ${data.personName}،\nأحببت طمأنتك وتذكيرك بأنني أرتب لسداد المبلغ المستحق لكم وقدره ${formattedAmount} ${currSym} في موعده بإذن الله (${dateStr}).${docNoteStr}\nشاكراً لك سعة صدرك.`
+            : `Hello ${data.personName},\nJust reassuring you that I am arranging to settle the payment of ${formattedAmount} ${currSym} on schedule (${dateStr}).${docNoteStr}\nThanks for your patience!`;
+      }
+    }
+  };
+
+  const openDebtReminderModal = (debt: Debt) => {
+    const calc = getDebtCalculations(debt);
+    const resolvedDocNote = debt.conversionNote || (debt.foreignAmount && debt.exchangeRate ? (
+      isRtl 
+        ? `تمت العملية: ${debt.foreignAmount} ${getDebtCurrencySymbol(debt.foreignCurrency)} بسعر صرف ${debt.exchangeRate.toLocaleString()} • الإجمالي: ${debt.amount.toLocaleString()} ${getDebtCurrencySymbol(debt.currency)}`
+        : `Recorded: ${debt.foreignAmount} ${debt.foreignCurrency} @ ${debt.exchangeRate.toLocaleString()} • Total: ${debt.amount.toLocaleString()} ${debt.currency}`
+    ) : undefined);
+
+    const data = {
+      personName: debt.personName,
+      personPhone: debt.personPhone || '',
+      amount: calc.remainingAmount,
+      currency: debt.currency || currencyCode,
+      dueDate: debt.dueDate,
+      type: debt.type,
+      debtId: debt.id,
+      conversionNote: resolvedDocNote,
+      isPersonStatement: false
+    };
+    setReminderModalData(data);
+    setReminderRecipientPhone(debt.personPhone || '');
+    const initialTemplate = calc.isOverdue ? 'urgent' : 'friendly';
+    setReminderTemplateType(initialTemplate);
+    setCustomReminderText(generateReminderMessage(data, initialTemplate));
+    setCopiedSuccess(false);
+  };
+
+  const openPersonStatementReminderModal = (person: PersonDebtSummary) => {
+    const primaryDebt = person.debts[0];
+    const data = {
+      personName: person.personName,
+      personPhone: person.personPhone || primaryDebt?.personPhone || '',
+      amount: Math.abs(person.netBalance),
+      currency: primaryDebt?.currency || currencyCode,
+      type: (person.netBalance >= 0 ? 'to_me' : 'on_me') as 'to_me' | 'on_me',
+      isPersonStatement: true,
+      totalOwedToMe: person.totalOwedToMeRemaining,
+      totalIOwe: person.totalIOweRemaining,
+      netBalance: person.netBalance
+    };
+    setReminderModalData(data);
+    setReminderRecipientPhone(data.personPhone);
+    setReminderTemplateType('statement');
+    setCustomReminderText(generateReminderMessage(data, 'statement'));
+    setCopiedSuccess(false);
+  };
+
+  const handleTemplateChange = (tmpl: 'friendly' | 'formal' | 'urgent' | 'statement') => {
+    setReminderTemplateType(tmpl);
+    if (reminderModalData) {
+      setCustomReminderText(generateReminderMessage(reminderModalData, tmpl));
+    }
+  };
+
+  const handleCopyReminder = async () => {
+    try {
+      await navigator.clipboard.writeText(customReminderText);
+      setCopiedSuccess(true);
+      setTimeout(() => setCopiedSuccess(false), 2500);
+    } catch (e) {
+      console.error('Failed to copy', e);
+    }
+  };
+
+  const handleSendWhatsApp = () => {
+    const clean = (reminderRecipientPhone || '').replace(/[^0-9]/g, '');
+    const encoded = encodeURIComponent(customReminderText);
+    const url = clean ? `https://wa.me/${clean}?text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.open(url, '_blank');
+  };
+
+  const handleSendSMS = () => {
+    const clean = (reminderRecipientPhone || '').replace(/[^0-9+]/g, '');
+    const encoded = encodeURIComponent(customReminderText);
+    const url = clean ? `sms:${clean}?body=${encoded}` : `sms:?body=${encoded}`;
+    window.open(url, '_blank');
+  };
+
+  const handleAddToCalendar = () => {
+    if (!reminderModalData || !reminderModalData.dueDate) return;
+    const dateFormatted = reminderModalData.dueDate.replace(/-/g, '');
+    const title = encodeURIComponent(
+      reminderModalData.type === 'to_me'
+        ? `تحصيل دين: ${reminderModalData.personName}`
+        : `سداد دين: ${reminderModalData.personName}`
+    );
+    const details = encodeURIComponent(
+      `المبلغ: ${reminderModalData.amount.toLocaleString()} ${getDebtCurrencySymbol(reminderModalData.currency)}\n${customReminderText}`
+    );
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateFormatted}/${dateFormatted}&details=${details}`;
+    window.open(url, '_blank');
+  };
 
   // Unique contact names for quick suggestion chips
   const existingContactNames = useMemo(() => {
@@ -190,6 +413,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setIncludeWalletTransaction(true);
     setEnableInstallments(false);
     setInstallmentCount(3);
+    setHasAgreedRate(false);
+    setForeignAmountInput('');
+    setForeignCurrencyInput('USD');
+    setAgreedRateInput('');
+    setCustomConversionNote('');
     setShowAddForm(true);
   };
 
@@ -205,6 +433,21 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setDueDate(d.dueDate || '');
     setEnableInstallments(!!d.installments && d.installments.length > 0);
     setInstallmentCount(d.installments?.length || 3);
+    
+    // Agreed Currency Lock & Foreign Amount prefill
+    if (d.foreignAmount || d.exchangeRate || d.conversionNote) {
+      setHasAgreedRate(true);
+      setForeignAmountInput(d.foreignAmount ? d.foreignAmount.toString() : '');
+      setForeignCurrencyInput(d.foreignCurrency || 'USD');
+      setAgreedRateInput(d.exchangeRate ? d.exchangeRate.toString() : '');
+      setCustomConversionNote(d.conversionNote || '');
+    } else {
+      setHasAgreedRate(false);
+      setForeignAmountInput('');
+      setForeignCurrencyInput('USD');
+      setAgreedRateInput('');
+      setCustomConversionNote('');
+    }
     setShowAddForm(true);
   };
 
@@ -217,19 +460,38 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setPayNoteInput(installmentId ? (isRtl ? 'سداد قسط محدد' : 'Specific installment payment') : (amountToPay >= remaining ? (isRtl ? 'سداد كامل المبلغ المتبقي' : 'Full remaining payment') : (isRtl ? 'دفعة سداد جزئية' : 'Partial payment')));
     setPayExternalOnly(false);
     setPayWalletId(wallets[0]?.id || '');
+
+    if (debt.exchangeRate || debt.foreignAmount) {
+      setPayHasAgreedRate(true);
+      setPayForeignCurrencyInput(debt.foreignCurrency || 'USD');
+      setPayAgreedRateInput(debt.exchangeRate ? debt.exchangeRate.toString() : '');
+      if (debt.exchangeRate && debt.exchangeRate > 0) {
+        setPayForeignAmountInput(roundToCurrency(safeDiv(amountToPay, debt.exchangeRate)).toString());
+      } else {
+        setPayForeignAmountInput('');
+      }
+    } else {
+      setPayHasAgreedRate(false);
+      setPayForeignAmountInput('');
+      setPayForeignCurrencyInput('USD');
+      setPayAgreedRateInput('');
+    }
   };
 
   const generateInstallments = (total: number, count: number, start: string): DebtInstallment[] => {
     const installments: DebtInstallment[] = [];
-    const perInstallment = parseFloat((total / count).toFixed(2));
+    const totalCents = Math.round(total * 100);
+    const baseCents = Math.floor(totalCents / count);
+    const remainderCents = totalCents - (baseCents * count);
     const startDate = new Date(start);
     
     for (let i = 0; i < count; i++) {
         const date = new Date(startDate);
         date.setMonth(date.getMonth() + i + 1);
+        const cents = i === count - 1 ? baseCents + remainderCents : baseCents;
         installments.push({
             id: `inst-${Date.now()}-${i}`,
-            amount: perInstallment,
+            amount: roundToCurrency(cents / 100),
             dueDate: date.toISOString().split('T')[0],
             isPaid: false
         });
@@ -241,7 +503,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     e.preventDefault();
     if (!personName.trim() || !amount) return;
 
-    const totalAmount = parseFloat(amount);
+    const totalAmount = parseArabicNumber(amount);
     if (isNaN(totalAmount) || totalAmount <= 0) return;
     
     let installmentsData = editingDebt?.installments;
@@ -249,12 +511,25 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
        installmentsData = generateInstallments(totalAmount, installmentCount, createdAt);
     }
 
+    const fAmt = hasAgreedRate && foreignAmountInput ? parseArabicNumber(foreignAmountInput) : undefined;
+    const fCurr = hasAgreedRate && foreignAmountInput ? foreignCurrencyInput : undefined;
+    const exRate = hasAgreedRate && agreedRateInput ? parseArabicNumber(agreedRateInput) : undefined;
+
+    let finalConversionNote: string | undefined = undefined;
+    if (hasAgreedRate && fAmt && exRate) {
+      finalConversionNote = customConversionNote.trim() || (isRtl
+        ? `تمت عملية ${fAmt} ${getDebtCurrencySymbol(fCurr)} بسعر صرف ${exRate.toLocaleString()} • الإجمالي: ${roundToCurrency(totalAmount).toLocaleString()} ${resolvedSymbol}`
+        : `Transaction: ${fAmt} ${fCurr} @ ${exRate.toLocaleString()} • Total: ${roundToCurrency(totalAmount).toLocaleString()} ${resolvedSymbol}`);
+    } else if (hasAgreedRate && customConversionNote.trim()) {
+      finalConversionNote = customConversionNote.trim();
+    }
+
     const data: any = {
       personName: personName.trim(),
       personPhone: personPhone.trim() || undefined,
       personTag: personTag || 'individual',
-      amount: totalAmount,
-      originalAmount: totalAmount,
+      amount: roundToCurrency(totalAmount),
+      originalAmount: roundToCurrency(totalAmount),
       type,
       isPaid: editingDebt ? editingDebt.isPaid : false,
       paidAmount: editingDebt ? (editingDebt.paidAmount || 0) : 0,
@@ -263,7 +538,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       dueDate: dueDate || undefined,
       currency: currencyCode,
       installments: installmentsData,
-      payments: editingDebt?.payments || []
+      payments: editingDebt?.payments || [],
+      foreignAmount: fAmt,
+      foreignCurrency: fCurr,
+      exchangeRate: exRate,
+      conversionNote: finalConversionNote
     };
 
     if (editingDebt) {
@@ -279,7 +558,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     e.preventDefault();
     if (!paymentModalData) return;
 
-    const payVal = parseFloat(payAmountInput);
+    const payVal = parseArabicNumber(payAmountInput);
     if (isNaN(payVal) || payVal <= 0) return;
 
     const { debt, installmentId } = paymentModalData;
@@ -292,12 +571,22 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       );
     }
 
+    let paymentNoteText = payNoteInput.trim();
+    if (payHasAgreedRate && payForeignAmountInput && payAgreedRateInput) {
+      const pFAmt = parseArabicNumber(payForeignAmountInput);
+      const pRate = parseArabicNumber(payAgreedRateInput);
+      const payConversionStr = isRtl 
+        ? `[سداد: ${pFAmt} ${getDebtCurrencySymbol(payForeignCurrencyInput)} بسعر ${pRate.toLocaleString()}]`
+        : `[Paid: ${pFAmt} ${payForeignCurrencyInput} @ ${pRate.toLocaleString()}]`;
+      paymentNoteText = paymentNoteText ? `${paymentNoteText} ${payConversionStr}` : payConversionStr;
+    }
+
     if (onPayDebt) {
       onPayDebt(
         debt.id, 
-        payVal, 
+        roundToCurrency(payVal), 
         chosenWalletId, 
-        payNoteInput.trim() || undefined, 
+        paymentNoteText || undefined, 
         updatedInstallments ? { installments: updatedInstallments } : undefined,
         payDateInput
       );
@@ -379,6 +668,113 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
           })()}
         </div>
       </div>
+
+      {/* 1.5. Debt Reminders & Due Dates Hub (مركز تذكيرات الاستحقاق والديون العاجلة) */}
+      {upcomingAndOverdueDebts.length > 0 && (
+        <div className="bg-gradient-to-r from-[#11161C] via-[#151c24] to-[#11161C] border border-[#D9B978]/30 p-4 sm:p-5 rounded-3xl shadow-xl relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] shrink-0 animate-pulse">
+                <Bell size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-white text-sm sm:text-base">
+                    {isRtl ? 'تنبيهات وتذكيرات استحقاق الديون' : 'Debt Dues & Reminders Hub'}
+                  </h3>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#D9B978]/20 text-[#D9B978]">
+                    {upcomingAndOverdueDebts.length} {isRtl ? 'تنبيهات عاجلة' : 'Alerts'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-bold mt-0.5">
+                  {isRtl 
+                    ? 'ديون حان موعد استحقاقها أو اقترب موعد سدادها — يمكنك إرسال تذكير مباشر للطرف الآخر أو السداد فوراً'
+                    : 'Upcoming and overdue debt dues — send instant reminders or settle on schedule'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                onClick={() => setStatusFilter('overdue')}
+                className="px-3 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/25 rounded-xl text-[11px] font-black transition-all flex items-center gap-1"
+              >
+                <AlertTriangle size={13} />
+                <span>{isRtl ? 'عرض المتأخرة فقط' : 'Overdue Only'} ({upcomingAndOverdueDebts.filter(d => d.isOverdue).length})</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-3">
+            {upcomingAndOverdueDebts.slice(0, 4).map(({ debt, calc, diffDays, isOverdue, isDueToday }) => (
+              <div
+                key={debt.id}
+                className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 backdrop-blur-md transition-all ${
+                  isOverdue
+                    ? 'bg-rose-950/20 border-rose-500/30 hover:border-rose-500/50'
+                    : isDueToday
+                    ? 'bg-amber-950/20 border-amber-500/30 hover:border-amber-500/50'
+                    : 'bg-[#0A0D10]/60 border-white/10 hover:border-[#D9B978]/30'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-xs font-black ${
+                    debt.type === 'to_me' 
+                      ? 'bg-emerald-500/20 text-emerald-400' 
+                      : 'bg-rose-500/20 text-rose-400'
+                  }`}>
+                    {debt.type === 'to_me' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-black text-white text-xs truncate max-w-[120px] sm:max-w-[150px]">
+                        {debt.personName}
+                      </span>
+                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                        isOverdue 
+                          ? 'bg-rose-500/20 text-rose-300 animate-pulse' 
+                          : isDueToday 
+                          ? 'bg-amber-500/20 text-amber-300' 
+                          : 'bg-blue-500/20 text-blue-300'
+                      }`}>
+                        {isOverdue 
+                          ? (isRtl ? `متأخر ${Math.abs(diffDays)} يوم` : `${Math.abs(diffDays)}d overdue`)
+                          : isDueToday 
+                          ? (isRtl ? 'يستحق اليوم!' : 'Due Today!') 
+                          : (isRtl ? `متبقي ${diffDays} أيام` : `In ${diffDays}d`)}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-black text-[#D9B978] mt-0.5">
+                      {calc.remainingAmount.toLocaleString()} <span className="text-[9px] opacity-80">{getDebtCurrencySymbol(debt.currency)}</span>
+                      <span className="text-[10px] text-slate-500 font-bold ms-1.5">
+                        ({debt.type === 'to_me' ? (isRtl ? 'مستحق لك' : 'Receivable') : (isRtl ? 'التزام عليك' : 'Payable')})
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => openDebtReminderModal(debt)}
+                    className="px-2.5 py-1.5 bg-[#D9B978] hover:bg-[#E5C17B] text-slate-950 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 active:scale-95 shadow"
+                    title={isRtl ? 'إرسال تذكير فوري' : 'Send Reminder'}
+                  >
+                    <Send size={12} />
+                    <span className="hidden sm:inline">{isRtl ? 'تذكير' : 'Remind'}</span>
+                  </button>
+                  <button
+                    onClick={() => openPaymentModal(debt, calc.remainingAmount)}
+                    className="p-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/25 rounded-xl text-[10px] font-bold active:scale-95 transition-all"
+                    title={isRtl ? 'تسجيل سداد' : 'Pay'}
+                  >
+                    <CreditCard size={13} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. Top Action Bar: Add Debt + View Switcher */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -648,6 +1044,23 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     </div>
                   )}
 
+                  {/* 💱 Agreed Exchange Rate & Foreign Currency Lock Note (توثيق سعر الصرف المتفق عليه لمنع النزاع) */}
+                  {(debt.conversionNote || (debt.foreignAmount && debt.exchangeRate)) && (
+                    <div className="mt-2.5 p-2.5 bg-[#0A0D10] rounded-xl border border-[#D9B978]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-start">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[#D9B978] font-black text-sm shrink-0">💱</span>
+                        <p className="text-[11px] font-bold text-[#D9B978] leading-tight break-words">
+                          {debt.conversionNote || (isRtl 
+                            ? `تمت العملية: ${debt.foreignAmount} ${getDebtCurrencySymbol(debt.foreignCurrency)} بسعر صرف ${debt.exchangeRate?.toLocaleString()} • الإجمالي: ${calc.originalAmount.toLocaleString()} ${getDebtCurrencySymbol(debt.currency)}`
+                            : `Recorded: ${debt.foreignAmount} ${debt.foreignCurrency} @ ${debt.exchangeRate?.toLocaleString()} • Total: ${calc.originalAmount.toLocaleString()} ${getDebtCurrencySymbol(debt.currency)}`)}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-black text-slate-300 bg-white/5 px-2 py-0.5 rounded-md border border-white/10 self-start sm:self-auto shrink-0">
+                        {isRtl ? '🔒 مثبت وموثق' : '🔒 Rate Locked'}
+                      </span>
+                    </div>
+                  )}
+
                   {hasInstallments && (
                     <div className="mt-3">
                       <button 
@@ -718,6 +1131,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         <CheckCircle size={14} /> {isRtl ? 'تم تسوية هذه الذمة المالية بالكامل' : 'Fully settled'}
                       </div>
                     )}
+
+                    {/* Reminder Button */}
+                    <button 
+                      onClick={() => openDebtReminderModal(debt)}
+                      className="p-2.5 bg-[#D9B978]/10 text-[#D9B978] hover:bg-[#D9B978]/25 rounded-xl active:scale-90 transition-all border border-[#D9B978]/30 flex items-center justify-center shadow-sm"
+                      title={isRtl ? 'إرسال تذكير بالدين (واتساب / رسالة / تقويم)' : 'Send Debt Reminder'}
+                    >
+                      <Bell size={15} />
+                    </button>
 
                     <button 
                       onClick={() => openEdit(debt)}
@@ -853,7 +1275,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 pt-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                     <button
                       onClick={() => setExpandedPersonName(isExpanded ? null : person.personName)}
                       className="text-xs font-bold text-[#D9B978] hover:text-[#E5C17B] flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-white/5 transition-all"
@@ -862,12 +1284,22 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
 
-                    <button
-                      onClick={() => openAdd(person.personName)}
-                      className="text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1 transition-all"
-                    >
-                      <Plus size={13} /> {isRtl ? 'تسجيل دين جديد معه' : 'Add Debt'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => openPersonStatementReminderModal(person)}
+                        className="text-[11px] font-bold text-[#D9B978] hover:text-white bg-[#D9B978]/10 hover:bg-[#D9B978]/20 px-3 py-1.5 rounded-xl border border-[#D9B978]/25 flex items-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                        title={isRtl ? 'إرسال كشف حساب وتذكير عبر واتساب أو رسالة' : 'Send Statement Reminder'}
+                      >
+                        <Send size={12} /> {isRtl ? 'تذكير وكشف حساب' : 'Send Statement'}
+                      </button>
+
+                      <button
+                        onClick={() => openAdd(person.personName)}
+                        className="text-[11px] font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1 transition-all"
+                      >
+                        <Plus size={13} /> {isRtl ? 'دين جديد' : 'New Debt'}
+                      </button>
+                    </div>
                   </div>
 
                   {isExpanded && (
@@ -893,6 +1325,13 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                                   </span>
                                 </div>
                                 <span className="text-[10px] text-slate-500">{isRtl ? 'تاريخ' : 'Date'}: {d.createdAt}</span>
+                                {(d.conversionNote || (d.foreignAmount && d.exchangeRate)) && (
+                                  <p className="text-[10px] font-bold text-[#D9B978] mt-0.5">
+                                    💱 {d.conversionNote || (isRtl 
+                                      ? `تمت العملية: ${d.foreignAmount} ${getDebtCurrencySymbol(d.foreignCurrency)} بسعر صرف ${d.exchangeRate?.toLocaleString()}` 
+                                      : `Op: ${d.foreignAmount} ${d.foreignCurrency} @ ${d.exchangeRate?.toLocaleString()}`)}
+                                  </p>
+                                )}
                               </div>
                             </div>
 
@@ -967,18 +1406,35 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">
-                  {isRtl ? 'اسم الشخص أو الجهة' : 'Contact Name'}
-                </label>
-                <input 
-                  type="text" 
-                  value={personName} 
-                  onChange={e => setPersonName(e.target.value)} 
-                  placeholder={isRtl ? 'مثلاً: محمد، البنك، فلان...' : 'e.g., John, Bank...'} 
-                  className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-white text-xs sm:text-sm font-bold focus:border-[#D9B978] transition-colors shadow-inner" 
-                  required 
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">
+                    {isRtl ? 'اسم الشخص أو الجهة' : 'Contact Name'}
+                  </label>
+                  <input 
+                    type="text" 
+                    value={personName} 
+                    onChange={e => setPersonName(e.target.value)} 
+                    placeholder={isRtl ? 'مثلاً: محمد، البنك، فلان...' : 'e.g., John, Bank...'} 
+                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-white text-xs sm:text-sm font-bold focus:border-[#D9B978] transition-colors shadow-inner" 
+                    required 
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                    <span>{isRtl ? 'رقم الهاتف / واتساب (اختياري)' : 'Phone / WhatsApp'}</span>
+                    <span className="text-[9px] text-[#D9B978] font-bold">{isRtl ? 'للتذكير المباشر' : 'For Reminders'}</span>
+                  </label>
+                  <input 
+                    type="tel" 
+                    value={personPhone} 
+                    onChange={e => setPersonPhone(e.target.value)} 
+                    placeholder={isRtl ? 'مثلاً: 9665xxxxxxxx أو 77xxxxxxx' : '+1234567890'} 
+                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-white text-xs sm:text-sm font-bold focus:border-[#D9B978] transition-colors shadow-inner text-start" 
+                    dir="ltr"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -990,7 +1446,17 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     type="number" 
                     step="any"
                     value={amount} 
-                    onChange={e => setAmount(e.target.value)} 
+                    onChange={e => {
+                      const val = e.target.value;
+                      setAmount(val);
+                      if (hasAgreedRate && agreedRateInput) {
+                        const amtNum = parseArabicNumber(val);
+                        const rateNum = parseArabicNumber(agreedRateInput);
+                        if (!isNaN(amtNum) && !isNaN(rateNum) && rateNum > 0) {
+                          setForeignAmountInput(roundToCurrency(safeDiv(amtNum, rateNum)).toString());
+                        }
+                      }
+                    }} 
                     placeholder="0.00" 
                     className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-[#D9B978] font-black text-center text-xl tracking-wider focus:border-[#D9B978] transition-colors shadow-inner" 
                     required 
@@ -999,6 +1465,124 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     {resolvedSymbol}
                   </span>
                 </div>
+              </div>
+
+              {/* 💱 Agreed Exchange Rate & Foreign Currency Lock (تثبيت سعر الصرف وتوثيق العملة الأجنبية لمنع النزاع) */}
+              <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-[#D9B978]/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-xl bg-[#D9B978]/20 flex items-center justify-center text-[#D9B978] text-xs font-black">
+                      💱
+                    </div>
+                    <div>
+                      <span className="text-xs font-black text-white block">
+                        {isRtl ? 'تثبيت سعر صرف متفق عليه / عملة أجنبية' : 'Agreed Exchange Rate & Foreign Currency'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold block">
+                        {isRtl ? 'توثيق رسمي لمنع النزاع أو التلاعب بتغيرات السوق لاحقاً' : 'Locks rate to prevent currency disputes'}
+                      </span>
+                    </div>
+                  </div>
+                  <div 
+                    className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-all ${hasAgreedRate ? 'bg-[#D9B978]' : 'bg-slate-800'}`} 
+                    onClick={() => {
+                      const next = !hasAgreedRate;
+                      setHasAgreedRate(next);
+                      if (next && !agreedRateInput) {
+                        setAgreedRateInput('1600');
+                        if (foreignAmountInput) {
+                          const f = parseArabicNumber(foreignAmountInput);
+                          if (!isNaN(f) && f > 0) {
+                            setAmount(roundToCurrency(safeMul(f, 1600)).toString());
+                          }
+                        }
+                      }
+                    }}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${hasAgreedRate ? (isRtl ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'}`} />
+                  </div>
+                </div>
+
+                {hasAgreedRate && (
+                  <div className="space-y-3 pt-2 border-t border-white/5">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          {isRtl ? 'المبلغ بالعملة الأجنبية' : 'Foreign Amount'}
+                        </label>
+                        <div className="flex items-center bg-[#11161C] rounded-xl border border-white/10 overflow-hidden">
+                          <input 
+                            type="number"
+                            step="any"
+                            value={foreignAmountInput}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setForeignAmountInput(val);
+                              const num = parseArabicNumber(val);
+                              const rate = parseArabicNumber(agreedRateInput);
+                              if (!isNaN(num) && num > 0 && !isNaN(rate) && rate > 0) {
+                                setAmount(roundToCurrency(safeMul(num, rate)).toString());
+                              }
+                            }}
+                            placeholder={isRtl ? 'مثلاً: 104' : 'e.g. 104'}
+                            className="w-full p-2.5 bg-transparent outline-none text-white font-bold text-xs"
+                          />
+                          <select
+                            value={foreignCurrencyInput}
+                            onChange={e => setForeignCurrencyInput(e.target.value)}
+                            className="bg-slate-800 text-[#D9B978] text-xs font-black px-2 py-2.5 outline-none border-s border-white/10 cursor-pointer"
+                          >
+                            <option value="USD">USD ($)</option>
+                            <option value="SAR">SAR (ر.س)</option>
+                            <option value="AED">AED (د.إ)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="KWD">KWD (د.ك)</option>
+                            <option value="OMR">OMR (ر.ع)</option>
+                            <option value="QAR">QAR (ر.ق)</option>
+                            <option value="BHD">BHD (د.ب)</option>
+                            <option value="EGP">EGP (ج.م)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          {isRtl ? 'سعر الصرف المتفق عليه' : 'Agreed Rate'}
+                        </label>
+                        <input 
+                          type="number"
+                          step="any"
+                          value={agreedRateInput}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setAgreedRateInput(val);
+                            const num = parseArabicNumber(foreignAmountInput);
+                            const rate = parseArabicNumber(val);
+                            if (!isNaN(num) && num > 0 && !isNaN(rate) && rate > 0) {
+                              setAmount(roundToCurrency(safeMul(num, rate)).toString());
+                            }
+                          }}
+                          placeholder={isRtl ? 'مثلاً: 1600' : 'e.g. 1600'}
+                          className="w-full p-2.5 rounded-xl bg-[#11161C] border border-white/10 outline-none text-[#D9B978] font-bold text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live Certified Documentation Note Preview */}
+                    {foreignAmountInput && agreedRateInput && (
+                      <div className="p-2.5 bg-[#11161C] rounded-xl border border-[#D9B978]/30 text-start">
+                        <span className="text-[10px] text-slate-400 font-bold block mb-0.5 flex items-center gap-1">
+                          <span>🔒 {isRtl ? 'نص التوثيق المعتمد في الكشوفات ورسائل التذكير:' : 'Certified Statement Documentation Note:'}</span>
+                        </span>
+                        <p className="text-xs font-black text-[#D9B978] leading-relaxed">
+                          {customConversionNote.trim() || (isRtl 
+                            ? `تمت عملية ${foreignAmountInput} ${getDebtCurrencySymbol(foreignCurrencyInput)} بسعر صرف ${parseArabicNumber(agreedRateInput).toLocaleString()} • الإجمالي: ${(parseArabicNumber(amount) || 0).toLocaleString()} ${resolvedSymbol}`
+                            : `Transaction: ${foreignAmountInput} ${foreignCurrencyInput} @ ${agreedRateInput} • Total: ${(parseArabicNumber(amount) || 0).toLocaleString()} ${resolvedSymbol}`)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -1134,19 +1718,119 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {/* Show locked conversion note in Payment Modal */}
+                {(paymentModalData.debt.conversionNote || (paymentModalData.debt.foreignAmount && paymentModalData.debt.exchangeRate)) && (
+                  <div className="mt-2 pt-2 border-t border-white/5 flex items-center gap-1.5 text-xs text-[#D9B978]">
+                    <span className="shrink-0">💱</span>
+                    <span className="text-[11px] font-bold">
+                      {paymentModalData.debt.conversionNote || (isRtl 
+                        ? `سعر الصرف المعتمد: ${paymentModalData.debt.foreignAmount} ${getDebtCurrencySymbol(paymentModalData.debt.foreignCurrency)} بسعر ${paymentModalData.debt.exchangeRate?.toLocaleString()}`
+                        : `Locked Rate: ${paymentModalData.debt.foreignAmount} ${paymentModalData.debt.foreignCurrency} @ ${paymentModalData.debt.exchangeRate?.toLocaleString()}`)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Payment Foreign Currency Toggle */}
+              <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>💱 {isRtl ? 'السداد بعملة أجنبية / تثبيت صرف الدفعة' : 'Pay with Foreign Currency / Rate'}</span>
+                  </span>
+                  <div 
+                    className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-all ${payHasAgreedRate ? 'bg-emerald-500' : 'bg-slate-800'}`} 
+                    onClick={() => setPayHasAgreedRate(!payHasAgreedRate)}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${payHasAgreedRate ? (isRtl ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'}`} />
+                  </div>
+                </div>
+
+                {payHasAgreedRate && (
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'المبلغ الأجنبي' : 'Foreign Amt'}</label>
+                        <div className="flex items-center bg-[#11161C] rounded-xl border border-white/10 overflow-hidden">
+                          <input 
+                            type="number"
+                            step="any"
+                            value={payForeignAmountInput}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setPayForeignAmountInput(val);
+                              const num = parseArabicNumber(val);
+                              const rate = parseArabicNumber(payAgreedRateInput);
+                              if (!isNaN(num) && num > 0 && !isNaN(rate) && rate > 0) {
+                                setPayAmountInput(roundToCurrency(safeMul(num, rate)).toString());
+                              }
+                            }}
+                            placeholder="مثلاً: 50"
+                            className="w-full p-2 bg-transparent outline-none text-white font-bold text-xs"
+                          />
+                          <select
+                            value={payForeignCurrencyInput}
+                            onChange={e => setPayForeignCurrencyInput(e.target.value)}
+                            className="bg-slate-800 text-[#D9B978] text-[11px] font-black px-2 py-2 outline-none border-s border-white/10"
+                          >
+                            <option value="USD">USD</option>
+                            <option value="SAR">SAR</option>
+                            <option value="AED">AED</option>
+                            <option value="EUR">EUR</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'سعر الصرف' : 'Rate'}</label>
+                        <input 
+                          type="number"
+                          step="any"
+                          value={payAgreedRateInput}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setPayAgreedRateInput(val);
+                            const num = parseArabicNumber(payForeignAmountInput);
+                            const rate = parseArabicNumber(val);
+                            if (!isNaN(num) && num > 0 && !isNaN(rate) && rate > 0) {
+                              setPayAmountInput(roundToCurrency(safeMul(num, rate)).toString());
+                            }
+                          }}
+                          placeholder={isRtl ? 'مثلاً: 1600' : 'e.g. 1600'}
+                          className="w-full p-2 rounded-xl bg-[#11161C] border border-white/10 outline-none text-white font-bold text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{isRtl ? 'مبلغ الدفعة المسددة' : 'Payment Amount'}</label>
-                <input 
-                  type="number"
-                  step="any"
-                  value={payAmountInput}
-                  onChange={e => setPayAmountInput(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-emerald-400 font-black text-center text-xl tracking-wider focus:border-emerald-500 transition-colors shadow-inner"
-                  required
-                />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{isRtl ? 'المبلغ الإجمالي المسدد بالعملة الأساسية' : 'Payment Amount in Base Currency'}</label>
+                <div className="relative">
+                  <input 
+                    type="number"
+                    step="any"
+                    value={payAmountInput}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setPayAmountInput(val);
+                      if (payHasAgreedRate && payAgreedRateInput) {
+                        const amtNum = parseArabicNumber(val);
+                        const rateNum = parseArabicNumber(payAgreedRateInput);
+                        if (!isNaN(amtNum) && !isNaN(rateNum) && rateNum > 0) {
+                          setPayForeignAmountInput(roundToCurrency(safeDiv(amtNum, rateNum)).toString());
+                        }
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-emerald-400 font-black text-center text-xl tracking-wider focus:border-emerald-500 transition-colors shadow-inner"
+                    required
+                  />
+                  <span className={`absolute ${isRtl ? 'left-3.5' : 'right-3.5'} top-1/2 -translate-y-1/2 text-xs font-black text-slate-500`}>
+                    {getDebtCurrencySymbol(paymentModalData.debt.currency)}
+                  </span>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -1229,6 +1913,200 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
             >
               {isRtl ? 'إغلاق' : 'Close'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: DEBT REMINDER & SHARING MODAL (تذكير بالديون ومشاركتها) */}
+      {reminderModalData && (
+        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[400] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden">
+          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#D9B978]/30 overflow-hidden max-h-[90vh] flex flex-col min-h-0 text-start relative" dir={isRtl ? 'rtl' : 'ltr'}>
+            
+            {/* Header */}
+            <div className="flex justify-between items-center mb-3 pb-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
+                  <Bell size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    {isRtl ? 'تذكير بالدين ومشاركة الإشعار' : 'Debt Reminder & Notice'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-bold">
+                    {reminderModalData.personName} • {reminderModalData.amount.toLocaleString()} {getDebtCurrencySymbol(reminderModalData.currency)}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setReminderModalData(null)}
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 px-1 pb-1">
+              
+              {/* Summary Pill */}
+              <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`w-3 h-3 rounded-full ${reminderModalData.type === 'to_me' ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                  <div>
+                    <p className="text-xs font-black text-white">
+                      {reminderModalData.isPersonStatement 
+                        ? (isRtl ? 'كشف حساب مالي مجمع' : 'Consolidated Statement')
+                        : reminderModalData.type === 'to_me' 
+                        ? (isRtl ? 'دين مستحق لك (تحصيل)' : 'Debt Owed To You') 
+                        : (isRtl ? 'دين مستحق عليك (التزام)' : 'Debt You Owe')}
+                    </p>
+                    {reminderModalData.dueDate && (
+                      <p className="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-1">
+                        <Calendar size={11} className="text-[#D9B978]" />
+                        <span>{isRtl ? 'تاريخ الاستحقاق:' : 'Due Date:'} {reminderModalData.dueDate}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-end">
+                  <span className={`text-base font-black ${reminderModalData.type === 'to_me' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {reminderModalData.amount.toLocaleString()} <span className="text-xs">{getDebtCurrencySymbol(reminderModalData.currency)}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Template Selectors */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">
+                  {isRtl ? 'اختر صيغة ونبرة التذكير المناسبة' : 'Choose Reminder Tone'}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'friendly', label: isRtl ? 'ودّي ولطيف' : 'Friendly', icon: '🌟' },
+                    { id: 'formal', label: isRtl ? 'رسمي ومفصل' : 'Formal', icon: '📄' },
+                    { id: 'urgent', label: isRtl ? 'استحقاق عاجل' : 'Urgent', icon: '⚠️' },
+                    { id: 'statement', label: isRtl ? 'كشف مالي' : 'Statement', icon: '📊' },
+                  ].map(tmpl => (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => handleTemplateChange(tmpl.id as any)}
+                      className={`p-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 ${
+                        reminderTemplateType === tmpl.id
+                          ? 'bg-[#D9B978] text-slate-950 font-black shadow-md'
+                          : 'bg-[#0A0D10] text-slate-400 hover:text-white border border-white/10'
+                      }`}
+                    >
+                      <span className="text-sm">{tmpl.icon}</span>
+                      <span>{tmpl.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recipient Phone (Optional/Editable) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                  <span>{isRtl ? 'رقم هاتف المستلم (لإرسال واتساب / SMS)' : 'Recipient Phone Number'}</span>
+                  <span className="text-[9px] text-[#D9B978]">{isRtl ? 'مع رمز الدولة' : 'With Country Code'}</span>
+                </label>
+                <div className="relative">
+                  <Phone size={14} className={`absolute ${isRtl ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 text-slate-500`} />
+                  <input
+                    type="tel"
+                    value={reminderRecipientPhone}
+                    onChange={e => setReminderRecipientPhone(e.target.value)}
+                    placeholder={isRtl ? 'مثلاً: 9665xxxxxxxx أو 967xxxxxxxxx' : '+1234567890'}
+                    className={`w-full p-2.5 ${isRtl ? 'pr-9' : 'pl-9'} rounded-xl bg-[#0A0D10] border border-white/10 text-white font-bold text-xs outline-none focus:border-[#D9B978]`}
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+
+              {/* Editable Message Box */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    {isRtl ? 'نص التذكير (قابل للتعديل بحرية)' : 'Message Content (Editable)'}
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-bold">
+                    {customReminderText.length} {isRtl ? 'حرف' : 'chars'}
+                  </span>
+                </div>
+                <textarea
+                  value={customReminderText}
+                  onChange={e => setCustomReminderText(e.target.value)}
+                  rows={5}
+                  className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 text-white text-xs sm:text-sm font-medium outline-none focus:border-[#D9B978] custom-scrollbar leading-relaxed resize-none shadow-inner"
+                />
+              </div>
+
+              {/* Action Buttons Grid */}
+              <div className="space-y-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* WhatsApp Direct */}
+                  <button
+                    type="button"
+                    onClick={handleSendWhatsApp}
+                    className="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition-all shadow-lg shadow-emerald-600/20"
+                  >
+                    <MessageSquare size={16} />
+                    <span>{isRtl ? 'إرسال عبر واتساب 🟢' : 'Send via WhatsApp'}</span>
+                  </button>
+
+                  {/* Copy Message */}
+                  <button
+                    type="button"
+                    onClick={handleCopyReminder}
+                    className={`py-3 px-4 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 active:scale-98 transition-all shadow-md ${
+                      copiedSuccess 
+                        ? 'bg-emerald-500 text-slate-950 font-black' 
+                        : 'bg-[#D9B978] hover:bg-[#E5C17B] text-slate-950'
+                    }`}
+                  >
+                    {copiedSuccess ? <CheckCircle size={16} /> : <Copy size={16} />}
+                    <span>{copiedSuccess ? (isRtl ? 'تم نسخ النص بنجاح! ✓' : 'Copied!') : (isRtl ? 'نسخ نص التذكير 📋' : 'Copy Message')}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* SMS Message */}
+                  <button
+                    type="button"
+                    onClick={handleSendSMS}
+                    className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all"
+                  >
+                    <Send size={14} />
+                    <span>{isRtl ? 'إرسال كـ رسالة نصية SMS' : 'Send via SMS'}</span>
+                  </button>
+
+                  {/* Add to Google Calendar */}
+                  {reminderModalData.dueDate && (
+                    <button
+                      type="button"
+                      onClick={handleAddToCalendar}
+                      className="py-2.5 px-3 bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                    >
+                      <Calendar size={14} />
+                      <span>{isRtl ? 'إضافة موعد في التقويم 📅' : 'Add to Calendar'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 mt-2 border-t border-white/5 shrink-0">
+              <button
+                onClick={() => setReminderModalData(null)}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-xs rounded-xl transition-all"
+              >
+                {isRtl ? 'إغلاق النافذة' : 'Close Window'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

@@ -50,13 +50,42 @@ export const FinancialAlerts: React.FC<SmartAlertsProps> = ({ budgets, transacti
       }
     });
 
-    // 3. Debt Due Dates
+    // 3. Debt Due Dates & Overdue
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     debts.filter(d => !d.isPaid && d.dueDate).forEach(d => {
       const due = new Date(d.dueDate!);
-      const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)); 
-      if (diffDays >= 0 && diffDays <= 3) {
-        list.push({ id: `d-${d.id}`, type: 'info', message: `موعد سداد دين "${d.personName}" اقترب`, icon: Clock });
+      due.setHours(0, 0, 0, 0);
+      const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const isToMe = d.type === 'to_me';
+      
+      if (diffDays < 0) {
+        list.push({
+          id: `debt-overdue-${d.id}`,
+          type: 'critical',
+          message: isToMe 
+            ? `تأخر سداد دين "${d.personName}" بمقدار ${Math.abs(diffDays)} يوم` 
+            : `تجاوز موعد سداد دينك لـ "${d.personName}" بمقدار ${Math.abs(diffDays)} يوم`,
+          icon: AlertTriangle
+        });
+      } else if (diffDays === 0) {
+        list.push({
+          id: `debt-today-${d.id}`,
+          type: 'warning',
+          message: isToMe 
+            ? `اليوم موعد استحقاق دين "${d.personName}"` 
+            : `اليوم موعد سداد دينك لـ "${d.personName}"`,
+          icon: Clock
+        });
+      } else if (diffDays <= 4) {
+        list.push({
+          id: `debt-soon-${d.id}`,
+          type: 'info',
+          message: isToMe 
+            ? `موعد استحقاق دين "${d.personName}" خلال ${diffDays} أيام` 
+            : `موعد سداد دين "${d.personName}" خلال ${diffDays} أيام`,
+          icon: Clock
+        });
       }
     });
 

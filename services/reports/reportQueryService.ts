@@ -31,7 +31,9 @@ export function queryReportTransactions(
   }));
 
   if (walletId) {
-    scopedTransactions = scopedTransactions.filter(t => t.walletId === walletId);
+    scopedTransactions = scopedTransactions.filter(
+      t => t.walletId === walletId || t.destinationWalletId === walletId
+    );
   }
 
   if (normalizedCurrencyFilter) {

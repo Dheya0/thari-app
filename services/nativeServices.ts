@@ -4,6 +4,10 @@
  * for seamless portability across Web, iOS (Capacitor/Swift), and Android.
  */
 
+import { Capacitor, PluginListenerHandle } from '@capacitor/core';
+import { Keyboard, KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+
 export interface INativeStorageService {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
@@ -24,6 +28,23 @@ export interface INativeFileService {
 export interface INativeShareService {
   canShare(): boolean;
   share(title: string, text: string, url?: string): Promise<boolean>;
+}
+
+export interface KeyboardInfo {
+  keyboardHeight: number;
+}
+
+export interface INativeKeyboardService {
+  isAvailable(): boolean;
+  hide(): Promise<void>;
+  show(): Promise<void>;
+  setAccessoryBarVisible(isVisible: boolean): Promise<void>;
+  setStyle(style: 'DARK' | 'LIGHT' | 'DEFAULT'): Promise<void>;
+  setResizeMode(mode: 'body' | 'ionic' | 'native' | 'none'): Promise<void>;
+  addListener(
+    eventName: 'keyboardWillShow' | 'keyboardDidShow' | 'keyboardWillHide' | 'keyboardDidHide',
+    listenerFunc: (info: KeyboardInfo) => void
+  ): Promise<PluginListenerHandle | { remove: () => void }>;
 }
 
 // 1. Web / Capacitor Hybrid Storage Bridge
@@ -174,3 +195,157 @@ export const NativeShare: INativeShareService = {
     return false;
   },
 };
+
+export interface INativeHapticsService {
+  isAvailable(): boolean;
+  impact(style?: 'LIGHT' | 'MEDIUM' | 'HEAVY'): Promise<void>;
+  selection(): Promise<void>;
+  notification(type?: 'SUCCESS' | 'WARNING' | 'ERROR'): Promise<void>;
+  vibrate(durationMs?: number): Promise<void>;
+}
+
+// 5. Capacitor Native Keyboard Bridge
+export const NativeKeyboard: INativeKeyboardService = {
+  isAvailable(): boolean {
+    return Capacitor.isPluginAvailable('Keyboard') || Capacitor.isNativePlatform();
+  },
+
+  async hide(): Promise<void> {
+    if (typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement)?.blur();
+    }
+    if (this.isAvailable()) {
+      try {
+        await Keyboard.hide();
+      } catch {
+        // Fallback handled by document.activeElement.blur()
+      }
+    }
+  },
+
+  async show(): Promise<void> {
+    if (this.isAvailable()) {
+      try {
+        await Keyboard.show();
+      } catch {
+        // Ignored
+      }
+    }
+  },
+
+  async setAccessoryBarVisible(isVisible: boolean): Promise<void> {
+    if (this.isAvailable()) {
+      try {
+        await Keyboard.setAccessoryBarVisible({ isVisible });
+      } catch {
+        // Ignored
+      }
+    }
+  },
+
+  async setStyle(style: 'DARK' | 'LIGHT' | 'DEFAULT'): Promise<void> {
+    if (this.isAvailable()) {
+      try {
+        const mappedStyle = style === 'LIGHT' ? KeyboardStyle.Light : style === 'DEFAULT' ? KeyboardStyle.Default : KeyboardStyle.Dark;
+        await Keyboard.setStyle({ style: mappedStyle });
+      } catch {
+        // Ignored
+      }
+    }
+  },
+
+  async setResizeMode(mode: 'body' | 'ionic' | 'native' | 'none'): Promise<void> {
+    if (this.isAvailable()) {
+      try {
+        const mappedMode = mode === 'native' ? KeyboardResize.Native : mode === 'ionic' ? KeyboardResize.Ionic : mode === 'none' ? KeyboardResize.None : KeyboardResize.Body;
+        await Keyboard.setResizeMode({ mode: mappedMode });
+      } catch {
+        // Ignored
+      }
+    }
+  },
+
+  async addListener(
+    eventName: 'keyboardWillShow' | 'keyboardDidShow' | 'keyboardWillHide' | 'keyboardDidHide',
+    listenerFunc: (info: KeyboardInfo) => void
+  ): Promise<PluginListenerHandle | { remove: () => void }> {
+    if (this.isAvailable()) {
+      try {
+        return await (Keyboard.addListener as any)(eventName, (info: any) => {
+          listenerFunc({ keyboardHeight: info?.keyboardHeight || 0 });
+        });
+      } catch {
+        return { remove: () => {} };
+      }
+    }
+    return { remove: () => {} };
+  },
+};
+
+// 6. Capacitor Native & Web Haptics Bridge
+export const NativeHaptics: INativeHapticsService = {
+  isAvailable(): boolean {
+    return Capacitor.isPluginAvailable('Haptics') || (typeof navigator !== 'undefined' && 'vibrate' in navigator);
+  },
+
+  async impact(style: 'LIGHT' | 'MEDIUM' | 'HEAVY' = 'LIGHT'): Promise<void> {
+    if (Capacitor.isPluginAvailable('Haptics')) {
+      try {
+        const mapped = style === 'HEAVY' ? ImpactStyle.Heavy : style === 'MEDIUM' ? ImpactStyle.Medium : ImpactStyle.Light;
+        await Haptics.impact({ style: mapped });
+        return;
+      } catch {}
+    }
+    // Web Fallback
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(style === 'HEAVY' ? 24 : style === 'MEDIUM' ? 14 : 8);
+      } catch {}
+    }
+  },
+
+  async selection(): Promise<void> {
+    if (Capacitor.isPluginAvailable('Haptics')) {
+      try {
+        await Haptics.selectionStart();
+        await Haptics.selectionChanged();
+        return;
+      } catch {}
+    }
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(6);
+      } catch {}
+    }
+  },
+
+  async notification(type: 'SUCCESS' | 'WARNING' | 'ERROR' = 'SUCCESS'): Promise<void> {
+    if (Capacitor.isPluginAvailable('Haptics')) {
+      try {
+        const mapped = type === 'ERROR' ? NotificationType.Error : type === 'WARNING' ? NotificationType.Warning : NotificationType.Success;
+        await Haptics.notification({ type: mapped });
+        return;
+      } catch {}
+    }
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(type === 'ERROR' ? [20, 50, 20] : type === 'WARNING' ? [15, 30] : 15);
+      } catch {}
+    }
+  },
+
+  async vibrate(durationMs = 15): Promise<void> {
+    if (Capacitor.isPluginAvailable('Haptics')) {
+      try {
+        await Haptics.vibrate({ duration: durationMs });
+        return;
+      } catch {}
+    }
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(durationMs);
+      } catch {}
+    }
+  },
+};
+

@@ -8,7 +8,7 @@ import { Currency, Wallet, Category, Transaction } from '../types';
 import { getTranslation, getLocalizedCurrency } from '../utils/translations';
 import { encryptData, decryptData } from '../services/encryptionService';
 import { authenticateBiometrics, checkBiometricAvailable, isNativeCapacitorEnvironment, isStandalonePwaMode } from '../services/biometricService';
-import { getIcon, DEFAULT_EXCHANGE_RATES } from '../constants';
+import { getIcon, DEFAULT_EXCHANGE_RATES, convertCurrency } from '../constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
 import { exportAndShareNativeFile } from '../services/reports/reportExportService';
 import { ReportModal } from './reports/ReportModal';
@@ -217,8 +217,209 @@ export default function Settings({
       action: 'print' | 'share' | 'excel';
   }>({ type: 'detailed', currencyFilter: null, action: 'print' });
 
-  const [editingRateCode, setEditingRateCode] = useState<string | null>(null);
-  const [rateInputValue, setRateInputValue] = useState('');
+  const [editingRateCurrency, setEditingRateCurrency] = useState<Currency | null>(null);
+  const [rateInputVal, setRateInputVal] = useState('');
+  const [rateInputSubVal, setRateInputSubVal] = useState('');
+  const [calcTestAmount, setCalcTestAmount] = useState<number>(100);
+  const [calcTestFrom, setCalcTestFrom] = useState<string>('SAR');
+  const [newCurrencyData, setNewCurrencyData] = useState({ code: '', name: '', symbol: '', rate: '1.0' });
+
+  const currentRates: Record<string, number> = {
+    ...DEFAULT_EXCHANGE_RATES,
+    ...(appState?.exchangeRates || exchangeRates || {})
+  };
+
+  const [manualYerSanaa100, setManualYerSanaa100] = useState(() => {
+    const r = currentRates['YER_SANAA'] || (100.0 / 14000.0);
+    return String(Math.round(100 / r));
+  });
+  const [manualYerAden100, setManualYerAden100] = useState(() => {
+    const r = currentRates['YER_ADEN'] || (100.0 / 41000.0);
+    return String(Math.round(100 / r));
+  });
+  const [manualUsdInAden100, setManualUsdInAden100] = useState(() => {
+    const usdR = currentRates['USD'] || (1576.0 / 410.0);
+    const adenR = currentRates['YER_ADEN'] || (100.0 / 41000.0);
+    return String(Math.round(100 * (usdR / adenR)));
+  });
+  const [manualUsdInSar, setManualUsdInSar] = useState(() => {
+    const usdR = currentRates['USD'] || (1576.0 / 410.0);
+    return String(usdR.toFixed(3));
+  });
+  const [manualEgp100, setManualEgp100] = useState(() => {
+    const r = currentRates['EGP'] || (100.0 / 1250.0);
+    return String(Math.round(100 / r));
+  });
+
+  React.useEffect(() => {
+    const sanaaR = currentRates['YER_SANAA'] || (100.0 / 14000.0);
+    setManualYerSanaa100(String(Math.round(100 / sanaaR)));
+
+    const adenR = currentRates['YER_ADEN'] || (100.0 / 41000.0);
+    setManualYerAden100(String(Math.round(100 / adenR)));
+
+    const usdR = currentRates['USD'] || (1576.0 / 410.0);
+    setManualUsdInAden100(String(Math.round(100 * (usdR / adenR))));
+    setManualUsdInSar(String(usdR.toFixed(3)));
+
+    const egpR = currentRates['EGP'] || (100.0 / 1250.0);
+    setManualEgp100(String(Math.round(100 / egpR)));
+  }, [appState?.exchangeRates, exchangeRates]);
+
+  const handleSaveAllManualRates = () => {
+    const sanaaNum = parseFloat(manualYerSanaa100);
+    const adenNum = parseFloat(manualYerAden100);
+    const usdAdenNum = parseFloat(manualUsdInAden100);
+    const egpNum = parseFloat(manualEgp100);
+    const usdSarNum = parseFloat(manualUsdInSar);
+
+    if (isNaN(sanaaNum) || sanaaNum <= 0 || isNaN(adenNum) || adenNum <= 0) {
+      showToast(localLanguage === 'en' ? 'Please enter valid exchange rates' : 'يرجى إدخال أرقام صحيحة لأسعار الصرف', 'error');
+      return;
+    }
+
+    const newAdenRate = 100.0 / adenNum;
+    const newSanaaRate = 100.0 / sanaaNum;
+    let newUsdRate = currentRates['USD'] || (1576.0 / 410.0);
+
+    if (!isNaN(usdAdenNum) && usdAdenNum > 0) {
+      newUsdRate = usdAdenNum / adenNum;
+    } else if (!isNaN(usdSarNum) && usdSarNum > 0) {
+      newUsdRate = usdSarNum;
+    }
+
+    const updated: Record<string, number> = {
+      ...currentRates,
+      YER_SANAA: newSanaaRate,
+      YER_ADEN: newAdenRate,
+      YER: newAdenRate,
+      USD: newUsdRate,
+    };
+
+    if (!isNaN(egpNum) && egpNum > 0) {
+      updated['EGP'] = 100.0 / egpNum;
+    }
+
+    onUpdateSettings({ exchangeRates: updated });
+    showToast(localLanguage === 'en' ? 'Custom exchange rates saved to AppState successfully' : 'تم حفظ وتحديث أسعار الصرف اليدوية في النظام بنجاح');
+  };
+
+  const handleApplyYemenPreset = () => {
+    const updated = {
+      ...currentRates,
+      YER_SANAA: 100.0 / 14000.0, // 100 SAR = 14,000 YER Sana'a
+      YER_ADEN: 100.0 / 41000.0,  // 100 SAR = 41,000 YER Aden
+      YER: 100.0 / 41000.0,
+      USD: 1576.0 / 410.0,        // 100 USD = 157,600 YER Aden
+    };
+    onUpdateSettings({ exchangeRates: updated });
+    showToast(localLanguage === 'en' ? 'Yemen rates applied: 100 SAR = 14k/41k YER, 100$ = 157.6k YER' : 'تم تطبيق أسعار اليمن: 100 سعودي = 14 ألف صنعاء / 41 ألف عدن، و 100 دولار = 157,600 عدن');
+  };
+
+  const handleResetDefaultRates = () => {
+    onUpdateSettings({ exchangeRates: { ...DEFAULT_EXCHANGE_RATES } });
+    showToast(localLanguage === 'en' ? 'Exchange rates reset to defaults' : 'تمت استعادة أسعار الصرف الافتراضية');
+  };
+
+  const openRateEditor = (curr: Currency) => {
+    setEditingRateCurrency(curr);
+    const code = curr.code;
+    const currentRate = currentRates[code] ?? DEFAULT_EXCHANGE_RATES[code] ?? 1.0;
+
+    if (code === 'YER_SANAA') {
+      const per100 = Math.round(100 / currentRate);
+      setRateInputVal(String(per100 > 0 ? per100 : 14000));
+    } else if (code === 'YER_ADEN') {
+      const per100 = Math.round(100 / currentRate);
+      setRateInputVal(String(per100 > 0 ? per100 : 41000));
+      const usdRate = currentRates['USD'] || (1576.0 / 410.0);
+      const per100Usd = Math.round(100 * (usdRate / currentRate));
+      setRateInputSubVal(String(per100Usd > 0 ? per100Usd : 157600));
+    } else if (code === 'USD') {
+      setRateInputVal(String(currentRate.toFixed(3)));
+      const adenRate = currentRates['YER_ADEN'] || (100.0 / 41000.0);
+      const per100UsdInAden = Math.round(100 * (currentRate / adenRate));
+      setRateInputSubVal(String(per100UsdInAden > 0 ? per100UsdInAden : 157600));
+    } else if (code === 'EGP') {
+      const per100 = Math.round(100 / currentRate);
+      setRateInputVal(String(per100 > 0 ? per100 : 1250));
+    } else {
+      setRateInputVal(String(currentRate));
+    }
+  };
+
+  const saveRateEditor = () => {
+    if (!editingRateCurrency) return;
+    const code = editingRateCurrency.code;
+    const num = parseFloat(rateInputVal);
+    if (isNaN(num) || num <= 0) {
+      showToast(localLanguage === 'en' ? 'Please enter a valid rate' : 'يرجى إدخال قيمة صحيحة', 'error');
+      return;
+    }
+
+    let calculatedRate = num;
+    if (code === 'YER_SANAA' || code === 'YER_ADEN' || code === 'EGP') {
+      // Input was: How much X units per 100 SAR?
+      // Rate = 100 / num
+      calculatedRate = 100.0 / num;
+    }
+
+    const updated = {
+      ...currentRates,
+      [code]: calculatedRate
+    };
+
+    // If editing YER_ADEN and user also specified USD 100 rate in subVal
+    if (code === 'YER_ADEN' && rateInputSubVal) {
+      const subNum = parseFloat(rateInputSubVal);
+      if (!isNaN(subNum) && subNum > 0) {
+        // subNum is 100 USD in YER_ADEN => 1 USD = (subNum / 100) YER_ADEN
+        // 1 USD in SAR = (subNum / 100) * calculatedRate
+        const newUsdRate = (subNum / 100.0) * calculatedRate;
+        updated['USD'] = newUsdRate;
+      }
+    } else if (code === 'USD' && rateInputSubVal) {
+      const subNum = parseFloat(rateInputSubVal);
+      if (!isNaN(subNum) && subNum > 0) {
+        // subNum is 100 USD in YER_ADEN => 1 YER_ADEN = 100 * calculatedRate / subNum SAR
+        const newAdenRate = (100.0 * calculatedRate) / subNum;
+        updated['YER_ADEN'] = newAdenRate;
+        updated['YER'] = newAdenRate;
+      }
+    }
+
+    onUpdateSettings({ exchangeRates: updated });
+    setEditingRateCurrency(null);
+    showToast(localLanguage === 'en' ? 'Exchange rate updated successfully' : 'تم حفظ وتحديث سعر الصرف بنجاح');
+  };
+
+  const saveNewCurrency = () => {
+    const code = newCurrencyData.code.trim().toUpperCase();
+    const name = newCurrencyData.name.trim();
+    const symbol = newCurrencyData.symbol.trim() || code;
+    const rate = parseFloat(newCurrencyData.rate);
+
+    if (!code || !name) {
+      showToast(localLanguage === 'en' ? 'Currency code and name are required' : 'يرجى إدخال رمز واسم العملة', 'error');
+      return;
+    }
+    if (isNaN(rate) || rate <= 0) {
+      showToast(localLanguage === 'en' ? 'Please enter a valid exchange rate' : 'يرجى إدخال سعر صرف صحيح', 'error');
+      return;
+    }
+
+    onAddCurrency({ code, name, symbol });
+    onUpdateSettings({
+      exchangeRates: {
+        ...currentRates,
+        [code]: rate
+      }
+    });
+
+    setShowCurrencyModal(false);
+    setNewCurrencyData({ code: '', name: '', symbol: '', rate: '1.0' });
+    showToast(localLanguage === 'en' ? 'Currency added successfully' : 'تمت إضافة العملة بنجاح');
+  };
 
   const [showDataModal, setShowDataModal] = useState(false);
   const [dataModalContent, setDataModalContent] = useState<{title: string, content: string}>({title: '', content: ''});
@@ -637,42 +838,471 @@ export default function Settings({
   }
 
   if (activeSection === 'currencies') {
+    const isArabic = (localLanguage || 'ar') === 'ar';
+
     return (
       <div className="space-y-6 pb-24 animate-fade text-start">
+        {/* Section Header */}
         <div className="flex justify-between items-center bg-[#11161C] p-5 rounded-[2.5rem] border border-white/10 shadow-xl">
           <div className="flex items-center gap-3">
-            <button onClick={() => setActiveSection('main')} className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
-            <h3 className="font-black text-[#F4F1EA] text-lg">{t.currenciesAndRates}</h3>
+            <button 
+              onClick={() => setActiveSection('main')} 
+              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h3 className="font-black text-[#F4F1EA] text-lg">{t.currenciesAndRates}</h3>
+              <p className="text-[11px] text-slate-400 font-bold">
+                {isArabic ? 'الريال السعودي (SAR) هو العملة المرجعية للنظام مع إمكانية تعديل كافة الأسعار محلياً' : 'SAR is base currency with full customizable rates'}
+              </p>
+            </div>
           </div>
-          <button onClick={() => setShowCurrencyModal(true)} className="bg-[#D9B978] text-[#0A0D10] px-5 py-2.5 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 flex items-center gap-1.5">
+          <button 
+            onClick={() => {
+              setNewCurrencyData({ code: '', name: '', symbol: '', rate: '1.0' });
+              setShowCurrencyModal(true);
+            }} 
+            className="bg-[#D9B978] text-[#0A0D10] px-4 py-2.5 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 flex items-center gap-1.5 shrink-0"
+          >
              <Plus size={16} /> {t.addCurrency}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-           {safeCurrencies.map(c => {
+        {/* Quick Presets & Instant Setup */}
+        <div className="bg-[#11161C] p-5 sm:p-6 rounded-[2.5rem] border border-white/10 shadow-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-black text-xs">
+                ⚡
+              </div>
+              <h4 className="text-sm font-black text-[#F4F1EA]">
+                {isArabic ? 'الضبط السريع لأسعار الصرف في اليمن والدول' : 'Quick Rate Presets'}
+              </h4>
+            </div>
+            <button
+              onClick={handleResetDefaultRates}
+              className="text-[11px] text-slate-400 hover:text-white font-bold underline px-2 py-1 transition-colors"
+            >
+              {isArabic ? 'استعادة الافتراضيات' : 'Reset Defaults'}
+            </button>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-[#0A0D10] border border-white/5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-black text-[10px]">
+                    🇾🇪 {isArabic ? 'أسعار اليمن المعتمدة' : 'Yemen Market Rates'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 font-bold leading-relaxed">
+                  {isArabic 
+                    ? '100 سعودي = 14,000 ريال (صنعاء) | 100 سعودي = 41,000 ريال (عدن) | 100 دولار = 157,600 ريال (عدن)'
+                    : '100 SAR = 14k YER (Sanaa) | 100 SAR = 41k YER (Aden) | 100 USD = 157.6k YER (Aden)'}
+                </p>
+              </div>
+              <button
+                onClick={handleApplyYemenPreset}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/20 active:scale-95 transition-all shrink-0 flex items-center justify-center gap-1.5"
+              >
+                <Check size={14} />
+                {isArabic ? 'تطبيق أسعار اليمن فوراً' : 'Apply Yemen Rates'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Live Currency Converter Sandbox */}
+        <div className="bg-[#11161C] p-5 sm:p-6 rounded-[2.5rem] border border-white/10 shadow-xl space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-black text-xs">
+              🔄
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-[#F4F1EA]">
+                {isArabic ? 'حاسبة التحويل التجريبية الحية' : 'Live FX Converter & Tester'}
+              </h4>
+              <p className="text-[10px] text-slate-400 font-bold">
+                {isArabic ? 'جرّب أي مبلغ للتأكد من دقة الصرف ومطابقته للواقع' : 'Test any amount across all active currencies'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                {isArabic ? 'المبلغ للتجربة' : 'Amount'}
+              </label>
+              <input
+                type="number"
+                value={calcTestAmount}
+                onChange={e => setCalcTestAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                className="w-full p-3 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
+              />
+            </div>
+            <div className="w-full sm:w-48 space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                {isArabic ? 'من عملة' : 'From Currency'}
+              </label>
+              <select
+                value={calcTestFrom}
+                onChange={e => setCalcTestFrom(e.target.value)}
+                className="w-full p-3 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
+              >
+                {safeCurrencies.map(c => {
+                  const loc = getLocalizedCurrency(c.code, c.name, c.symbol, localLanguage || 'ar');
+                  return (
+                    <option key={c.code} value={c.code}>
+                      {loc.name} ({c.code})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* Results Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-2">
+            {safeCurrencies.map(c => {
+              const convertedVal = convertCurrency(calcTestAmount, calcTestFrom, c.code, currentRates);
               const loc = getLocalizedCurrency(c.code, c.name, c.symbol, localLanguage || 'ar');
               return (
-                 <div key={c.code} className="bg-[#11161C] p-5 rounded-[2rem] border border-white/10 flex justify-between items-center shadow-lg">
-                    <div className="flex items-center gap-3.5">
-                       <div className="min-w-[48px] h-12 px-2.5 rounded-2xl bg-[#D9B978]/10 text-[#D9B978] flex flex-col items-center justify-center font-black text-xs shrink-0 border border-[#D9B978]/20">
-                          <span>{loc.symbol}</span>
-                          {loc.badge && <span className="text-[8px] opacity-75">{loc.badge}</span>}
-                       </div>
-                       <div>
-                          <h4 className="text-[#F4F1EA] font-black text-sm">{loc.name} ({c.code})</h4>
-                          <p className="text-xs text-slate-400 font-bold">{t.exchangeRate}</p>
-                       </div>
-                    </div>
-                    {c.code !== currency?.code && (
-                       <button onClick={() => triggerConfirm(`${t.deleteCurrency} ${loc.name}؟`, () => onRemoveCurrency(c.code), t.deleteCurrency, "danger")} className="p-2.5 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20">
-                          <Trash2 size={16} />
-                       </button>
-                    )}
-                 </div>
+                <div key={c.code} className="p-3 rounded-2xl bg-[#0A0D10] border border-white/5 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 font-bold truncate">{loc.name}</span>
+                  <div className="flex items-baseline justify-between gap-1 mt-1">
+                    <span className="text-sm font-black text-white truncate">
+                      {convertedVal.toLocaleString(undefined, { maximumFractionDigits: c.code.includes('YER') ? 0 : 2 })}
+                    </span>
+                    <span className="text-[10px] font-black text-[#D9B978] shrink-0">{loc.symbol}</span>
+                  </div>
+                </div>
               );
-           })}
+            })}
+          </div>
         </div>
+
+        {/* Currency Cards List */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider px-2">
+            {isArabic ? 'قائمة العملات وأسعار الصرف القابلة للتعديل' : 'Currencies & Exchange Rates'}
+          </h4>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {safeCurrencies.map(c => {
+              const loc = getLocalizedCurrency(c.code, c.name, c.symbol, localLanguage || 'ar');
+              const rate = currentRates[c.code] ?? DEFAULT_EXCHANGE_RATES[c.code] ?? 1.0;
+              const isBase = c.code === 'SAR';
+
+              // Format human-friendly descriptions
+              let rateDescription = '';
+              if (isBase) {
+                rateDescription = isArabic ? 'العملة المرجعية للنظام (1.00)' : 'Base Reference Currency (1.00)';
+              } else if (c.code === 'YER_SANAA') {
+                const per100 = Math.round(100 / rate);
+                rateDescription = isArabic 
+                  ? `100 ر.س = ${per100.toLocaleString()} ر.ي صنعاء`
+                  : `100 SAR = ${per100.toLocaleString()} YER`;
+              } else if (c.code === 'YER_ADEN') {
+                const per100 = Math.round(100 / rate);
+                const usdRate = currentRates['USD'] || (1576.0 / 410.0);
+                const per100Usd = Math.round(100 * (usdRate / rate));
+                rateDescription = isArabic 
+                  ? `100 ر.س = ${per100.toLocaleString()} ر.ي | 100 $ = ${per100Usd.toLocaleString()} ر.ي`
+                  : `100 SAR = ${per100.toLocaleString()} YER | 100 USD = ${per100Usd.toLocaleString()} YER`;
+              } else if (c.code === 'USD') {
+                const adenRate = currentRates['YER_ADEN'] || (100.0 / 41000.0);
+                const per100UsdInAden = Math.round(100 * (rate / adenRate));
+                rateDescription = isArabic 
+                  ? `1 $ = ${rate.toFixed(3)} ر.س (100 $ = ${per100UsdInAden.toLocaleString()} ر.ي عدن)`
+                  : `1 USD = ${rate.toFixed(3)} SAR (100 USD = ${per100UsdInAden.toLocaleString()} YER)`;
+              } else if (c.code === 'EGP') {
+                const per100 = Math.round(100 / rate);
+                rateDescription = isArabic 
+                  ? `100 ر.س = ${per100.toLocaleString()} جنيه مصري`
+                  : `100 SAR = ${per100.toLocaleString()} EGP`;
+              } else {
+                rateDescription = isArabic 
+                  ? `1 وحدة = ${rate.toFixed(3)} ر.س`
+                  : `1 Unit = ${rate.toFixed(3)} SAR`;
+              }
+
+              return (
+                <div 
+                  key={c.code} 
+                  className="bg-[#11161C] p-4 sm:p-5 rounded-[2rem] border border-white/10 flex flex-col justify-between gap-4 shadow-lg hover:border-white/20 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3.5">
+                      <div className="min-w-[48px] h-12 px-2.5 rounded-2xl bg-[#D9B978]/10 text-[#D9B978] flex flex-col items-center justify-center font-black text-xs shrink-0 border border-[#D9B978]/20">
+                        <span>{loc.symbol}</span>
+                        {loc.badge && <span className="text-[8px] opacity-75">{loc.badge}</span>}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-[#F4F1EA] font-black text-sm">{loc.name}</h4>
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-white/5 text-slate-400">
+                            {c.code}
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-300 font-bold mt-1">
+                          {rateDescription}
+                        </p>
+                      </div>
+                    </div>
+
+                    {c.code !== currency?.code && !isBase && (
+                      <button 
+                        onClick={() => triggerConfirm(`${t.deleteCurrency} ${loc.name}؟`, () => onRemoveCurrency(c.code), t.deleteCurrency, "danger")} 
+                        className="p-2.5 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-xl border border-rose-500/20 active:scale-95 transition-all"
+                        title={t.deleteCurrency}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {!isBase && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => openRateEditor(c)}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-[#F4F1EA] text-xs font-black border border-white/10 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Edit2 size={14} className="text-[#D9B978]" />
+                        {isArabic ? 'تعديل سعر الصرف' : 'Edit Rate'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Edit Rate Modal */}
+        {editingRateCurrency && (
+          <Modal 
+            title={`${isArabic ? 'تعديل سعر صرف' : 'Edit Rate'}: ${getLocalizedCurrency(editingRateCurrency.code, editingRateCurrency.name, editingRateCurrency.symbol, localLanguage || 'ar').name}`}
+            onClose={() => setEditingRateCurrency(null)}
+          >
+            <div className="space-y-4">
+              {editingRateCurrency.code === 'YER_SANAA' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-300">
+                    {isArabic ? 'كم يساوي 100 ريال سعودي بالريال اليمني (صنعاء)؟' : 'How much is 100 SAR in YER (Sanaa)?'}
+                  </label>
+                  <input
+                    type="number"
+                    value={rateInputVal}
+                    onChange={e => setRateInputVal(e.target.value)}
+                    placeholder="14000"
+                    className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                  />
+                  <p className="text-[11px] text-emerald-400 font-bold">
+                    {isArabic ? `النتيجة: 100 ر.س = ${parseFloat(rateInputVal) || 0} ر.ي (1 ر.س = ${((parseFloat(rateInputVal) || 0) / 100).toFixed(1)} ر.ي)` : ''}
+                  </p>
+                </div>
+              )}
+
+              {editingRateCurrency.code === 'YER_ADEN' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-300">
+                      {isArabic ? 'كم يساوي 100 ريال سعودي بالريال اليمني (عدن)؟' : 'How much is 100 SAR in YER (Aden)?'}
+                    </label>
+                    <input
+                      type="number"
+                      value={rateInputVal}
+                      onChange={e => setRateInputVal(e.target.value)}
+                      placeholder="41000"
+                      className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                    />
+                    <p className="text-[11px] text-emerald-400 font-bold">
+                      {isArabic ? `100 ر.س = ${(parseFloat(rateInputVal) || 0).toLocaleString()} ر.ي (1 ر.س = ${((parseFloat(rateInputVal) || 0) / 100).toFixed(1)} ر.ي)` : ''}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <label className="text-xs font-black text-slate-300">
+                      {isArabic ? 'وكم يساوي 100 دولار بالريال اليمني (عدن)؟' : 'How much is 100 USD in YER (Aden)?'}
+                    </label>
+                    <input
+                      type="number"
+                      value={rateInputSubVal}
+                      onChange={e => setRateInputSubVal(e.target.value)}
+                      placeholder="157600"
+                      className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                    />
+                    <p className="text-[11px] text-amber-400 font-bold">
+                      {isArabic ? `100 $ = ${(parseFloat(rateInputSubVal) || 0).toLocaleString()} ر.ي (1 $ = ${((parseFloat(rateInputSubVal) || 0) / 100).toFixed(1)} ر.ي)` : ''}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {editingRateCurrency.code === 'USD' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-300">
+                      {isArabic ? 'سعر 1 دولار أمريكي بالريال السعودي (SAR):' : 'Rate of 1 USD in SAR:'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={rateInputVal}
+                      onChange={e => setRateInputVal(e.target.value)}
+                      placeholder="3.844"
+                      className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-white/5">
+                    <label className="text-xs font-black text-slate-300">
+                      {isArabic ? 'أو كم يساوي 100 دولار بالريال اليمني عدن؟' : 'Or how much is 100 USD in YER (Aden)?'}
+                    </label>
+                    <input
+                      type="number"
+                      value={rateInputSubVal}
+                      onChange={e => setRateInputSubVal(e.target.value)}
+                      placeholder="157600"
+                      className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {editingRateCurrency.code === 'EGP' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-300">
+                    {isArabic ? 'كم يساوي 100 ريال سعودي بالجنيه المصري؟' : 'How much is 100 SAR in EGP?'}
+                  </label>
+                  <input
+                    type="number"
+                    value={rateInputVal}
+                    onChange={e => setRateInputVal(e.target.value)}
+                    placeholder="1250"
+                    className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                  />
+                  <p className="text-[11px] text-emerald-400 font-bold">
+                    {isArabic ? `100 ر.س = ${(parseFloat(rateInputVal) || 0).toLocaleString()} ج.م (1 ج.م = ${(100 / (parseFloat(rateInputVal) || 1250)).toFixed(3)} ر.س)` : ''}
+                  </p>
+                </div>
+              )}
+
+              {editingRateCurrency.code !== 'YER_SANAA' && editingRateCurrency.code !== 'YER_ADEN' && editingRateCurrency.code !== 'USD' && editingRateCurrency.code !== 'EGP' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-300">
+                    {isArabic ? `سعر 1 ${editingRateCurrency.name} بالريال السعودي (SAR):` : `Rate of 1 unit in SAR:`}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={rateInputVal}
+                    onChange={e => setRateInputVal(e.target.value)}
+                    className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingRateCurrency(null)}
+                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs transition-all"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={saveRateEditor}
+                  className="flex-1 py-3 rounded-2xl bg-[#D9B978] text-[#0A0D10] font-black text-xs shadow-lg shadow-[#D9B978]/10 active:scale-95 transition-all"
+                >
+                  {t.save}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Add New Currency Modal */}
+        {showCurrencyModal && (
+          <Modal title={t.addCurrency} onClose={() => setShowCurrencyModal(false)}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-300">
+                  {isArabic ? 'رمز العملة (مثال: TRY, CAD, QAR, KWD)' : 'Currency Code'}
+                </label>
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={newCurrencyData.code}
+                  onChange={e => setNewCurrencyData({ ...newCurrencyData, code: e.target.value.toUpperCase() })}
+                  placeholder="TRY"
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black uppercase border border-white/10 focus:border-[#D9B978] outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-300">
+                  {isArabic ? 'اسم العملة (مثال: ليرة تركية)' : 'Currency Name'}
+                </label>
+                <input
+                  type="text"
+                  value={newCurrencyData.name}
+                  onChange={e => setNewCurrencyData({ ...newCurrencyData, name: e.target.value })}
+                  placeholder={isArabic ? 'ليرة تركية' : 'Turkish Lira'}
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-300">
+                  {isArabic ? 'رمز العرض (مثال: ₺ أو TL)' : 'Symbol'}
+                </label>
+                <input
+                  type="text"
+                  maxLength={8}
+                  value={newCurrencyData.symbol}
+                  onChange={e => setNewCurrencyData({ ...newCurrencyData, symbol: e.target.value })}
+                  placeholder="₺"
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-300">
+                  {isArabic ? 'سعر الصرف مقابل 1 ريال سعودي (SAR)' : 'Exchange Rate in SAR'}
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={newCurrencyData.rate}
+                  onChange={e => setNewCurrencyData({ ...newCurrencyData, rate: e.target.value })}
+                  placeholder="0.10"
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCurrencyModal(false)}
+                  className="flex-1 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 font-black text-xs transition-all"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={saveNewCurrency}
+                  className="flex-1 py-3 rounded-2xl bg-[#D9B978] text-[#0A0D10] font-black text-xs shadow-lg shadow-[#D9B978]/10 active:scale-95 transition-all"
+                >
+                  {t.save}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
     );
   }
@@ -825,6 +1455,180 @@ export default function Settings({
                     <span>{t.save}</span>
                   </button>
                 </div>
+            </div>
+         </AccordionItem>
+
+         <AccordionItem 
+            id="customExchangeRates" 
+            title={localLanguage === 'en' ? 'Custom Exchange Rates & FX Control' : 'أسعار الصرف المخصصة والتحويل اليدوي'} 
+            icon={TrendingUp}
+            isOpen={openAccordion === 'customExchangeRates'}
+            onToggle={() => setOpenAccordion(openAccordion === 'customExchangeRates' ? null : 'customExchangeRates')}
+         >
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-[#0A0D10] border border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-black text-white">
+                      {localLanguage === 'en' ? 'Live Dynamic Rates Engine' : 'محرك أسعار الصرف اليدوية المخصصة'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[#D9B978]/10 text-[#D9B978] border border-[#D9B978]/20">
+                    {localLanguage === 'en' ? 'Base: SAR (1.00)' : 'الأساس: ريال سعودي (1.00)'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                  {localLanguage === 'en'
+                    ? 'Define your own manual exchange rates. All account balances, transactions, and net worth calculations will dynamically reflect these custom values.'
+                    : 'يمكنك تحديد أسعار الصرف يدوياً بدقة لمطابقة السوق ومحلات الصرافة. سيتم حفظ القيم في بياناتك وتطبيقها ديناميكياً على كافة الحسابات والتقارير.'}
+                </p>
+              </div>
+
+              {/* Yemen Rates Direct Inputs */}
+              <div className="space-y-3">
+                <div className="bg-[#0A0D10] p-3.5 sm:p-4 rounded-2xl border border-white/5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-black text-slate-300 flex items-center gap-1.5">
+                      🇾🇪 {localLanguage === 'en' ? '100 SAR in YER (Sanaa):' : 'كم يساوي 100 ريال سعودي بالريال اليمني (صنعاء)؟'}
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-400">
+                      {localLanguage === 'en' 
+                        ? `1 SAR = ${((parseFloat(manualYerSanaa100) || 0) / 100).toFixed(1)} YER` 
+                        : `1 ر.س = ${((parseFloat(manualYerSanaa100) || 0) / 100).toFixed(1)} ر.ي`}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={manualYerSanaa100}
+                      onChange={e => setManualYerSanaa100(e.target.value)}
+                      placeholder="14000"
+                      className="w-full p-3.5 rounded-xl bg-[#11161C] text-[#F4F1EA] font-black text-base border border-white/10 focus:border-[#D9B978] outline-none text-start"
+                    />
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
+                      {localLanguage === 'en' ? 'YER Sanaa' : 'ريال يمني'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-[#0A0D10] p-3.5 sm:p-4 rounded-2xl border border-white/5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-black text-slate-300 flex items-center gap-1.5">
+                      🇾🇪 {localLanguage === 'en' ? '100 SAR in YER (Aden):' : 'كم يساوي 100 ريال سعودي بالريال اليمني (عدن)؟'}
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-400">
+                      {localLanguage === 'en' 
+                        ? `1 SAR = ${((parseFloat(manualYerAden100) || 0) / 100).toFixed(1)} YER` 
+                        : `1 ر.س = ${((parseFloat(manualYerAden100) || 0) / 100).toFixed(1)} ر.ي`}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={manualYerAden100}
+                      onChange={e => setManualYerAden100(e.target.value)}
+                      placeholder="41000"
+                      className="w-full p-3.5 rounded-xl bg-[#11161C] text-[#F4F1EA] font-black text-base border border-white/10 focus:border-[#D9B978] outline-none text-start"
+                    />
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
+                      {localLanguage === 'en' ? 'YER Aden' : 'ريال يمني'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-[#0A0D10] p-3.5 sm:p-4 rounded-2xl border border-white/5 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-black text-slate-300 flex items-center gap-1.5">
+                      💵 {localLanguage === 'en' ? '100 USD in YER (Aden):' : 'كم يساوي 100 دولار أمريكي بالريال اليمني (عدن)؟'}
+                    </label>
+                    <span className="text-[10px] font-bold text-amber-400">
+                      {localLanguage === 'en' 
+                        ? `1 USD = ${((parseFloat(manualUsdInAden100) || 0) / 100).toFixed(1)} YER` 
+                        : `1 دولار = ${((parseFloat(manualUsdInAden100) || 0) / 100).toFixed(1)} ر.ي`}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={manualUsdInAden100}
+                      onChange={e => setManualUsdInAden100(e.target.value)}
+                      placeholder="157600"
+                      className="w-full p-3.5 rounded-xl bg-[#11161C] text-[#F4F1EA] font-black text-base border border-white/10 focus:border-[#D9B978] outline-none text-start"
+                    />
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">
+                      {localLanguage === 'en' ? 'YER Aden' : 'ريال يمني'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/5 space-y-2">
+                    <label className="text-[10px] font-black text-slate-300 block">
+                      🇪🇬 {localLanguage === 'en' ? '100 SAR in Egyptian Pound:' : '100 ريال سعودي بالجنيه المصري:'}
+                    </label>
+                    <input
+                      type="number"
+                      value={manualEgp100}
+                      onChange={e => setManualEgp100(e.target.value)}
+                      placeholder="1250"
+                      className="w-full p-3 rounded-xl bg-[#11161C] text-[#F4F1EA] font-black text-sm border border-white/10 focus:border-[#D9B978] outline-none text-start"
+                    />
+                  </div>
+
+                  <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/5 space-y-2">
+                    <label className="text-[10px] font-black text-slate-300 block">
+                      🇺🇸 {localLanguage === 'en' ? '1 USD rate in SAR:' : 'سعر 1 دولار بالريال السعودي:'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={manualUsdInSar}
+                      onChange={e => setManualUsdInSar(e.target.value)}
+                      placeholder="3.844"
+                      className="w-full p-3 rounded-xl bg-[#11161C] text-[#F4F1EA] font-black text-sm border border-white/10 focus:border-[#D9B978] outline-none text-start"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 space-y-2.5">
+                <button
+                  type="button"
+                  onClick={handleSaveAllManualRates}
+                  className="w-full py-3.5 bg-[#D9B978] hover:bg-[#c9a764] text-[#0A0D10] rounded-xl font-black text-xs active:scale-95 shadow-lg shadow-[#D9B978]/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Check size={16} strokeWidth={3} />
+                  <span>{localLanguage === 'en' ? 'Save & Apply Exchange Rates to App' : 'حفظ وتطبيق أسعار الصرف في كافة الحسابات'}</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleApplyYemenPreset}
+                    className="py-2.5 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl font-black text-[11px] active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>🇾🇪 {localLanguage === 'en' ? 'Apply Yemen Preset' : 'تطبيق أسعار اليمن'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetDefaultRates}
+                    className="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-xl font-bold text-[11px] active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>{localLanguage === 'en' ? 'Reset Defaults' : 'استعادة الافتراضيات'}</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('currencies')}
+                  className="w-full py-2.5 bg-[#0A0D10] hover:bg-white/5 text-[#D9B978] border border-[#D9B978]/30 rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Coins size={14} />
+                  <span>{localLanguage === 'en' ? 'Open Full FX Manager & Live Converter' : 'فتح الإدارة الكاملة للعملات والحاسبة التجريبية'}</span>
+                </button>
+              </div>
             </div>
          </AccordionItem>
 
