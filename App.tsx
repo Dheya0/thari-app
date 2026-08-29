@@ -5,6 +5,8 @@ import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, Ha
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
+import { generateFinancialReportSync } from './services/reports/reportService';
+import { printOrShareFinancialReport } from './services/reports/reportExportService';
 import { saveSecureState, saveSecureStateSync, loadSecureStateAsync } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
 import { processDueRecurringRules } from './services/recurringService';
@@ -196,6 +198,50 @@ const App: React.FC = () => {
       setIsLoadingSplash(false);
     }, 1600);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Handle Home Screen Quick Actions (PWA Shortcuts for iOS / Android Long-Press)
+  useEffect(() => {
+    const checkHomeScreenAction = () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hash = window.location.hash;
+        const action = urlParams.get('action') || (hash.includes('quick-add') ? 'quick-add' : null);
+
+        if (action === 'quick-add' || urlParams.has('quick-add') || urlParams.has('quickAdd')) {
+          // Immediately bypass splash and open transaction form
+          setIsLoadingSplash(false);
+          setShowAddForm(true);
+          setEditingTransaction(null);
+          setFormDefaultType('expense');
+
+          // Clean up the URL quietly without triggering page reload
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState(null, '', cleanUrl);
+        }
+      } catch (err) {
+        console.warn('Quick action handler error:', err);
+      }
+    };
+
+    // Check on initial mount
+    checkHomeScreenAction();
+
+    // Also listen when app is reopened/focused or URL changes via PWA deep link
+    window.addEventListener('popstate', checkHomeScreenAction);
+    window.addEventListener('hashchange', checkHomeScreenAction);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkHomeScreenAction();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('popstate', checkHomeScreenAction);
+      window.removeEventListener('hashchange', checkHomeScreenAction);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -640,22 +686,46 @@ const App: React.FC = () => {
       }
   };
 
-  const handlePrint = (
+  const handlePrint = async (
     type: 'summary' | 'detailed',
     walletId?: string | null,
     currencyFilter?: string | null,
     startDate?: string | null,
     endDate?: string | null
   ) => {
+    const targetWalletId = walletId !== undefined ? walletId : selectedWalletId;
     setPrintType(type);
-    setPrintWalletFilter(walletId !== undefined ? walletId : selectedWalletId);
+    setPrintWalletFilter(targetWalletId);
     setPrintCurrencyFilter(currencyFilter || null);
     setPrintStartDate(startDate || null);
     setPrintEndDate(endDate || null);
-    // Give React time to update state and re-render FinancialReport before opening print dialog
-    setTimeout(() => { 
-      window.print(); 
-    }, 600);
+
+    try {
+      const model = generateFinancialReportSync({
+        transactions: state.transactions,
+        categories: state.categories,
+        wallets: state.wallets,
+        userName: state.userName,
+        baseCurrencyCode: state.currency.code,
+        exchangeRates: state.exchangeRates,
+        params: {
+          type,
+          walletId: targetWalletId,
+          currencyCode: currencyFilter || null,
+          startDate: startDate || null,
+          endDate: endDate || null,
+          targetCurrencyCode: state.currency.code,
+        },
+      });
+
+      await printOrShareFinancialReport(model, 'print');
+    } catch (e) {
+      console.warn('Print handler error:', e);
+      // Fallback
+      setTimeout(() => {
+        window.print();
+      }, 500);
+    }
   };
 
   const handleShare = async (
@@ -665,13 +735,65 @@ const App: React.FC = () => {
     startDate?: string | null,
     endDate?: string | null
   ) => {
+    const targetWalletId = walletId !== undefined ? walletId : selectedWalletId;
     setPrintType(type);
-    setPrintWalletFilter(walletId !== undefined ? walletId : selectedWalletId);
+    setPrintWalletFilter(targetWalletId);
     setPrintCurrencyFilter(currencyFilter || null);
     setPrintStartDate(startDate || null);
     setPrintEndDate(endDate || null);
     
     try {
+      const model = generateFinancialReportSync({
+        transactions: state.transactions,
+        categories: state.categories,
+        wallets: state.wallets,
+        userName: state.userName,
+        baseCurrencyCode: state.currency.code,
+        exchangeRates: state.exchangeRates,
+        params: {
+          type,
+          walletId: targetWalletId,
+          currencyCode: currencyFilter || null,
+          startDate: startDate || null,
+          endDate: endDate || null,
+          targetCurrencyCode: state.currency.code,
+        },
+      });
+
+      await printOrShareFinancialReport(model, 'share');
+    } catch (e) {
+      console.warn('Share error:', e);
+      setShowReportModal(true);
+    }
+  };
+
+  const handleExportExcelReport = async (
+    type: 'summary' | 'detailed' = 'detailed',
+    currencyFilter?: string | null,
+    startDate?: string | null,
+    endDate?: string | null
+  ) => {
+    try {
+      const model = generateFinancialReportSync({
+        transactions: state.transactions,
+        categories: state.categories,
+        wallets: state.wallets,
+        userName: state.userName,
+        baseCurrencyCode: state.currency.code,
+        exchangeRates: state.exchangeRates,
+        params: {
+          type,
+          walletId: selectedWalletId,
+          currencyCode: currencyFilter || null,
+          startDate: startDate || null,
+          endDate: endDate || null,
+          targetCurrencyCode: state.currency.code,
+        },
+      });
+
+      await printOrShareFinancialReport(model, 'excel');
+    } catch (e) {
+      console.warn('Excel export report error:', e);
       const csvContent = buildExecutiveCSVContent({
         transactions: state.transactions,
         categories: state.categories,
@@ -680,59 +802,14 @@ const App: React.FC = () => {
         currency: state.currency,
         exchangeRates: state.exchangeRates,
         type,
-        filterWalletId: walletId !== undefined ? walletId : selectedWalletId,
+        filterWalletId: selectedWalletId,
         filterCurrency: currencyFilter || null,
         startDate: startDate || null,
         endDate: endDate || null,
       });
-
-      if (navigator.share) {
-        const file = new File([csvContent], `Thari_Report_${type}.csv`, { type: 'text/csv' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: 'تقرير ثري المالي',
-            text: 'مرفق التقرير المالي من تطبيق ثري (THARI)',
-            files: [file],
-          });
-          return;
-        } else {
-          await navigator.share({
-            title: 'تقرير ثري المالي',
-            text: csvContent.slice(0, 1500),
-          });
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Share error:', e);
+      const fileName = `Thari_Executive_Report_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+      exportAndShareExecutiveCSV(csvContent, fileName);
     }
-
-    // Open Report Modal for PDF/Print/Share
-    setShowReportModal(true);
-  };
-
-  const handleExportExcelReport = (
-    type: 'summary' | 'detailed' = 'detailed',
-    currencyFilter?: string | null,
-    startDate?: string | null,
-    endDate?: string | null
-  ) => {
-    const csvContent = buildExecutiveCSVContent({
-      transactions: state.transactions,
-      categories: state.categories,
-      wallets: state.wallets,
-      userName: state.userName,
-      currency: state.currency,
-      exchangeRates: state.exchangeRates,
-      type,
-      filterWalletId: selectedWalletId,
-      filterCurrency: currencyFilter || null,
-      startDate: startDate || null,
-      endDate: endDate || null,
-    });
-
-    const fileName = `Thari_Executive_Report_${type}_${new Date().toISOString().split('T')[0]}.csv`;
-    exportAndShareExecutiveCSV(csvContent, fileName);
   };
 
   const handleEditTransaction = (tx: Transaction) => {
@@ -1216,16 +1293,16 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto no-scrollbar overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full">
+        <main className="flex-1 overflow-y-auto no-scrollbar smooth-scroll overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full">
           <div className="py-4 sm:py-6 max-w-7xl mx-auto w-full">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={activeTab}
-                initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -12, scale: 0.98 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="w-full"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full will-change-transform"
               >
                 {activeTab === 'dashboard' && (
                   <ElegantDashboard

@@ -89,7 +89,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   }, [baseModel]);
 
   return (
-    <div className="hidden print:block print:w-full print:m-0 print:p-0 print:bg-white text-slate-900">
+    <div id="financial-report-print-container" className="hidden print:block print:w-full print:m-0 print:p-0 print:bg-white text-slate-900">
       <FinancialReportDocument model={reportModel} />
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   User, 
   Trash2, 
@@ -1365,9 +1366,9 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       )}
 
       {/* MODAL 1: ADD / EDIT DEBT */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl relative max-h-[85vh] flex flex-col border border-white/10 overflow-hidden text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      {showAddForm && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
+          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative max-h-[92dvh] sm:max-h-[85vh] flex flex-col border-t sm:border border-white/10 overflow-hidden text-start" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-white/5">
               <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
                 <Receipt size={18} className="text-[#D9B978]" />
@@ -1375,13 +1376,13 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </h3>
               <button 
                 onClick={() => setShowAddForm(false)} 
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-colors"
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-all"
               >
                 <X size={16} />
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 pb-1">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 pb-4 overscroll-contain">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">{isRtl ? 'نوع الدين والالتزام' : 'Debt Type'}</label>
                 <div className="grid grid-cols-2 gap-2 bg-[#0A0D10] p-1.5 rounded-2xl border border-white/10">
@@ -1417,6 +1418,10 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     onChange={e => setPersonName(e.target.value)} 
                     placeholder={isRtl ? 'مثلاً: محمد، البنك، فلان...' : 'e.g., John, Bank...'} 
                     className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-white text-xs sm:text-sm font-bold focus:border-[#D9B978] transition-colors shadow-inner" 
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="words"
+                    enterKeyHint="next"
                     required 
                   />
                 </div>
@@ -1428,11 +1433,14 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                   </label>
                   <input 
                     type="tel" 
+                    inputMode="tel"
                     value={personPhone} 
                     onChange={e => setPersonPhone(e.target.value)} 
                     placeholder={isRtl ? 'مثلاً: 9665xxxxxxxx أو 77xxxxxxx' : '+1234567890'} 
                     className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-white text-xs sm:text-sm font-bold focus:border-[#D9B978] transition-colors shadow-inner text-start" 
                     dir="ltr"
+                    autoComplete="tel"
+                    enterKeyHint="next"
                   />
                 </div>
               </div>
@@ -1444,6 +1452,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 <div className="relative">
                   <input 
                     type="number" 
+                    inputMode="decimal"
                     step="any"
                     value={amount} 
                     onChange={e => {
@@ -1459,6 +1468,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     }} 
                     placeholder="0.00" 
                     className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-[#D9B978] font-black text-center text-xl tracking-wider focus:border-[#D9B978] transition-colors shadow-inner" 
+                    enterKeyHint="next"
                     required 
                   />
                   <span className={`absolute ${isRtl ? 'left-3.5' : 'right-3.5'} top-1/2 -translate-y-1/2 text-xs font-black text-slate-500`}>
@@ -1467,7 +1477,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 </div>
               </div>
 
-              {/* 💱 Agreed Exchange Rate & Foreign Currency Lock (تثبيت سعر الصرف وتوثيق العملة الأجنبية لمنع النزاع) */}
+              {/* 💱 Agreed Exchange Rate & Foreign Currency Lock */}
               <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-[#D9B978]/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1513,6 +1523,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         <div className="flex items-center bg-[#11161C] rounded-xl border border-white/10 overflow-hidden">
                           <input 
                             type="number"
+                            inputMode="decimal"
                             step="any"
                             value={foreignAmountInput}
                             onChange={e => {
@@ -1526,6 +1537,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                             }}
                             placeholder={isRtl ? 'مثلاً: 104' : 'e.g. 104'}
                             className="w-full p-2.5 bg-transparent outline-none text-white font-bold text-xs"
+                            enterKeyHint="next"
                           />
                           <select
                             value={foreignCurrencyInput}
@@ -1551,6 +1563,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         </label>
                         <input 
                           type="number"
+                          inputMode="decimal"
                           step="any"
                           value={agreedRateInput}
                           onChange={e => {
@@ -1564,6 +1577,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                           }}
                           placeholder={isRtl ? 'مثلاً: 1600' : 'e.g. 1600'}
                           className="w-full p-2.5 rounded-xl bg-[#11161C] border border-white/10 outline-none text-[#D9B978] font-bold text-xs"
+                          enterKeyHint="next"
                         />
                       </div>
                     </div>
@@ -1673,24 +1687,29 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                   onChange={e => setNote(e.target.value)} 
                   placeholder={isRtl ? 'أي تفاصيل أو شروط خاصة بالسداد...' : 'Notes...'} 
                   className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-white font-bold text-xs resize-none focus:border-[#D9B978]" 
+                  enterKeyHint="done"
                 />
               </div>
 
-              <button 
-                type="submit" 
-                className="w-full py-3 bg-[#D9B978] hover:bg-[#E5C17B] text-slate-950 font-black rounded-2xl shadow-md text-xs sm:text-sm active:scale-98 transition-all mt-2"
-              >
-                {editingDebt ? (isRtl ? 'حفظ تعديلات الدين' : 'Save Changes') : (isRtl ? 'تسجيل الدين وحفظ السجل 💾' : 'Save Debt 💾')}
-              </button>
+              {/* Action Button inside modal with safe-area spacing */}
+              <div className="pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] sm:pb-2">
+                <button 
+                  type="submit" 
+                  className="w-full py-3.5 bg-[#D9B978] hover:bg-[#E5C17B] text-slate-950 font-black rounded-2xl shadow-lg text-xs sm:text-sm active:scale-98 transition-all"
+                >
+                  {editingDebt ? (isRtl ? 'حفظ تعديلات الدين' : 'Save Changes') : (isRtl ? 'تسجيل الدين وحفظ السجل 💾' : 'Save Debt 💾')}
+                </button>
+              </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 2: RECORD PAYMENT */}
-      {paymentModalData && (
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[350] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[85vh] flex flex-col min-h-0 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      {paymentModalData && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
+          <div className="bg-[#11161C] w-full max-w-md mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl border-t sm:border border-white/10 overflow-hidden max-h-[92dvh] sm:max-h-[85vh] flex flex-col min-h-0 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5">
               <h3 className="text-base font-black text-white flex items-center gap-2">
                 <CreditCard size={18} className="text-emerald-400" />
@@ -1698,13 +1717,13 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </h3>
               <button 
                 onClick={() => setPaymentModalData(null)}
-                className="p-1.5 bg-slate-800 rounded-xl text-slate-400 hover:text-white"
+                className="p-1.5 bg-slate-800 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-all"
               >
                 <X size={15} />
               </button>
             </div>
 
-            <form onSubmit={handleExecutePayment} className="flex-1 overflow-y-auto custom-scrollbar space-y-3.5 px-1">
+            <form onSubmit={handleExecutePayment} className="flex-1 overflow-y-auto custom-scrollbar space-y-3.5 px-1 pb-4 overscroll-contain">
               <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10">
                 <div className="flex justify-between items-center">
                   <div>
@@ -1754,6 +1773,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         <div className="flex items-center bg-[#11161C] rounded-xl border border-white/10 overflow-hidden">
                           <input 
                             type="number"
+                            inputMode="decimal"
                             step="any"
                             value={payForeignAmountInput}
                             onChange={e => {
@@ -1767,6 +1787,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                             }}
                             placeholder="مثلاً: 50"
                             className="w-full p-2 bg-transparent outline-none text-white font-bold text-xs"
+                            enterKeyHint="next"
                           />
                           <select
                             value={payForeignCurrencyInput}
@@ -1785,6 +1806,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'سعر الصرف' : 'Rate'}</label>
                         <input 
                           type="number"
+                          inputMode="decimal"
                           step="any"
                           value={payAgreedRateInput}
                           onChange={e => {
@@ -1798,6 +1820,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                           }}
                           placeholder={isRtl ? 'مثلاً: 1600' : 'e.g. 1600'}
                           className="w-full p-2 rounded-xl bg-[#11161C] border border-white/10 outline-none text-white font-bold text-xs"
+                          enterKeyHint="next"
                         />
                       </div>
                     </div>
@@ -1809,7 +1832,8 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{isRtl ? 'المبلغ الإجمالي المسدد بالعملة الأساسية' : 'Payment Amount in Base Currency'}</label>
                 <div className="relative">
                   <input 
-                    type="number"
+                    type="number" 
+                    inputMode="decimal"
                     step="any"
                     value={payAmountInput}
                     onChange={e => {
@@ -1822,9 +1846,10 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                           setPayForeignAmountInput(roundToCurrency(safeDiv(amtNum, rateNum)).toString());
                         }
                       }
-                    }}
-                    placeholder="0.00"
-                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-emerald-400 font-black text-center text-xl tracking-wider focus:border-emerald-500 transition-colors shadow-inner"
+                    }} 
+                    placeholder="0.00" 
+                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-emerald-400 font-black text-center text-xl tracking-wider focus:border-emerald-500 transition-colors shadow-inner" 
+                    enterKeyHint="next"
                     required
                   />
                   <span className={`absolute ${isRtl ? 'left-3.5' : 'right-3.5'} top-1/2 -translate-y-1/2 text-xs font-black text-slate-500`}>
@@ -1836,29 +1861,32 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'تاريخ الدفعة' : 'Date'}</label>
                 <input 
-                  type="date"
-                  value={payDateInput}
-                  onChange={e => setPayDateInput(e.target.value)}
-                  className="w-full p-2.5 rounded-xl bg-[#0A0D10] border border-white/10 outline-none text-white font-bold text-xs"
+                  type="date" 
+                  value={payDateInput} 
+                  onChange={e => setPayDateInput(e.target.value)} 
+                  className="w-full p-2.5 rounded-xl bg-[#0A0D10] border border-white/10 outline-none text-white font-bold text-xs" 
                   required
                 />
               </div>
 
-              <button 
-                type="submit"
-                className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl shadow-lg text-xs sm:text-sm active:scale-98 transition-all mt-2"
-              >
-                {isRtl ? 'تأكيد وحفظ الدفعة في السجل 💳' : 'Confirm Payment 💳'}
-              </button>
+              <div className="pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] sm:pb-2">
+                <button 
+                  type="submit" 
+                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl shadow-lg text-xs sm:text-sm active:scale-98 transition-all"
+                >
+                  {isRtl ? 'تأكيد وحفظ الدفعة في السجل 💳' : 'Confirm Payment 💳'}
+                </button>
+              </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 3: PAYMENT HISTORY MODAL */}
-      {historyModalDebt && (
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[350] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[85vh] flex flex-col min-h-0 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      {historyModalDebt && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
+          <div className="bg-[#11161C] w-full max-w-md mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl border-t sm:border border-white/10 overflow-hidden max-h-[92dvh] sm:max-h-[85vh] flex flex-col min-h-0 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5">
               <div>
                 <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -1869,13 +1897,13 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </div>
               <button 
                 onClick={() => setHistoryModalDebt(null)}
-                className="p-1.5 bg-slate-800 rounded-xl text-slate-400 hover:text-white"
+                className="p-1.5 bg-slate-800 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-all"
               >
                 <X size={15} />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 px-1">
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 px-1 pb-4 overscroll-contain">
               {(!historyModalDebt.payments || historyModalDebt.payments.length === 0) ? (
                 <div className="text-center py-8 text-slate-500 text-xs font-bold">
                   {historyModalDebt.paidAmount > 0 ? (
@@ -1907,20 +1935,23 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               )}
             </div>
 
-            <button
-              onClick={() => setHistoryModalDebt(null)}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl mt-3"
-            >
-              {isRtl ? 'إغلاق' : 'Close'}
-            </button>
+            <div className="pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] sm:pb-2">
+              <button
+                onClick={() => setHistoryModalDebt(null)}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all"
+              >
+                {isRtl ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL 4: DEBT REMINDER & SHARING MODAL (تذكير بالديون ومشاركتها) */}
-      {reminderModalData && (
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[400] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#D9B978]/30 overflow-hidden max-h-[90vh] flex flex-col min-h-0 text-start relative" dir={isRtl ? 'rtl' : 'ltr'}>
+      {reminderModalData && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
+          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl border-t sm:border border-[#D9B978]/30 overflow-hidden max-h-[92dvh] sm:max-h-[90vh] flex flex-col min-h-0 text-start relative" dir={isRtl ? 'rtl' : 'ltr'}>
             
             {/* Header */}
             <div className="flex justify-between items-center mb-3 pb-3 border-b border-white/10 shrink-0">
@@ -1939,14 +1970,14 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </div>
               <button 
                 onClick={() => setReminderModalData(null)}
-                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-colors"
+                className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-all"
               >
                 <X size={16} />
               </button>
             </div>
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 px-1 pb-1">
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 px-1 pb-4 overscroll-contain">
               
               {/* Summary Pill */}
               <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10 flex items-center justify-between">
@@ -2015,11 +2046,14 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                   <Phone size={14} className={`absolute ${isRtl ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 text-slate-500`} />
                   <input
                     type="tel"
+                    inputMode="tel"
                     value={reminderRecipientPhone}
                     onChange={e => setReminderRecipientPhone(e.target.value)}
                     placeholder={isRtl ? 'مثلاً: 9665xxxxxxxx أو 967xxxxxxxxx' : '+1234567890'}
                     className={`w-full p-2.5 ${isRtl ? 'pr-9' : 'pl-9'} rounded-xl bg-[#0A0D10] border border-white/10 text-white font-bold text-xs outline-none focus:border-[#D9B978]`}
                     dir="ltr"
+                    autoComplete="tel"
+                    enterKeyHint="next"
                   />
                 </div>
               </div>
@@ -2037,8 +2071,9 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 <textarea
                   value={customReminderText}
                   onChange={e => setCustomReminderText(e.target.value)}
-                  rows={5}
+                  rows={4}
                   className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 text-white text-xs sm:text-sm font-medium outline-none focus:border-[#D9B978] custom-scrollbar leading-relaxed resize-none shadow-inner"
+                  enterKeyHint="done"
                 />
               </div>
 
@@ -2098,7 +2133,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="pt-3 mt-2 border-t border-white/5 shrink-0">
+            <div className="pt-2 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] sm:pb-2 border-t border-white/5 shrink-0">
               <button
                 onClick={() => setReminderModalData(null)}
                 className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-xs rounded-xl transition-all"
@@ -2108,7 +2143,8 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

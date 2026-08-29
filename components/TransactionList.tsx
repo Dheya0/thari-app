@@ -305,7 +305,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                     deleteLabel="حذف"
                   >
                     <div
-                      className="group bg-slate-900/90 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-amber-500/40 hover:bg-slate-900/95 transition-all duration-300 gap-2.5 cursor-pointer"
+                      className="group bg-slate-900/90 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-amber-500/40 hover:bg-slate-900/95 transition-colors duration-200 gap-2.5 cursor-pointer"
                       title="اسحب لليمين/اليسار للحذف والتعديل، أو انقر للتفاصيل"
                     >
                       {/* Left / Primary Info */}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'thari-pwa-v5';
+const CACHE_NAME = 'thari-pwa-v6';
 
 const PRECACHE_ASSETS = [
   '/',

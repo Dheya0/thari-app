@@ -33,6 +33,34 @@
       "purpose": "any maskable"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "إضافة معاملة سريعة",
+      "short_name": "إضافة سريعة",
+      "description": "فتح نموذج إضافة عملية جديدة مباشرة",
+      "url": "/?action=quick-add",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Quick Add Transaction",
+      "short_name": "Quick Add",
+      "description": "Directly record a new transaction",
+      "url": "/?action=quick-add",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "orientation": "portrait",
   "categories": [
     "finance",

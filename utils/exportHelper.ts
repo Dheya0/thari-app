@@ -1,12 +1,33 @@
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { generateFinancialReportSync } from '../services/reports/reportService';
-import { buildExcelReportHTML, exportAndShareNativeFile } from '../services/reports/reportExportService';
+import { buildExcelReportHTML, exportAndShareNativeFile, printOrShareFinancialReport } from '../services/reports/reportExportService';
 
 export const generateAndSharePDF = async (
-  elementId: string,
-  fileName: string
+  transactionsOrElementId: any,
+  fileNameOrCategories?: any,
+  wallets?: Wallet[],
+  currency?: Currency,
+  exchangeRates?: Record<string, number>
 ) => {
-  window.print();
+  if (Array.isArray(transactionsOrElementId)) {
+    const model = generateFinancialReportSync({
+      transactions: transactionsOrElementId,
+      categories: Array.isArray(fileNameOrCategories) ? fileNameOrCategories : [],
+      wallets: wallets || [],
+      userName: 'مستخدم ثري',
+      baseCurrencyCode: currency?.code || 'SAR',
+      exchangeRates: exchangeRates || {},
+      params: {
+        type: 'detailed',
+        walletId: null,
+        currencyCode: null,
+        targetCurrencyCode: currency?.code || 'SAR',
+      },
+    });
+    await printOrShareFinancialReport(model, 'print');
+  } else {
+    window.print();
+  }
 };
 
 export const buildExecutiveCSVContent = ({

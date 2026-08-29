@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FileText,
@@ -17,7 +18,7 @@ import {
 import { Category, Currency, Transaction, Wallet } from '../../types';
 import { ReportModel, ReportType } from '../../services/reports/reportTypes';
 import { generateFinancialReportSync } from '../../services/reports/reportService';
-import { buildExcelReportCSV, buildExcelReportHTML, exportAndShareReportCSV, exportAndShareNativeFile } from '../../services/reports/reportExportService';
+import { buildExcelReportCSV, buildExcelReportHTML, buildPrintableReportHTML, exportAndShareReportCSV, exportAndShareNativeFile, printOrShareFinancialReport } from '../../services/reports/reportExportService';
 import { FinancialReportDocument } from './FinancialReportDocument';
 
 interface ReportModalProps {
@@ -125,37 +126,52 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     endDate,
   ]);
 
-  // Print handler
-  const handlePrint = () => {
-    if (onTriggerPrint) {
-      onTriggerPrint(reportType, selectedWalletId, selectedCurrencyCode, startDate, endDate);
-    } else {
-      window.print();
+  // Print / PDF handler optimized for iPhone, Android & Web
+  const handlePrint = async () => {
+    try {
+      await printOrShareFinancialReport(reportModel, 'print');
+      if (onTriggerPrint) {
+        onTriggerPrint(reportType, selectedWalletId, selectedCurrencyCode, startDate, endDate);
+      }
+    } catch (e) {
+      console.warn('Print handler error:', e);
+    }
+    onClose();
+  };
+
+  // Dedicated share handler for mobile/iPhone & Android
+  const handleShareReport = async () => {
+    try {
+      await printOrShareFinancialReport(reportModel, 'share');
+    } catch (e) {
+      console.warn('Share handler error:', e);
     }
     onClose();
   };
 
   // Excel Spreadsheet (.xls) Export handler
   const handleExportExcel = async () => {
-    const htmlContent = buildExcelReportHTML(reportModel);
-    const fileName = `THARI_${reportType === 'summary' ? 'Summary' : 'Ledger'}_${new Date().toISOString().split('T')[0]}.xls`;
-    await exportAndShareNativeFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
+    try {
+      await printOrShareFinancialReport(reportModel, 'excel');
+    } catch (e) {
+      console.warn('Excel export error:', e);
+    }
     onClose();
   };
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto no-print">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden no-print">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-[#11161C] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh] text-[#F4F1EA]"
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="w-full max-w-2xl bg-[#11161C] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85vh] text-[#F4F1EA]"
         dir="rtl"
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-white/10 flex justify-between items-center bg-[#0A0D10]/60">
+        <div className="p-4 sm:p-5 border-b border-white/10 flex justify-between items-center bg-[#0A0D10]/80 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#D9B978]/10 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
               <FileText size={20} />
@@ -167,14 +183,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white active:scale-90 transition-all"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar overscroll-contain">
           
           {/* 1. Report Type Switcher */}
           <div className="space-y-2">
@@ -398,27 +414,38 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-white/10 bg-[#0A0D10]/70 flex flex-col sm:flex-row gap-3">
+        {/* Footer Actions with Safe-Area Insets */}
+        <div className="p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] border-t border-white/10 bg-[#0A0D10]/95 shrink-0 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 py-3 px-4 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-bold text-xs rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all"
+            className="py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all"
           >
             <Printer size={16} />
-            <span>طباعة وحفظ كـ PDF</span>
+            <span>طباعة / PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShareReport}
+            className="py-3.5 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-98 transition-all"
+          >
+            <FileText size={16} />
+            <span>مشاركة التقرير</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportExcel}
-            className="flex-1 py-3 px-4 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all"
+            className="py-3.5 px-3 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all"
           >
             <FileSpreadsheet size={16} className="text-[#8EB9A7]" />
-            <span>تصدير كـ Excel (CSV)</span>
+            <span>تصدير Excel</span>
           </button>
         </div>
       </motion.div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

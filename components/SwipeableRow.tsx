@@ -30,44 +30,51 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isDraggingRef = useRef(false);
+  const dragDistanceRef = useRef(0);
 
   const handleDragStart = () => {
     isDraggingRef.current = true;
+    dragDistanceRef.current = 0;
+  };
+
+  const handleDrag = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    dragDistanceRef.current = Math.abs(info.offset.x);
   };
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setTimeout(() => {
       isDraggingRef.current = false;
-    }, 50);
+    }, 60);
 
     const x = info.offset.x;
     const velocity = info.velocity.x;
 
     if (swipeOffset !== 0) {
-      // If currently swiped left (offset < 0) and dragged rightwards, or vice-versa, return to closed state
-      if (swipeOffset < 0 && (x > 25 || velocity > 120)) {
+      // If currently swiped left (offset < 0) and dragged rightwards, snap back closed
+      if (swipeOffset < 0 && (x > 15 || velocity > 40)) {
         setSwipeOffset(0);
         setShowDeleteConfirm(false);
         return;
       }
-      if (swipeOffset > 0 && (x < -25 || velocity < -120)) {
+      // If currently swiped right (offset > 0) and dragged leftwards, snap back closed
+      if (swipeOffset > 0 && (x < -15 || velocity < -40)) {
         setSwipeOffset(0);
         setShowDeleteConfirm(false);
         return;
       }
       // If dragged further in the same direction, stay open
-      if ((swipeOffset < 0 && x < -20) || (swipeOffset > 0 && x > 20)) {
+      if ((swipeOffset < 0 && x < -15) || (swipeOffset > 0 && x > 15)) {
         return;
       }
     }
 
-    // Determine snap state from closed initial position
-    if (x < -45 || velocity < -200) {
+    // Determine snap state from closed initial position (light, highly responsive thresholds)
+    if (x < -20 || velocity < -50) {
       // Swiped Left (reveal right actions)
-      setSwipeOffset(-130);
-    } else if (x > 45 || velocity > 200) {
+      setSwipeOffset(-96);
+    } else if (x > 20 || velocity > 50) {
       // Swiped Right (reveal left actions)
-      setSwipeOffset(130);
+      setSwipeOffset(96);
     } else {
       // Snap closed
       setSwipeOffset(0);
@@ -76,7 +83,8 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   };
 
   const handleRowClick = () => {
-    if (isDraggingRef.current) return;
+    // If was just dragging with real movement, don't trigger click
+    if (isDraggingRef.current && dragDistanceRef.current > 8) return;
 
     if (swipeOffset !== 0) {
       // If already open, clicking closes the swipe
@@ -111,58 +119,61 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   };
 
   return (
-    <div id={`swipe-container-${id}`} className={`relative overflow-hidden select-none rounded-2xl sm:rounded-3xl ${className}`}>
+    <div 
+      id={`swipe-container-${id}`} 
+      className={`relative overflow-hidden select-none rounded-2xl sm:rounded-3xl touch-pan-y ${className}`}
+    >
       {/* Background Action Layer */}
       <div 
-        className="absolute inset-0 flex items-center justify-between px-3 bg-[#0B0F14] border border-white/[0.06] rounded-2xl sm:rounded-3xl z-0"
+        className="absolute inset-0 flex items-center justify-between px-2.5 bg-[#0B0F14] border border-white/[0.06] rounded-2xl sm:rounded-3xl z-0"
         aria-hidden="true"
       >
         {/* Left Action (Edit) */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-[70px]">
           {onEdit && (
             <button
               type="button"
               onClick={handleEditClick}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#D9B978]/20 text-[#D9B978] hover:bg-[#D9B978]/30 border border-[#D9B978]/30 font-bold text-xs active:scale-95 transition-all shadow-sm"
+              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#D9B978]/25 text-[#D9B978] hover:bg-[#D9B978]/35 border border-[#D9B978]/40 font-bold text-xs active:scale-95 transition-all shadow-sm min-h-[40px]"
               title={editLabel}
             >
-              <Edit2 size={14} />
-              <span className="hidden xs:inline">{editLabel}</span>
+              <Edit2 size={15} />
+              <span className="text-xs font-black">{editLabel}</span>
             </button>
           )}
         </div>
 
         {/* Right Action (Delete with inline confirm) */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-[70px] justify-end">
           {onDelete && (
             !showDeleteConfirm ? (
               <button
                 type="button"
                 onClick={handleDeleteClick}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#C98387]/20 text-[#C98387] hover:bg-[#C98387]/30 border border-[#C98387]/30 font-bold text-xs active:scale-95 transition-all shadow-sm"
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-rose-500/25 text-rose-300 hover:bg-rose-500/35 border border-rose-500/40 font-bold text-xs active:scale-95 transition-all shadow-sm min-h-[40px]"
                 title={deleteLabel}
               >
-                <Trash2 size={14} />
-                <span className="hidden xs:inline">{deleteLabel}</span>
+                <Trash2 size={15} />
+                <span className="text-xs font-black">{deleteLabel}</span>
               </button>
             ) : (
-              <div className="flex items-center gap-1 bg-[#C98387]/30 p-1 rounded-xl border border-[#C98387]/50 animate-fade">
+              <div className="flex items-center gap-1 bg-rose-900/60 p-1 rounded-xl border border-rose-500/50 animate-fade">
                 <button
                   type="button"
                   onClick={handleDeleteClick}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#C98387] text-white font-black text-xs hover:bg-[#C98387]/90 active:scale-95 transition-all shadow-sm"
+                  className="flex items-center gap-1 px-2.5 py-2 rounded-lg bg-rose-600 text-white font-black text-xs hover:bg-rose-500 active:scale-95 transition-all shadow-sm"
                   title={confirmDeleteText}
                 >
-                  <Check size={13} strokeWidth={3} />
+                  <Check size={14} strokeWidth={3} />
                   <span>تأكيد</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleCancelDelete}
-                  className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs active:scale-95 transition-all"
+                  className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs active:scale-95 transition-all"
                   title="إلغاء"
                 >
-                  <X size={13} />
+                  <X size={14} />
                 </button>
               </div>
             )
@@ -173,20 +184,16 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       {/* Foreground Draggable Card */}
       <motion.div
         drag={disabled ? false : 'x'}
-        dragConstraints={
-          swipeOffset < 0
-            ? { left: -140, right: 140 }
-            : swipeOffset > 0
-            ? { left: -140, right: 140 }
-            : { left: -140, right: 140 }
-        }
-        dragElastic={0.2}
+        dragDirectionLock={true}
+        dragConstraints={{ left: -110, right: 110 }}
+        dragElastic={0.06}
         onDragStart={handleDragStart}
+        onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         animate={{ x: swipeOffset }}
-        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+        transition={{ type: 'spring', stiffness: 520, damping: 30, mass: 0.5 }}
         onClick={handleRowClick}
-        className="relative z-10 w-full cursor-grab active:cursor-grabbing"
+        className="relative z-10 w-full cursor-grab active:cursor-grabbing touch-pan-y will-change-transform"
       >
         {children}
       </motion.div>

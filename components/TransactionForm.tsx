@@ -118,10 +118,39 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [actualRealBalance, setActualRealBalance] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const primaryInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const typingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Helper to reliably center the active input in the available visible viewport
+  const centerActiveInput = (targetElement?: HTMLElement | null) => {
+    const el = targetElement || (typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null);
+    if (!el || !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    } catch {
+      try {
+        el.scrollIntoView(false);
+      } catch {}
+    }
+
+    // Explicitly adjust form container scroll for nested scroll contexts
+    if (formRef.current) {
+      const container = formRef.current;
+      const elRect = el.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+      const targetScrollTop = relativeTop - (container.clientHeight / 2) + (elRect.height / 2);
+      container.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     // 1. Configure Capacitor Native Keyboard
@@ -141,12 +170,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           const h = info?.keyboardHeight || 0;
           setKeyboardHeight(h);
           setIsKeyboardOpen(true);
+          setTimeout(() => centerActiveInput(), 100);
         });
         const didShow = await NativeKeyboard.addListener('keyboardDidShow', (info) => {
           if (!isSubscribed) return;
           const h = info?.keyboardHeight || 0;
           setKeyboardHeight(h);
           setIsKeyboardOpen(true);
+          setTimeout(() => centerActiveInput(), 150);
         });
         const willHide = await NativeKeyboard.addListener('keyboardWillHide', () => {
           if (!isSubscribed) return;
@@ -182,6 +213,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         if (!NativeKeyboard.isAvailable()) {
           setKeyboardHeight(keyboardActive ? Math.max(0, diff) : 0);
         }
+        if (keyboardActive) {
+          setTimeout(() => {
+            centerActiveInput();
+          }, 80);
+        }
       }
     };
 
@@ -202,6 +238,27 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     };
   }, []);
 
+  // Seamless Auto-focus when switching to any event form
+  useEffect(() => {
+    if (selectedEvent) {
+      const focusTimer = setTimeout(() => {
+        if (primaryInputRef.current) {
+          primaryInputRef.current.focus({ preventScroll: false });
+          centerActiveInput(primaryInputRef.current);
+        }
+      }, 100);
+      const centerFollowupTimer = setTimeout(() => {
+        if (primaryInputRef.current) {
+          centerActiveInput(primaryInputRef.current);
+        }
+      }, 320);
+      return () => {
+        clearTimeout(focusTimer);
+        clearTimeout(centerFollowupTimer);
+      };
+    }
+  }, [selectedEvent]);
+
   const dismissKeyboard = () => {
     NativeKeyboard.hide().catch(() => {});
     if (typeof document !== 'undefined') {
@@ -214,9 +271,23 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setIsKeyboardOpen(true);
     const target = e.target;
+    centerActiveInput(target);
     setTimeout(() => {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      centerActiveInput(target);
     }, 120);
+    setTimeout(() => {
+      centerActiveInput(target);
+    }, 320);
+  };
+
+  const handleInputTyping = (e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (typingScrollTimeoutRef.current) {
+      clearTimeout(typingScrollTimeoutRef.current);
+    }
+    const target = e.currentTarget;
+    typingScrollTimeoutRef.current = setTimeout(() => {
+      centerActiveInput(target);
+    }, 90);
   };
 
   const handleInputBlur = () => {
@@ -936,6 +1007,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <form 
             ref={formRef}
             onSubmit={handleSubmit} 
+            style={{ 
+              scrollPaddingBottom: isKeyboardOpen ? `${Math.max(keyboardHeight, 140)}px` : '4rem',
+              scrollPaddingTop: '2rem' 
+            }}
             className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10] pb-28 sm:pb-8"
           >
             {/* Travel Mode Prominent Exchange Rate Banner */}
@@ -975,6 +1050,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.expenseAmountAndCurrency}</label>
                   <div className="flex items-center gap-2">
                     <input
+                      ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                       type="text"
                       inputMode="decimal"
                       enterKeyHint="done"
@@ -984,6 +1060,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#C98387] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1078,6 +1155,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.incomeAmountAndCurrency}</label>
                   <div className="flex items-center gap-2">
                     <input
+                      ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                       type="text"
                       inputMode="decimal"
                       enterKeyHint="done"
@@ -1087,6 +1165,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1226,6 +1305,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     {t.amountToTransfer} ({getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol})
                   </label>
                   <input
+                    ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                     type="text"
                     inputMode="decimal"
                     enterKeyHint="done"
@@ -1235,6 +1315,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     value={amount}
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
+                    onInput={handleInputTyping}
                     onKeyDown={handleKeyDownPreventEnter}
                     onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                     className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1278,6 +1359,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={destinationAmount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setDestinationAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-sm text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978] font-numeric"
@@ -1296,6 +1378,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <span>{t.debtorPersonName}</span>
                   </label>
                   <input
+                    ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                     type="text"
                     required
                     autoFocus
@@ -1303,6 +1386,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     value={personName}
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
+                    onInput={handleInputTyping}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#8EB9A7]"
                   />
@@ -1334,6 +1418,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1405,6 +1490,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={debtDueDate}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onChange={(e) => setDebtDueDate(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1418,6 +1504,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={personPhone}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setPersonPhone(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
@@ -1436,6 +1523,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <span>{t.creditorPersonName}</span>
                   </label>
                   <input
+                    ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                     type="text"
                     required
                     autoFocus
@@ -1443,6 +1531,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     value={personName}
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
+                    onInput={handleInputTyping}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
                   />
@@ -1474,6 +1563,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1548,6 +1638,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={debtDueDate}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onChange={(e) => setDebtDueDate(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1561,6 +1652,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={personPhone}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
+                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setPersonPhone(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
@@ -1627,6 +1719,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
                       <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.repaymentAmount}</label>
                       <input
+                        ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                         type="text"
                         inputMode="decimal"
                         enterKeyHint="done"
@@ -1635,6 +1728,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         value={amount}
                         onFocus={handleInputFocus}
                         onBlur={handleInputBlur}
+                        onInput={handleInputTyping}
                         onKeyDown={handleKeyDownPreventEnter}
                         onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                         className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1737,6 +1831,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-[#D9B978] block">{t.enterActualBalanceNow}</label>
                       <input
+                        ref={primaryInputRef as React.RefObject<HTMLInputElement>}
                         type="text"
                         inputMode="decimal"
                         enterKeyHint="done"
@@ -1746,6 +1841,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         value={actualRealBalance}
                         onFocus={handleInputFocus}
                         onBlur={handleInputBlur}
+                        onInput={handleInputTyping}
                         onKeyDown={handleKeyDownPreventEnter}
                         onChange={(e) => setActualRealBalance(sanitizeNumericInput(e.target.value))}
                         className="w-full bg-[#0A0D10] border border-[#D9B978]/40 rounded-xl px-3.5 py-2.5 text-xl font-black text-[#F4F1EA] focus:outline-none focus:border-[#D9B978] font-numeric"
@@ -1782,6 +1878,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   value={date}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
+                  onInput={handleInputTyping}
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                 />
@@ -1798,6 +1895,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   value={time}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
+                  onInput={handleInputTyping}
                   onChange={(e) => setTime(e.target.value)}
                   className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                 />
@@ -1815,6 +1913,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 value={note}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
+                onInput={handleInputTyping}
                 onKeyDown={handleKeyDownPreventEnter}
                 onChange={(e) => setNote(e.target.value)}
                 className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2 text-xs text-[#F4F1EA] font-medium focus:outline-none focus:border-[#D9B978]"
