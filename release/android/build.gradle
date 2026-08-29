@@ -4,12 +4,12 @@ android {
     namespace = "com.thari.finance.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.thari.finance.app"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        applicationId = "com.thari.finance.app"
+        minSdk = rootProject.ext.minSdkVersion
+        targetSdk = rootProject.ext.targetSdkVersion
+        versionCode = 1
+        versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -20,26 +20,28 @@ android {
         release {
             def ksFile = file('/tmp/keystore.jks')
             if (ksFile.exists() && System.getenv("CM_KEYSTORE_PASSWORD")) {
-                storeFile ksFile
-                storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-                keyAlias (System.getenv("CM_KEY_ALIAS") ?: "key")
-                keyPassword (System.getenv("CM_KEY_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD"))
+                storeFile = ksFile
+                storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
+                keyAlias = (System.getenv("CM_KEY_ALIAS") ?: "key")
+                keyPassword = (System.getenv("CM_KEY_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD"))
+            } else {
+                storeFile = signingConfigs.debug.storeFile
+                storePassword = signingConfigs.debug.storePassword
+                keyAlias = signingConfigs.debug.keyAlias
+                keyPassword = signingConfigs.debug.keyPassword
             }
         }
     }
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled = false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            def ksFile = file('/tmp/keystore.jks')
-            if (ksFile.exists() && System.getenv("CM_KEYSTORE_PASSWORD")) {
-                signingConfig signingConfigs.release
-            }
+            signingConfig = signingConfigs.release
         }
     }
     lint {
-        abortOnError false
-        checkReleaseBuilds false
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 }
 
