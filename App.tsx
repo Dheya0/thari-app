@@ -1431,6 +1431,8 @@ const App: React.FC = () => {
                 initialData={editingTransaction} 
                 defaultType={formDefaultType} 
                 exchangeRates={state.exchangeRates} 
+                isTravelMode={state.isTravelMode || state.showSeparateCurrencies}
+                baseCurrency={state.currency}
                 language={state.language || 'ar'}
                 t={t}
               />

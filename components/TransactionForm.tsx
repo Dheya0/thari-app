@@ -14,9 +14,10 @@ import {
   Wallet, 
   ReceiptAttachment, 
   Debt, 
-  FinancialEventType 
+  FinancialEventType,
+  Currency
 } from '../types';
-import { getIcon, DEFAULT_CURRENCIES, convertCurrency } from '../constants';
+import { getIcon, DEFAULT_CURRENCIES, convertCurrency, tryConvertCurrency } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
 import { getCurrencySymbol, parseArabicNumber, sanitizeNumericInput } from '../utils/formatters';
 import { safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
@@ -42,6 +43,8 @@ interface TransactionFormProps {
   initialData?: Transaction | null;
   exchangeRates: Record<string, number>;
   defaultType?: FinancialEventType | TransactionType;
+  isTravelMode?: boolean;
+  baseCurrency?: Currency;
   language?: LanguageKey;
   t: any;
 }
@@ -59,6 +62,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   initialData,
   exchangeRates,
   defaultType,
+  isTravelMode,
+  baseCurrency,
   language = 'ar',
   t,
 }) => {
@@ -933,6 +938,35 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             onSubmit={handleSubmit} 
             className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10] pb-28 sm:pb-8"
           >
+            {/* Travel Mode Prominent Exchange Rate Banner */}
+            {isTravelMode && (() => {
+              const baseCurrencyCode = baseCurrency?.code || 'SAR';
+              const currentLocalCode = inputCurrency || selectedSourceWallet?.currencyCode || baseCurrencyCode;
+              const fxResult = tryConvertCurrency(1, currentLocalCode, baseCurrencyCode, exchangeRates);
+              const conversionRate = fxResult.effectiveRate ?? 1;
+              return (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-emerald-500/15 to-transparent border border-amber-500/40 shadow-lg flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                      <span className="text-base font-bold">💱</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-amber-300 uppercase tracking-widest">
+                        {language === 'ar' ? 'سعر صرف العملة المحلية مقابل الأساسية (وضع السفر)' : 'Travel Mode Exchange Rate'}
+                      </p>
+                      <p className="text-xs font-bold text-white mt-0.5 font-numeric">
+                        1 {getCurrencySymbol(currentLocalCode)} = {conversionRate.toLocaleString()} {getCurrencySymbol(baseCurrencyCode)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-start">
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-xl font-mono font-bold border border-amber-500/30">
+                      {currentLocalCode} ➔ {baseCurrencyCode}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
             
             {/* === 1. EXPENSE VIEW === */}
             {selectedEvent === 'expense' && (
