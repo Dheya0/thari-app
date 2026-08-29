@@ -111,7 +111,7 @@ const LockScreen: React.FC<LockScreenProps> = ({
     }
   }, [biometricType, onUnlock]);
 
-  // Initial availability check & auto-trigger once on mount
+  // Initial availability check & auto-trigger once on mount (Native only)
   useEffect(() => {
     let isMounted = true;
     checkBiometricAvailable().then((res) => {
@@ -123,17 +123,20 @@ const LockScreen: React.FC<LockScreenProps> = ({
           }
           setIsFaceId(!!res.isFaceId);
 
-          if (isBiometricEnabled && !hasAutoTriggeredRef.current) {
+          // Only auto-trigger on Native platforms (iOS / Android Capacitor)
+          // Web browsers require a direct user click/gesture to invoke WebAuthn
+          if (res.isNative && isBiometricEnabled && !hasAutoTriggeredRef.current) {
             hasAutoTriggeredRef.current = true;
             setTimeout(() => {
-              if (isMounted && !isUnlockedRef.current) triggerBiometricAuth(true);
+              if (isMounted && !isUnlockedRef.current) {
+                triggerBiometricAuth(true);
+              }
             }, 350);
           }
-        } else if (isBiometricEnabled && !hasAutoTriggeredRef.current) {
-          hasAutoTriggeredRef.current = true;
-          setTimeout(() => {
-            if (isMounted && !isUnlockedRef.current) triggerBiometricAuth(true);
-          }, 450);
+        } else {
+          setBiometricAvailable(false);
+          setBioStatus('idle');
+          setBioFeedback('مستشعر البصمة غير متاح على هذا المتصفح');
         }
       }
     });
@@ -256,17 +259,25 @@ const LockScreen: React.FC<LockScreenProps> = ({
 
         {/* 1. BIOMETRIC-ONLY MODE (When no PIN is configured, pure Face ID / Fingerprint lock) */}
         {!hasPinConfigured && (
-          <div className="space-y-6 py-4">
+          <div className="space-y-5 py-4">
             <div className="space-y-1">
               <h2 className="text-xl font-black text-[#F4F1EA]">تأكيد الهوية للمتابعة</h2>
-              <p className="text-xs text-slate-400 font-medium">استخدم {biometricType} لفتح محفظتك الآمنة</p>
+              <p className="text-xs text-slate-400 font-medium">
+                {biometricAvailable ? `استخدم ${biometricType} لفتح محفظتك الآمنة` : 'حماية المحفظة وتأكيد الهوية'}
+              </p>
             </div>
 
             {/* Glowing Hero Biometric Button */}
             <div className="flex flex-col items-center justify-center gap-4 py-2">
               <button
                 type="button"
-                onClick={() => triggerBiometricAuth(false)}
+                onClick={() => {
+                  if (biometricAvailable) {
+                    triggerBiometricAuth(false);
+                  } else {
+                    onUnlock();
+                  }
+                }}
                 disabled={bioStatus === 'scanning'}
                 className={`relative w-28 h-28 rounded-3xl border flex flex-col items-center justify-center transition-all active:scale-95 shadow-2xl group ${
                   bioStatus === 'scanning'
@@ -290,7 +301,7 @@ const LockScreen: React.FC<LockScreenProps> = ({
               </button>
 
               {/* Status Message */}
-              <div className="min-h-[32px] flex items-center justify-center">
+              <div className="min-h-[32px] flex items-center justify-center text-center px-2">
                 {bioStatus === 'scanning' && (
                   <p className="text-xs font-bold text-[#8EB9A7] animate-pulse flex items-center gap-1.5">
                     <RefreshCw size={13} className="animate-spin" />
@@ -310,20 +321,47 @@ const LockScreen: React.FC<LockScreenProps> = ({
                     className="text-xs font-bold text-[#C98387] hover:text-[#D9B978] flex items-center gap-1.5 transition-colors"
                   >
                     <RefreshCw size={13} />
-                    <span>{bioFeedback || 'انقر هنا لإعادة التحقق بـ Face ID'}</span>
+                    <span>{bioFeedback || 'انقر هنا لإعادة المحاولة'}</span>
                   </button>
                 )}
                 {bioStatus === 'idle' && (
                   <button
                     type="button"
-                    onClick={() => triggerBiometricAuth(false)}
-                    className="text-xs font-bold text-[#D9B978] hover:text-[#FFF0C8] flex items-center gap-1.5 transition-colors"
+                    onClick={() => {
+                      if (biometricAvailable) {
+                        triggerBiometricAuth(false);
+                      } else {
+                        onUnlock();
+                      }
+                    }}
+                    className={`text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                      biometricAvailable 
+                        ? 'text-[#D9B978] hover:text-[#FFF0C8]' 
+                        : 'text-slate-400 hover:text-[#D9B978]'
+                    }`}
                   >
                     <BiometricIcon size={14} />
-                    <span>انقر للمسح بـ {biometricType}</span>
+                    <span>{biometricAvailable ? `انقر للمسح بـ ${biometricType}` : 'مستشعر البصمة غير متاح على هذا المتصفح'}</span>
                   </button>
                 )}
               </div>
+
+              {/* Web / Unsupported Fallback Button */}
+              {!biometricAvailable && (
+                <div className="pt-2 w-full space-y-2">
+                  <button
+                    type="button"
+                    onClick={onUnlock}
+                    className="w-full py-3.5 px-4 bg-[#D9B978] hover:bg-[#c9a764] text-[#0A0D10] rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/20 flex items-center justify-center gap-2"
+                  >
+                    <ShieldCheck size={16} />
+                    <span>المتابعة والدخول للمحفظة</span>
+                  </button>
+                  <p className="text-[10px] text-slate-400 font-medium text-center leading-relaxed">
+                    💡 يمكنك تعيين رمز PIN من الإعدادات لقفل هذا المتصفح برمز سري.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
