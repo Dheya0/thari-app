@@ -147,6 +147,18 @@ input:focus, textarea:focus, select:focus {
     -ms-overflow-style: none !important;
     scrollbar-width: none !important;
 }
-.no-scrollbar::-webkit-scrollbar {
+@media print {
+  body, html, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print, header, nav, footer, button, .modal-backdrop, div[class*="fixed"] {
     display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+    visibility: visible !important;
+  }
 }

@@ -70,16 +70,16 @@ const ColorPicker = ({ selected, onSelect, t }: { selected: string, onSelect: (c
 const ToastNotification = ({ toast }: { toast: { message: string, type: 'success' | 'error' } | null }) => {
   if (!toast) return null;
   return (
-    <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center items-center pointer-events-none px-4 no-print">
-      <div className={`pointer-events-auto max-w-md w-full px-5 py-4 rounded-2xl shadow-2xl flex items-center gap-3.5 border backdrop-blur-xl animate-slide-down ${
+    <div className="fixed top-20 left-0 right-0 z-[99999] flex justify-center items-center pointer-events-none px-4 no-print">
+      <div className={`pointer-events-auto max-w-xs sm:max-w-sm px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-3 border backdrop-blur-xl animate-slide-down ${
         toast.type === 'success' 
-          ? 'bg-[#11161C]/95 border-emerald-500/50 text-emerald-400 shadow-[0_15px_40px_rgba(16,185,129,0.3)]' 
-          : 'bg-[#11161C]/95 border-rose-500/50 text-rose-400 shadow-[0_15px_40px_rgba(244,63,94,0.3)]'
+          ? 'bg-[#11161C]/95 border-emerald-500/40 text-emerald-400 shadow-[0_10px_25px_rgba(16,185,129,0.2)]' 
+          : 'bg-[#11161C]/95 border-rose-500/40 text-rose-400 shadow-[0_10px_25px_rgba(244,63,94,0.2)]'
       }`}>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-          {toast.type === 'success' ? <Check size={20} strokeWidth={3} /> : <AlertCircle size={20} strokeWidth={3} />}
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+          {toast.type === 'success' ? <Check size={16} strokeWidth={3} /> : <AlertCircle size={16} strokeWidth={3} />}
         </div>
-        <span className="font-black text-sm text-[#F4F1EA] leading-relaxed">{toast.message}</span>
+        <span className="font-bold text-xs text-[#F4F1EA] leading-relaxed">{toast.message}</span>
       </div>
     </div>
   );
@@ -1096,7 +1096,7 @@ export default function Settings({
             title={`${isArabic ? 'تعديل سعر صرف' : 'Edit Rate'}: ${getLocalizedCurrency(editingRateCurrency.code, editingRateCurrency.name, editingRateCurrency.symbol, localLanguage || 'ar').name}`}
             onClose={() => setEditingRateCurrency(null)}
           >
-            <div className="space-y-4">
+            <div className="space-y-4 pb-24">
               {editingRateCurrency.code === 'YER_SANAA' && (
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-300">
