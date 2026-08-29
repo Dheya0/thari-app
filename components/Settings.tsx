@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Currency, Wallet, Category, Transaction } from '../types';
 import { getTranslation, getLocalizedCurrency } from '../utils/translations';
+import { sanitizeNumericInput } from '../utils/formatters';
 import { encryptData, decryptData } from '../services/encryptionService';
 import { authenticateBiometrics, checkBiometricAvailable, isNativeCapacitorEnvironment, isStandalonePwaMode } from '../services/biometricService';
 import { getIcon, DEFAULT_EXCHANGE_RATES, convertCurrency } from '../constants';
@@ -69,16 +70,16 @@ const ColorPicker = ({ selected, onSelect, t }: { selected: string, onSelect: (c
 const ToastNotification = ({ toast }: { toast: { message: string, type: 'success' | 'error' } | null }) => {
   if (!toast) return null;
   return (
-    <div className="fixed top-8 left-0 right-0 z-[9999] flex justify-center items-center pointer-events-none px-4 no-print">
-      <div className={`pointer-events-auto max-w-md px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border backdrop-blur-xl animate-slide-down ${
+    <div className="fixed top-6 left-0 right-0 z-[99999] flex justify-center items-center pointer-events-none px-4 no-print">
+      <div className={`pointer-events-auto max-w-md w-full px-5 py-4 rounded-2xl shadow-2xl flex items-center gap-3.5 border backdrop-blur-xl animate-slide-down ${
         toast.type === 'success' 
-          ? 'bg-[#11161C]/95 border-[#10b981]/40 text-[#10b981] shadow-[0_10px_30px_rgba(16,185,129,0.25)]' 
-          : 'bg-[#11161C]/95 border-rose-500/40 text-rose-400 shadow-[0_10px_30px_rgba(244,63,94,0.25)]'
+          ? 'bg-[#11161C]/95 border-emerald-500/50 text-emerald-400 shadow-[0_15px_40px_rgba(16,185,129,0.3)]' 
+          : 'bg-[#11161C]/95 border-rose-500/50 text-rose-400 shadow-[0_15px_40px_rgba(244,63,94,0.3)]'
       }`}>
-        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-[#10b981]/15 text-[#10b981]' : 'bg-rose-500/15 text-rose-400'}`}>
-          {toast.type === 'success' ? <Check size={18} strokeWidth={2.5} /> : <AlertCircle size={18} strokeWidth={2.5} />}
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+          {toast.type === 'success' ? <Check size={20} strokeWidth={3} /> : <AlertCircle size={20} strokeWidth={3} />}
         </div>
-        <span className="font-bold text-sm text-[#F4F1EA] leading-snug">{toast.message}</span>
+        <span className="font-black text-sm text-[#F4F1EA] leading-relaxed">{toast.message}</span>
       </div>
     </div>
   );
@@ -1710,10 +1711,12 @@ export default function Settings({
                     {isSecurityEnabled && (
                         <div className="space-y-2">
                           <input 
-                              type="password" 
+                              type="text" 
+                              inputMode="numeric"
                               value={localPin} 
                               onChange={e => {
-                                const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                                const sanitized = sanitizeNumericInput(e.target.value, false);
+                                const val = sanitized.replace(/\D/g, '').slice(0, 4);
                                 setLocalPin(val);
                                 if (val.length === 4) {
                                   onUpdateSettings({ pin: val });

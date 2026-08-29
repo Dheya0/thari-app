@@ -285,6 +285,7 @@ const App: React.FC = () => {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   const backgroundedAtRef = useRef<number | null>(null);
+  const justUnlockedRef = useRef<number>(0);
 
   // Check and process due recurring transactions on initial mount
   useEffect(() => {
@@ -399,6 +400,11 @@ const App: React.FC = () => {
     };
 
     const onAppForegrounded = () => {
+      if (Date.now() < justUnlockedRef.current) {
+        backgroundedAtRef.current = null;
+        try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
+        return;
+      }
       let bgTime = backgroundedAtRef.current;
       if (!bgTime) {
         try {
@@ -414,9 +420,16 @@ const App: React.FC = () => {
           setState(p => ({ ...p, isLocked: true }));
         }
       } else if (!state.autoLockTime || state.autoLockTime === 'instant') {
+        const bgDuration = bgTime ? Date.now() - bgTime : 0;
+        if (bgTime && bgDuration < 1000) {
+          backgroundedAtRef.current = null;
+          try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
+          return;
+        }
         setState(p => ({ ...p, isLocked: true }));
       }
       backgroundedAtRef.current = null;
+      try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
     };
 
     // 1. Native Capacitor lifecycle (iOS & Android)
@@ -1050,7 +1063,11 @@ const App: React.FC = () => {
         savedPin={state.pin || ''} 
         pinSalt={state.pinSalt}
         isBiometricEnabled={state.isBiometricEnabled === true} 
-        onUnlock={() => setState(p => ({ ...p, isLocked: false }))} 
+        onUnlock={() => {
+          justUnlockedRef.current = Date.now() + 5000;
+          try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
+          setState(p => ({ ...p, isLocked: false }));
+        }} 
         onRehashPin={(newPinHash, newSalt) => setState(p => ({ ...p, pin: newPinHash, pinSalt: newSalt }))}
       />
     );
