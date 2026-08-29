@@ -111,7 +111,7 @@ const LockScreen: React.FC<LockScreenProps> = ({
     }
   }, [biometricType, onUnlock]);
 
-  // Initial availability check & auto-trigger once on mount (Native only)
+  // Initial availability check (NO auto-trigger for strict security and no unwanted loops)
   useEffect(() => {
     let isMounted = true;
     checkBiometricAvailable().then((res) => {
@@ -122,73 +122,17 @@ const LockScreen: React.FC<LockScreenProps> = ({
             setBiometricType(res.biometryType);
           }
           setIsFaceId(!!res.isFaceId);
-
-          // Only auto-trigger on Native platforms (iOS / Android Capacitor)
-          // Web browsers require a direct user click/gesture to invoke WebAuthn
-          if (res.isNative && isBiometricEnabled && !hasAutoTriggeredRef.current) {
-            hasAutoTriggeredRef.current = true;
-            setTimeout(() => {
-              if (isMounted && !isUnlockedRef.current) {
-                triggerBiometricAuth(true);
-              }
-            }, 350);
-          }
         } else {
           setBiometricAvailable(false);
           setBioStatus('idle');
-          setBioFeedback('مستشعر البصمة غير متاح على هذا المتصفح');
+          setBioFeedback('مستشعر البصمة غير متاح على هذا الجهاز أو المتصفح');
         }
       }
     });
     return () => { isMounted = false; };
-  }, [isBiometricEnabled, triggerBiometricAuth]);
+  }, []);
 
-  // Re-trigger biometric scan ONLY when user manually returns to app from background
-  useEffect(() => {
-    if (!isBiometricEnabled) return;
-
-    const handleResume = () => {
-      // Do not re-trigger if already unlocked or currently scanning
-      if (!isScanningRef.current && !isUnlockedRef.current && hasAutoTriggeredRef.current) {
-        const now = Date.now();
-        // Prevent immediate loop if app state changed during biometric prompt dismiss
-        if (now - lastAttemptTimeRef.current < 1500) return;
-        setTimeout(() => {
-          if (!isUnlockedRef.current) {
-            triggerBiometricAuth(true);
-          }
-        }, 500);
-      }
-    };
-
-    let appListenerHandle: any = null;
-    try {
-      CapApp.addListener('appStateChange', (state) => {
-        if (state.isActive) {
-          handleResume();
-        }
-      }).then(handle => {
-        appListenerHandle = handle;
-      });
-    } catch (e) {}
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        handleResume();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pageshow', handleResume);
-
-    return () => {
-      if (appListenerHandle && typeof appListenerHandle.remove === 'function') {
-        appListenerHandle.remove();
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pageshow', handleResume);
-    };
-  }, [isBiometricEnabled, triggerBiometricAuth]);
+  // Removed auto-resume biometric triggers to ensure user intent and strict security (no automatic scanning without explicit user tap).
 
   const handleKeyPress = async (num: string) => {
     if (cooldownRemaining > 0 || !hasPinConfigured) return;
@@ -330,36 +274,28 @@ const LockScreen: React.FC<LockScreenProps> = ({
                     onClick={() => {
                       if (biometricAvailable) {
                         triggerBiometricAuth(false);
-                      } else {
-                        onUnlock();
                       }
                     }}
+                    disabled={!biometricAvailable}
                     className={`text-xs font-bold flex items-center gap-1.5 transition-colors ${
                       biometricAvailable 
-                        ? 'text-[#D9B978] hover:text-[#FFF0C8]' 
-                        : 'text-slate-400 hover:text-[#D9B978]'
+                        ? 'text-[#D9B978] hover:text-[#FFF0C8] cursor-pointer' 
+                        : 'text-slate-500 cursor-not-allowed'
                     }`}
                   >
                     <BiometricIcon size={14} />
-                    <span>{biometricAvailable ? `انقر للمسح بـ ${biometricType}` : 'مستشعر البصمة غير متاح على هذا المتصفح'}</span>
+                    <span>{biometricAvailable ? `انقر للمسح بـ ${biometricType}` : 'المستشعر غير متاح في هذا المتصفح'}</span>
                   </button>
                 )}
               </div>
 
-              {/* Web / Unsupported Fallback Button */}
+              {/* Security Notice when biometric is unavailable */}
               {!biometricAvailable && (
                 <div className="pt-2 w-full space-y-2">
-                  <button
-                    type="button"
-                    onClick={onUnlock}
-                    className="w-full py-3.5 px-4 bg-[#D9B978] hover:bg-[#c9a764] text-[#0A0D10] rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/20 flex items-center justify-center gap-2"
-                  >
-                    <ShieldCheck size={16} />
-                    <span>المتابعة والدخول للمحفظة</span>
-                  </button>
-                  <p className="text-[10px] text-slate-400 font-medium text-center leading-relaxed">
-                    💡 يمكنك تعيين رمز PIN من الإعدادات لقفل هذا المتصفح برمز سري.
-                  </p>
+                  <div className="bg-[#C98387]/15 border border-[#C98387]/40 py-3 px-3.5 rounded-2xl flex items-center justify-center gap-2 text-[#C98387]">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span className="text-xs font-bold text-center">مستشعر البصمة أو Face ID غير مدعوم على متصفح الويب الحالي. يرجى استخدام تطبيق الهاتف أو تعيين رمز PIN أمني.</span>
+                  </div>
                 </div>
               )}
             </div>
