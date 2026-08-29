@@ -106,7 +106,12 @@ workflows:
               }
             '
           else
-            echo "CM_KEYSTORE not configured; Gradle will build an unsigned release package."
+            echo "CM_KEYSTORE not configured. Automatically generating a release keystore for you..."
+            keytool -genkey -v -keystore /tmp/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias key -dname "CN=Thari Finance, OU=Mobile, O=Thari, L=Riyadh, C=SA" -storepass android123 -keypass android123
+            echo "CM_KEYSTORE_PASSWORD=android123" >> $CM_ENV
+            echo "CM_KEY_ALIAS=key" >> $CM_ENV
+            echo "CM_KEY_PASSWORD=android123" >> $CM_ENV
+            echo "Successfully generated /tmp/keystore.jks and exported environment variables automatically!"
           fi
 
       - name: Build Android App Bundle (AAB for Google Play)

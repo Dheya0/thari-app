@@ -18,10 +18,18 @@ android {
     }
     signingConfigs {
         release {
-            storeFile file("/tmp/keystore.jks")
-            storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("CM_KEY_ALIAS")
-            keyPassword System.getenv("CM_KEY_PASSWORD")
+            def ksFile = file('/tmp/keystore.jks')
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("CM_KEY_ALIAS") ?: "key"
+                keyPassword = System.getenv("CM_KEY_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD") ?: ""
+            } else {
+                storeFile = signingConfigs.debug.storeFile
+                storePassword = signingConfigs.debug.storePassword
+                keyAlias = signingConfigs.debug.keyAlias
+                keyPassword = signingConfigs.debug.keyPassword
+            }
         }
     }
     buildTypes {
