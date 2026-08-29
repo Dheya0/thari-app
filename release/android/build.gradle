@@ -23,12 +23,7 @@ android {
                 storeFile = ksFile
                 storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
                 keyAlias = (System.getenv("CM_KEY_ALIAS") ?: "key")
-                keyPassword = (System.getenv("CM_KEY_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD"))
-            } else {
-                storeFile = signingConfigs.debug.storeFile
-                storePassword = signingConfigs.debug.storePassword
-                keyAlias = signingConfigs.debug.keyAlias
-                keyPassword = signingConfigs.debug.keyPassword
+                keyPassword = (System.getenv("CM_KEYSTORE_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD"))
             }
         }
     }
@@ -36,7 +31,12 @@ android {
         release {
             minifyEnabled = false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig = signingConfigs.release
+            def ksFile = file('/tmp/keystore.jks')
+            if (ksFile.exists() && System.getenv("CM_KEYSTORE_PASSWORD")) {
+                signingConfig = signingConfigs.release
+            } else {
+                signingConfig = signingConfigs.debug
+            }
         }
     }
     lint {
