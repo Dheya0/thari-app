@@ -1,6 +1,6 @@
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { generateFinancialReportSync } from '../services/reports/reportService';
-import { buildExcelReportCSV, exportAndShareReportCSV } from '../services/reports/reportExportService';
+import { buildExcelReportHTML, exportAndShareNativeFile } from '../services/reports/reportExportService';
 
 export const generateAndSharePDF = async (
   elementId: string,
@@ -51,14 +51,15 @@ export const buildExecutiveCSVContent = ({
     },
   });
 
-  return buildExcelReportCSV(model);
+  return buildExcelReportHTML(model);
 };
 
 export const exportAndShareExecutiveCSV = async (
-  csvContent: string,
+  content: string,
   fileName?: string
 ) => {
-  await exportAndShareReportCSV(csvContent, fileName);
+  const actualName = fileName ? fileName.replace(/\.csv$/, '.xls') : `THARI_Report_${new Date().toISOString().split('T')[0]}.xls`;
+  await exportAndShareNativeFile(content, actualName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
 };
 
 export const generateAndShareCSV = async (
@@ -83,7 +84,7 @@ export const generateAndShareCSV = async (
     },
   });
 
-  const csvContent = buildExcelReportCSV(model);
-  const fileName = `Thari_Transactions_${new Date().toISOString().split('T')[0]}.csv`;
-  await exportAndShareReportCSV(csvContent, fileName);
+  const htmlContent = buildExcelReportHTML(model);
+  const fileName = `Thari_Transactions_${new Date().toISOString().split('T')[0]}.xls`;
+  await exportAndShareNativeFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
 };

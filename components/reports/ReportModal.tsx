@@ -17,7 +17,7 @@ import {
 import { Category, Currency, Transaction, Wallet } from '../../types';
 import { ReportModel, ReportType } from '../../services/reports/reportTypes';
 import { generateFinancialReportSync } from '../../services/reports/reportService';
-import { buildExcelReportCSV, exportAndShareReportCSV } from '../../services/reports/reportExportService';
+import { buildExcelReportCSV, buildExcelReportHTML, exportAndShareReportCSV, exportAndShareNativeFile } from '../../services/reports/reportExportService';
 import { FinancialReportDocument } from './FinancialReportDocument';
 
 interface ReportModalProps {
@@ -135,11 +135,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     onClose();
   };
 
-  // Excel CSV Export handler
+  // Excel Spreadsheet (.xls) Export handler
   const handleExportExcel = async () => {
-    const csvContent = buildExcelReportCSV(reportModel);
-    const fileName = `THARI_${reportType === 'summary' ? 'Summary' : 'Ledger'}_${new Date().toISOString().split('T')[0]}.csv`;
-    await exportAndShareReportCSV(csvContent, fileName);
+    const htmlContent = buildExcelReportHTML(reportModel);
+    const fileName = `THARI_${reportType === 'summary' ? 'Summary' : 'Ledger'}_${new Date().toISOString().split('T')[0]}.xls`;
+    await exportAndShareNativeFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
     onClose();
   };
 

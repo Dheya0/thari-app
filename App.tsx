@@ -671,13 +671,44 @@ const App: React.FC = () => {
     setPrintStartDate(startDate || null);
     setPrintEndDate(endDate || null);
     
-    // Fallback to native print dialog which accurately renders Arabic text into PDFs
-    // For mobile platforms, we trigger print where the user can save as PDF and share.
-    setTimeout(() => { 
-        window.print();
-        // Show a brief tip to the user about saving as PDF
-        alert("لطباعة التقرير أو حفظه كملف PDF، يرجى استخدام خيار (حفظ كـ PDF) من نافذة الطباعة الخاصة بجهازك للحفاظ على جودة اللغة العربية.");
-    }, 600);
+    try {
+      const csvContent = buildExecutiveCSVContent({
+        transactions: state.transactions,
+        categories: state.categories,
+        wallets: state.wallets,
+        userName: state.userName,
+        currency: state.currency,
+        exchangeRates: state.exchangeRates,
+        type,
+        filterWalletId: walletId !== undefined ? walletId : selectedWalletId,
+        filterCurrency: currencyFilter || null,
+        startDate: startDate || null,
+        endDate: endDate || null,
+      });
+
+      if (navigator.share) {
+        const file = new File([csvContent], `Thari_Report_${type}.csv`, { type: 'text/csv' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: 'تقرير ثري المالي',
+            text: 'مرفق التقرير المالي من تطبيق ثري (THARI)',
+            files: [file],
+          });
+          return;
+        } else {
+          await navigator.share({
+            title: 'تقرير ثري المالي',
+            text: csvContent.slice(0, 1500),
+          });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Share error:', e);
+    }
+
+    // Open Report Modal for PDF/Print/Share
+    setShowReportModal(true);
   };
 
   const handleExportExcelReport = (

@@ -112,6 +112,239 @@ export function buildExcelReportCSV(model: ReportModel): string {
 }
 
 /**
+ * Builds a gorgeous, highly structured professional multi-table HTML spreadsheet (.xls) for Microsoft Excel & Google Sheets
+ */
+export function buildExcelReportHTML(model: ReportModel): string {
+  const { metadata, reportType, account, scope, kpis, currencyBreakdown, expenseCategories, incomeCategories, walletSummaries, transactions } = model;
+  const baseSymbol = scope.baseCurrency.symbol;
+  const isSummary = reportType === 'summary';
+  const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
+
+  return `
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>تقرير ثري المالي - ${metadata.reportId}</title>
+<style>
+  body { font-family: Tahoma, Arial, sans-serif; direction: rtl; color: #1e293b; padding: 20px; background: #ffffff; }
+  h1 { color: #1e3a8a; font-size: 16pt; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin-bottom: 15px; }
+  h2 { color: #334155; font-size: 12pt; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; }
+  th { background-color: #1e293b; color: #ffffff; font-weight: bold; padding: 8px 10px; border: 1px solid #475569; text-align: right; }
+  td { padding: 6px 10px; border: 1px solid #cbd5e1; text-align: right; color: #0f172a; }
+  tr:nth-child(even) { background-color: #f8fafc; }
+  .meta-table td { font-weight: bold; background: #f1f5f9; width: 25%; }
+  .meta-table td.val { font-weight: normal; background: #ffffff; width: 25%; }
+</style>
+</head>
+<body>
+  <h1>تطبيق ثـري المالي - ${isSummary ? 'الملخص المالي التنفيذي' : 'كشف القيود والمعاملات التفصيلي'}</h1>
+  
+  <table class="meta-table">
+    <tr>
+      <td>معرف التقرير:</td>
+      <td class="val">${metadata.reportId}</td>
+      <td>البصمة الرقمية:</td>
+      <td class="val">${metadata.fingerprint}</td>
+    </tr>
+    <tr>
+      <td>صاحب الحساب:</td>
+      <td class="val">${account.name} (${account.accountTypeAr})</td>
+      <td>تاريخ الإصدار:</td>
+      <td class="val">${metadata.generatedAtFormattedAr} - ${metadata.generatedTimeFormattedAr}</td>
+    </tr>
+    <tr>
+      <td>نطاق التقرير:</td>
+      <td class="val">${scope.walletNameAr}</td>
+      <td>العملة الأساسية:</td>
+      <td class="val">${scope.baseCurrency.code} (${scope.baseCurrency.symbol})</td>
+    </tr>
+    <tr>
+      <td>فترة التقرير:</td>
+      <td class="val" colspan="3">${scope.periodLabelAr}</td>
+    </tr>
+  </table>
+
+  <h2>المؤشرات المالية الرئيسية (KPIs)</h2>
+  <table>
+    <tr>
+      <th>المؤشر المالي</th>
+      <th>القيمة</th>
+      <th>مؤشر فرعي / تفاصيل</th>
+      <th>العدد</th>
+    </tr>
+    <tr>
+      <td><b>الرصيد الافتتاحي للفترة</b></td>
+      <td>${Math.round(kpis.openingBalance).toLocaleString()} ${baseSymbol}</td>
+      <td>بداية الفترة الزمنية المحددة</td>
+      <td>-</td>
+    </tr>
+    <tr>
+      <td><b>إجمالي الواردات (المقبوضات)</b></td>
+      <td style="color: #047857; font-weight: bold;">+${Math.round(kpis.totalIncome).toLocaleString()} ${baseSymbol}</td>
+      <td>إجمالي المقبوضات المحققة</td>
+      <td>${kpis.incomeCount} حركة</td>
+    </tr>
+    <tr>
+      <td><b>إجمالي المنصرفات (المصروفات)</b></td>
+      <td style="color: #be123c; font-weight: bold;">-${Math.round(kpis.totalExpense).toLocaleString()} ${baseSymbol}</td>
+      <td>إجمالي المصروفات والتحويلات</td>
+      <td>${kpis.expenseCount + kpis.transferCount} حركة</td>
+    </tr>
+    <tr>
+      <td><b>صافي الفائض / العجز المالي</b></td>
+      <td style="font-weight: bold; color: ${kpis.netSavings >= 0 ? '#047857' : '#be123c'};">${Math.round(kpis.netSavings).toLocaleString()} ${baseSymbol}</td>
+      <td>معدل الادخار: ${kpis.savingsRatePercent}%</td>
+      <td>-</td>
+    </tr>
+    <tr>
+      <td><b>الرصيد الختامي للفترة</b></td>
+      <td style="font-weight: bold;">${Math.round(kpis.closingBalance).toLocaleString()} ${baseSymbol}</td>
+      <td>إجمالي الحركات في التقرير</td>
+      <td>${kpis.totalTransactions} حركة</td>
+    </tr>
+  </table>
+
+  ${currencyBreakdown.length > 0 ? `
+  <h2>تحليل وتوزيع العملات (Multi-Currency Breakdown)</h2>
+  <table>
+    <tr>
+      <th>رمز العملة</th>
+      <th>اسم العملة</th>
+      <th>الرمز</th>
+      <th>عدد الحركات</th>
+      <th>المقبوضات</th>
+      <th>المنصرفات</th>
+      <th>الصافي بالعملة</th>
+      <th>المعادل بـ (${scope.baseCurrency.code})</th>
+      <th>سعر الصرف التقديري</th>
+    </tr>
+    ${currencyBreakdown.map(cb => `
+    <tr>
+      <td><b>${cb.code}</b></td>
+      <td>${cb.metadata.nameAr}</td>
+      <td>${cb.metadata.symbol}</td>
+      <td>${cb.transactionCount}</td>
+      <td style="color: #047857;">+${Math.round(cb.income).toLocaleString()}</td>
+      <td style="color: #be123c;">-${Math.round(cb.expense).toLocaleString()}</td>
+      <td>${Math.round(cb.net).toLocaleString()} ${cb.metadata.symbol}</td>
+      <td><b>${Math.round(cb.convertedNetToBase).toLocaleString()} ${baseSymbol}</b></td>
+      <td>1 ${cb.code} = ${cb.exchangeRateToBase.toFixed(4)} ${scope.baseCurrency.code}</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
+
+  ${walletSummaries.length > 0 ? `
+  <h2>توزيع أرصدة المحافظ المالية</h2>
+  <table>
+    <tr>
+      <th>اسم المحفظة</th>
+      <th>العملة الأساسية</th>
+      <th>الرصيد الفعلي</th>
+      <th>الرصيد المعادل بـ (${scope.baseCurrency.code})</th>
+      <th>الحصة من إجمالي الثروة</th>
+    </tr>
+    ${walletSummaries.map(w => `
+    <tr>
+      <td><b>${w.name}</b></td>
+      <td>${w.currencyCode}</td>
+      <td>${Math.round(w.rawBalance).toLocaleString()} ${w.currencyCode}</td>
+      <td><b>${Math.round(w.convertedBalance).toLocaleString()} ${baseSymbol}</b></td>
+      <td>${w.percentageOfTotalWealth.toFixed(1)}%</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
+
+  ${expenseCategories.length > 0 ? `
+  <h2>تحليل المصروفات حسب التصنيف</h2>
+  <table>
+    <tr>
+      <th>اسم التصنيف</th>
+      <th>المبلغ المعادل بـ (${scope.baseCurrency.code})</th>
+      <th>النسبة من إجمالي المصروفات</th>
+      <th>عدد العمليات</th>
+    </tr>
+    ${expenseCategories.map(cat => `
+    <tr>
+      <td><b>${cat.name}</b></td>
+      <td>${Math.round(cat.totalAmount).toLocaleString()} ${baseSymbol}</td>
+      <td>${cat.percentageOfTotal.toFixed(1)}%</td>
+      <td>${cat.transactionCount}</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
+
+  ${incomeCategories.length > 0 ? `
+  <h2>تحليل مصادر الدخل</h2>
+  <table>
+    <tr>
+      <th>اسم المصدر / التصنيف</th>
+      <th>المبلغ المعادل بـ (${scope.baseCurrency.code})</th>
+      <th>النسبة من إجمالي الدخل</th>
+      <th>عدد العمليات</th>
+    </tr>
+    ${incomeCategories.map(cat => `
+    <tr>
+      <td><b>${cat.name}</b></td>
+      <td>${Math.round(cat.totalAmount).toLocaleString()} ${baseSymbol}</td>
+      <td>${cat.percentageOfTotal.toFixed(1)}%</td>
+      <td>${cat.transactionCount}</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
+
+  <h2>جدول القيود المحاسبية والمعاملات المسجلة (${displayTxs.length} حركة)</h2>
+  <table>
+    <tr>
+      <th>#</th>
+      <th>التاريخ</th>
+      <th>نوع الحركة</th>
+      <th>التصنيف</th>
+      <th>المحفظة</th>
+      <th>المبلغ الأصلي</th>
+      <th>العملة</th>
+      <th>المقيد بالحساب</th>
+      <th>المعادل بـ (${scope.baseCurrency.code})</th>
+      <th>الرصيد التراكمي</th>
+      <th>البيان / التفاصيل</th>
+    </tr>
+    ${displayTxs.map(t => {
+      const sign = t.type === 'income' ? '+' : '-';
+      const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
+        ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
+        : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
+      return `
+      <tr>
+        <td>${t.index}</td>
+        <td>${t.date}</td>
+        <td style="color: ${t.type === 'income' ? '#047857' : t.type === 'expense' ? '#be123c' : '#2563eb'}; font-weight: bold;">${t.typeLabelAr}</td>
+        <td>${t.categoryName}</td>
+        <td>${t.walletName}</td>
+        <td style="font-weight: bold; color: ${t.type === 'income' ? '#047857' : '#be123c'};">${sign}${t.originalAmount.toLocaleString()}</td>
+        <td>${t.currencyCode}</td>
+        <td>${walletDeductionStr}</td>
+        <td><b>${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol}</b></td>
+        <td>${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'}</td>
+        <td>${t.note || '-'}</td>
+      </tr>
+      `;
+    }).join('')}
+  </table>
+
+  <br>
+  <p style="font-size: 9pt; color: #64748b; text-align: center;">
+    تنويه: تم تصدير هذا التقرير المالي آلياً بصيغة Excel المتكاملة من تطبيق ثـري المالي. جميع البيانات مشفرة ومحفوظة محلياً على جهازك. | بصمة التحقق: ${metadata.fingerprint}
+  </p>
+</body>
+</html>
+  `;
+}
+
+/**
  * Exports CSV content to device download or native share
  */
 export async function exportAndShareReportCSV(csvContent: string, fileName?: string): Promise<void> {

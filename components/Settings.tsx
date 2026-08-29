@@ -944,7 +944,8 @@ export default function Settings({
                 {isArabic ? 'المبلغ للتجربة' : 'Amount'}
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={calcTestAmount}
                 onChange={e => setCalcTestAmount(Math.max(0, parseFloat(e.target.value) || 0))}
                 className="w-full p-3 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
@@ -1102,7 +1103,8 @@ export default function Settings({
                     {isArabic ? 'كم يساوي 100 ريال سعودي بالريال اليمني (صنعاء)؟' : 'How much is 100 SAR in YER (Sanaa)?'}
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={rateInputVal}
                     onChange={e => setRateInputVal(e.target.value)}
                     placeholder="14000"
@@ -1121,7 +1123,8 @@ export default function Settings({
                       {isArabic ? 'كم يساوي 100 ريال سعودي بالريال اليمني (عدن)؟' : 'How much is 100 SAR in YER (Aden)?'}
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={rateInputVal}
                       onChange={e => setRateInputVal(e.target.value)}
                       placeholder="41000"
@@ -1137,7 +1140,8 @@ export default function Settings({
                       {isArabic ? 'وكم يساوي 100 دولار بالريال اليمني (عدن)؟' : 'How much is 100 USD in YER (Aden)?'}
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={rateInputSubVal}
                       onChange={e => setRateInputSubVal(e.target.value)}
                       placeholder="157600"
@@ -1157,8 +1161,8 @@ export default function Settings({
                       {isArabic ? 'سعر 1 دولار أمريكي بالريال السعودي (SAR):' : 'Rate of 1 USD in SAR:'}
                     </label>
                     <input
-                      type="number"
-                      step="0.001"
+                      type="text"
+                      inputMode="decimal"
                       value={rateInputVal}
                       onChange={e => setRateInputVal(e.target.value)}
                       placeholder="3.844"
@@ -1171,7 +1175,8 @@ export default function Settings({
                       {isArabic ? 'أو كم يساوي 100 دولار بالريال اليمني عدن؟' : 'Or how much is 100 USD in YER (Aden)?'}
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={rateInputSubVal}
                       onChange={e => setRateInputSubVal(e.target.value)}
                       placeholder="157600"
@@ -1187,7 +1192,8 @@ export default function Settings({
                     {isArabic ? 'كم يساوي 100 ريال سعودي بالجنيه المصري؟' : 'How much is 100 SAR in EGP?'}
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={rateInputVal}
                     onChange={e => setRateInputVal(e.target.value)}
                     placeholder="1250"
@@ -1205,8 +1211,8 @@ export default function Settings({
                     {isArabic ? `سعر 1 ${editingRateCurrency.name} بالريال السعودي (SAR):` : `Rate of 1 unit in SAR:`}
                   </label>
                   <input
-                    type="number"
-                    step="0.001"
+                    type="text"
+                    inputMode="decimal"
                     value={rateInputVal}
                     onChange={e => setRateInputVal(e.target.value)}
                     className="w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black text-lg border border-white/10 focus:border-[#D9B978] outline-none"
@@ -1284,8 +1290,8 @@ export default function Settings({
                   {isArabic ? 'سعر الصرف مقابل 1 ريال سعودي (SAR)' : 'Exchange Rate in SAR'}
                 </label>
                 <input
-                  type="number"
-                  step="0.0001"
+                  type="text"
+                  inputMode="decimal"
                   value={newCurrencyData.rate}
                   onChange={e => setNewCurrencyData({ ...newCurrencyData, rate: e.target.value })}
                   placeholder="0.10"
@@ -1509,7 +1515,8 @@ export default function Settings({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={manualYerSanaa100}
                       onChange={e => setManualYerSanaa100(e.target.value)}
                       placeholder="14000"
@@ -1534,7 +1541,8 @@ export default function Settings({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={manualYerAden100}
                       onChange={e => setManualYerAden100(e.target.value)}
                       placeholder="41000"
@@ -1559,7 +1567,8 @@ export default function Settings({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={manualUsdInAden100}
                       onChange={e => setManualUsdInAden100(e.target.value)}
                       placeholder="157600"
@@ -1577,7 +1586,8 @@ export default function Settings({
                       🇪🇬 {localLanguage === 'en' ? '100 SAR in Egyptian Pound:' : '100 ريال سعودي بالجنيه المصري:'}
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={manualEgp100}
                       onChange={e => setManualEgp100(e.target.value)}
                       placeholder="1250"
@@ -1590,8 +1600,8 @@ export default function Settings({
                       🇺🇸 {localLanguage === 'en' ? '1 USD rate in SAR:' : 'سعر 1 دولار بالريال السعودي:'}
                     </label>
                     <input
-                      type="number"
-                      step="0.001"
+                      type="text"
+                      inputMode="decimal"
                       value={manualUsdInSar}
                       onChange={e => setManualUsdInSar(e.target.value)}
                       placeholder="3.844"
