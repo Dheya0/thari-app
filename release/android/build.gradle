@@ -19,11 +19,17 @@ android {
     signingConfigs {
         release {
             def ksFile = file('/tmp/keystore.jks')
-            if (ksFile.exists() && System.getenv("CM_KEYSTORE_PASSWORD")) {
+            def ksPass = System.getenv("CM_KEYSTORE_PASSWORD")
+            if (ksFile.exists() && ksPass != null && !ksPass.isEmpty()) {
                 storeFile = ksFile
-                storePassword = System.getenv("CM_KEYSTORE_PASSWORD")
+                storePassword = ksPass
                 keyAlias = (System.getenv("CM_KEY_ALIAS") ?: "key")
-                keyPassword = (System.getenv("CM_KEYSTORE_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD"))
+                keyPassword = (System.getenv("CM_KEYSTORE_PASSWORD") ?: ksPass)
+            } else {
+                storeFile = signingConfigs.debug.storeFile
+                storePassword = signingConfigs.debug.storePassword
+                keyAlias = signingConfigs.debug.keyAlias
+                keyPassword = signingConfigs.debug.keyPassword
             }
         }
     }
@@ -31,12 +37,7 @@ android {
         release {
             minifyEnabled = false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            def ksFile = file('/tmp/keystore.jks')
-            if (ksFile.exists() && System.getenv("CM_KEYSTORE_PASSWORD")) {
-                signingConfig = signingConfigs.release
-            } else {
-                signingConfig = signingConfigs.debug
-            }
+            signingConfig = signingConfigs.release
         }
     }
     lint {
