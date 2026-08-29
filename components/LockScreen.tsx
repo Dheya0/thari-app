@@ -289,15 +289,7 @@ const LockScreen: React.FC<LockScreenProps> = ({
                 )}
               </div>
 
-              {/* Security Notice when biometric is unavailable */}
-              {!biometricAvailable && (
-                <div className="pt-2 w-full space-y-2">
-                  <div className="bg-[#C98387]/15 border border-[#C98387]/40 py-3 px-3.5 rounded-2xl flex items-center justify-center gap-2 text-[#C98387]">
-                    <AlertCircle size={16} className="shrink-0" />
-                    <span className="text-xs font-bold text-center">مستشعر البصمة أو Face ID غير مدعوم على متصفح الويب الحالي. يرجى استخدام تطبيق الهاتف أو تعيين رمز PIN أمني.</span>
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         )}

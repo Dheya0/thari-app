@@ -126,7 +126,8 @@ function normalizeStoredState(parsed: any): AppState {
     ? { ...DEFAULT_EXCHANGE_RATES, ...parsed.exchangeRates }
     : DEFAULT_EXCHANGE_RATES;
 
-  const isSecurityProtected = !!parsed.pin || parsed.isBiometricEnabled === true;
+  const hasPin = !!parsed.pin && typeof parsed.pin === 'string' && parsed.pin.trim().length > 0;
+  const isSecurityProtected = hasPin || (parsed.isBiometricEnabled === true && parsed.requireBiometricOnOpen === true);
   const shouldLockOnOpen = isSecurityProtected && parsed.autoLockTime !== 'never';
 
   return {
