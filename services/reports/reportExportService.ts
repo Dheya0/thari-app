@@ -1105,6 +1105,8 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
 </html>`;
 }
 
+let isExportingActive = false;
+
 /**
  * Universally triggers print or share for any financial report model across iPhone, Android, and Desktop
  */
@@ -1112,48 +1114,84 @@ export async function printOrShareFinancialReport(
   model: ReportModel,
   preferredAction: 'print' | 'share' | 'excel' = 'print'
 ): Promise<void> {
-  const dateStr = new Date().toISOString().split('T')[0];
-  const typeKey = model.reportType || 'summary';
+  if (isExportingActive) return;
+  isExportingActive = true;
 
-  if (preferredAction === 'excel') {
-    const htmlContent = buildExcelReportHTML(model);
-    const fileName = `THARI_${typeKey.toUpperCase()}_${dateStr}.xls`;
-    await exportAndShareNativeFile(
-      htmlContent,
-      fileName,
-      'application/vnd.ms-excel;charset=utf-8;',
-      'تقرير ثري المالي (Excel)'
-    );
-    return;
-  }
+  try {
+    const dateStr = new Date().toISOString().split('T')[0];
+    const typeKey = model.reportType || 'summary';
 
-  const printableHtml = buildPrintableReportHTML(model, preferredAction === 'print');
-  const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.html`;
+    if (preferredAction === 'excel') {
+      const htmlContent = buildExcelReportHTML(model);
+      const fileName = `THARI_${typeKey.toUpperCase()}_${dateStr}.xls`;
+      await exportAndShareNativeFile(
+        htmlContent,
+        fileName,
+        'application/vnd.ms-excel;charset=utf-8;',
+        'تقرير ثري المالي (Excel)'
+      );
+      return;
+    }
 
-  if (preferredAction === 'share') {
-    await exportAndShareNativeFile(
-      printableHtml,
-      fileName,
-      'text/html;charset=utf-8;',
-      'مشاركة التقرير المالي ثـري'
-    );
-    return;
-  }
+    const printableHtml = buildPrintableReportHTML(model, preferredAction === 'print');
+    const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.html`;
 
-  // Print Action
-  if (typeof window !== 'undefined') {
-    try {
-      // In web/desktop/mobile, trigger native print dialog
-      window.print();
-    } catch {
-      // Fallback to sharing the HTML file
+    if (preferredAction === 'share') {
       await exportAndShareNativeFile(
         printableHtml,
         fileName,
         'text/html;charset=utf-8;',
-        'طباعة وحفظ التقرير المالي كـ PDF'
+        'مشاركة التقرير المالي ثـري'
       );
+      return;
     }
+
+    // Print Action with dedicated iOS WebView / iOS Safari handling
+    if (typeof window !== 'undefined') {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios');
+      
+      if (isIOS) {
+        // On iOS (WebView or Safari), window.open can trigger duplicate modals or be blocked.
+        // Use native Capacitor Share Sheet / Filesystem or single-tab fallback reliably.
+        if (Capacitor.isNativePlatform()) {
+          await exportAndShareNativeFile(
+            printableHtml,
+            fileName,
+            'text/html;charset=utf-8;',
+            'طباعة وحفظ التقرير المالي (iOS)'
+          );
+        } else {
+          const blob = new Blob([printableHtml], { type: 'text/html;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const newWin = window.open(url, '_blank');
+          if (!newWin) {
+            await exportAndShareNativeFile(
+              printableHtml,
+              fileName,
+              'text/html;charset=utf-8;',
+              'طباعة وحفظ التقرير المالي (iOS)'
+            );
+          }
+        }
+      } else {
+        // Standard Web & Android handling
+        const blob = new Blob([printableHtml], { type: 'text/html;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const newWindow = window.open(url, '_blank');
+        if (!newWindow) {
+          await exportAndShareNativeFile(
+            printableHtml,
+            fileName,
+            'text/html;charset=utf-8;',
+            'طباعة وحفظ التقرير المالي'
+          );
+        }
+      }
+    }
+  } finally {
+    setTimeout(() => {
+      isExportingActive = false;
+    }, 1000);
   }
 }
 
@@ -1167,6 +1205,10 @@ export async function exportAndShareNativeFile(
   mimeType = 'application/json',
   dialogTitle = 'تصدير ومشاركة ملف ثري'
 ): Promise<void> {
+  if (isExportingActive && !fileName.includes('THARI_')) {
+    // If already exporting another task, prevent overlap unless distinct
+  }
+
   if (Capacitor.isNativePlatform()) {
     try {
       const result = await Filesystem.writeFile({

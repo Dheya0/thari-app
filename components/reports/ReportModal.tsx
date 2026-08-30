@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -154,8 +154,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     endDate,
   ]);
 
+  const isProcessingRef = useRef(false);
+
   // Print / PDF handler
-  const handlePrint = async () => {
+  const handlePrint = async (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     try {
       await printOrShareFinancialReport(reportModel, 'print');
       if (onTriggerPrint) {
@@ -163,24 +171,42 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       }
     } catch (e) {
       console.warn('Print handler error:', e);
+    } finally {
+      setTimeout(() => { isProcessingRef.current = false; }, 600);
     }
   };
 
   // Dedicated share handler for mobile/iPhone & Android
-  const handleShareReport = async () => {
+  const handleShareReport = async (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     try {
       await printOrShareFinancialReport(reportModel, 'share');
     } catch (e) {
       console.warn('Share handler error:', e);
+    } finally {
+      setTimeout(() => { isProcessingRef.current = false; }, 600);
     }
   };
 
   // Excel Spreadsheet (.xls) Export handler
-  const handleExportExcel = async () => {
+  const handleExportExcel = async (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     try {
       await printOrShareFinancialReport(reportModel, 'excel');
     } catch (e) {
       console.warn('Excel export error:', e);
+    } finally {
+      setTimeout(() => { isProcessingRef.current = false; }, 600);
     }
   };
 
