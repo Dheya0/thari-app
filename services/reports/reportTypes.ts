@@ -1,7 +1,7 @@
 import { CurrencyMetadata } from './currencyMetadata';
 import { TransactionType } from '../../types';
 
-export type ReportType = 'summary' | 'detailed';
+export type ReportType = 'summary' | 'detailed' | 'category' | 'wealth' | 'debts' | 'savings_goals';
 export type ReportLanguage = 'ar' | 'en';
 
 export interface ReportQueryParams {
@@ -147,6 +147,75 @@ export interface ReportMetadataInfo {
   version: string;
 }
 
+export interface ReportBudgetSummary {
+  categoryId: string;
+  categoryName: string;
+  categoryIcon: string;
+  categoryColor: string;
+  budgetAmount: number;
+  spentAmount: number;
+  remainingAmount: number;
+  percentageUsed: number;
+  isOverBudget: boolean;
+  statusLabelAr: string;
+}
+
+export interface ReportDebtItem {
+  id: string;
+  personName: string;
+  personPhone?: string;
+  type: 'to_me' | 'on_me';
+  typeLabelAr: string;
+  originalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  convertedRemaining: number;
+  currency: string;
+  createdAt: string;
+  dueDate?: string;
+  isPaid: boolean;
+  status: 'active' | 'partial' | 'settled' | 'overdue';
+  statusLabelAr: string;
+  note: string;
+  paymentCount: number;
+}
+
+export interface ReportDebtSummary {
+  totalReceivable: number; // ديون لي
+  totalPayable: number;    // ديون علي
+  netDebtPosition: number; // الصافي (ديون لي - ديون علي)
+  receivableCount: number;
+  payableCount: number;
+  settledCount: number;
+  activeCount: number;
+  overdueCount: number;
+  items: ReportDebtItem[];
+}
+
+export interface ReportGoalItem {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  convertedTarget: number;
+  convertedCurrent: number;
+  progressPercent: number;
+  remainingAmount: number;
+  deadline?: string;
+  icon: string;
+  color: string;
+  isCompleted: boolean;
+}
+
+export interface ReportGoalSummary {
+  totalTargetAmount: number;
+  totalSavedAmount: number;
+  overallProgressPercent: number;
+  goalsCount: number;
+  completedCount: number;
+  items: ReportGoalItem[];
+}
+
 export interface ReportModel {
   metadata: ReportMetadataInfo;
   reportType: ReportType;
@@ -159,6 +228,9 @@ export interface ReportModel {
   incomeCategories: ReportCategorySummary[];
   transactions: ReportLedgerEntry[];
   ledger?: ReportLedgerEntry[];
+  budgets?: ReportBudgetSummary[];
+  debts?: ReportDebtSummary;
+  goals?: ReportGoalSummary;
   validation: {
     isValid: boolean;
     errors: string[];

@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import { ReportModel } from './reportTypes';
+import { ReportModel, ReportType } from './reportTypes';
 
 function escapeCSV(val: any): string {
   const str = String(val ?? '');
@@ -12,18 +12,43 @@ function escapeCSV(val: any): string {
 }
 
 /**
- * Builds a structured, multi-section CSV file for Excel
+ * Builds a structured, multi-section CSV file for Excel supporting all 6 report types
  */
 export function buildExcelReportCSV(model: ReportModel): string {
-  const { metadata, reportType, account, scope, kpis, currencyBreakdown, expenseCategories, incomeCategories, walletSummaries, transactions } = model;
-  const lines: string[] = [];
+  const {
+    metadata,
+    reportType,
+    account,
+    scope,
+    kpis,
+    currencyBreakdown,
+    expenseCategories,
+    incomeCategories,
+    walletSummaries,
+    transactions,
+    budgets = [],
+    debts,
+    goals,
+  } = model;
 
+  const lines: string[] = [];
   const baseSymbol = scope.baseCurrency.symbol;
   const isSummary = reportType === 'summary';
 
+  const typeTitles: Record<ReportType, string> = {
+    summary: 'الملخص المالي التنفيذي العام',
+    detailed: 'كشف القيود والمعاملات المحاسبي التفصيلي',
+    category: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي',
+    wealth: 'تقرير صافي الثروة وتوزيع المحافظ والعملات',
+    debts: 'كشف الذمم والديون والالتزامات المالية',
+    savings_goals: 'تقرير الأهداف المالية ومتابعة المدخرات',
+  };
+
+  const reportTitleAr = typeTitles[reportType] || 'تقرير ثري المالي';
+
   // Section 1: Official Header & Metadata
   lines.push(`========================================================================================================`);
-  lines.push(`تطبيق ثـري المالي - ${isSummary ? 'الملخص المالي التنفيذي' : 'كشف القيود والمعاملات المالية التفصيلي'} | THARI Financial Report`);
+  lines.push(`تطبيق ثـري المالي - ${reportTitleAr} | THARI Financial Report`);
   lines.push(`========================================================================================================`);
   lines.push(`معرف التقرير (Report ID),${escapeCSV(metadata.reportId)},البصمة الرقمية (Fingerprint),${escapeCSV(metadata.fingerprint)}`);
   lines.push(`صاحب الحساب,${escapeCSV(account.name)},نوع الحساب,${escapeCSV(account.accountTypeAr)},تاريخ وتوقيت الإصدار,${escapeCSV(`${metadata.generatedAtFormattedAr} - ${metadata.generatedTimeFormattedAr}`)}`);
@@ -39,7 +64,55 @@ export function buildExcelReportCSV(model: ReportModel): string {
   lines.push(`الرصيد الختامي للفترة,${Math.round(kpis.closingBalance).toLocaleString()} ${baseSymbol},إجمالي عدد الحركات,${kpis.totalTransactions} حركة`);
   lines.push(`--------------------------------------------------------------------------------------------------------`);
 
-  // Section 3: Multi-Currency Breakdown (Only if multi-currency or breakdown exists)
+  // Section 3: Specialized Data depending on ReportType
+
+  // 3A: Budgets & Category Analysis
+  if (reportType === 'category' || budgets.length > 0) {
+    if (budgets.length > 0) {
+      lines.push(`جدول متابعة الميزانيات المحددة والإنفاق الفعلي:`);
+      lines.push(`التصنيف,الميزانية المعتمدة (${baseSymbol}),الإنفاق الفعلي (${baseSymbol}),المتبقي (${baseSymbol}),نسبة الاستهلاك,الحالة`);
+      budgets.forEach(b => {
+        lines.push(
+          `${escapeCSV(b.categoryName)},${Math.round(b.budgetAmount).toLocaleString()},${Math.round(b.spentAmount).toLocaleString()},${Math.round(b.remainingAmount).toLocaleString()},${b.percentageUsed.toFixed(1)}%,${escapeCSV(b.statusLabelAr)}`
+        );
+      });
+      lines.push(`--------------------------------------------------------------------------------------------------------`);
+    }
+  }
+
+  // 3B: Debts & Liabilities Statement
+  if (reportType === 'debts' || (debts && debts.items.length > 0)) {
+    if (debts) {
+      lines.push(`ملخص الذمم والديون:`);
+      lines.push(`إجمالي ديون لي (مستحقات),+${Math.round(debts.totalReceivable).toLocaleString()} ${baseSymbol},إجمالي ديون علي (التزامات),-${Math.round(debts.totalPayable).toLocaleString()} ${baseSymbol},صافي الموقف,${Math.round(debts.netDebtPosition).toLocaleString()} ${baseSymbol}`);
+      lines.push(`كشف القيود والذمم:`);
+      lines.push(`الطرف / الاسم,النوع,المبلغ الأصلي,المدفوع / المسدد,المتبقي بالعملة,المعادل بـ (${baseSymbol}),تاريخ الإنشاء,تاريخ الاستحقاق,الحالة,ملاحظات`);
+      debts.items.forEach(d => {
+        lines.push(
+          `${escapeCSV(d.personName)},${escapeCSV(d.typeLabelAr)},${Math.round(d.originalAmount).toLocaleString()} ${d.currency},${Math.round(d.paidAmount).toLocaleString()} ${d.currency},${Math.round(d.remainingAmount).toLocaleString()} ${d.currency},${Math.round(d.convertedRemaining).toLocaleString()} ${baseSymbol},${escapeCSV(d.createdAt || '-')},${escapeCSV(d.dueDate || '-')},${escapeCSV(d.statusLabelAr)},${escapeCSV(d.note || '-')}`
+        );
+      });
+      lines.push(`--------------------------------------------------------------------------------------------------------`);
+    }
+  }
+
+  // 3C: Savings Goals Progress
+  if (reportType === 'savings_goals' || (goals && goals.items.length > 0)) {
+    if (goals) {
+      lines.push(`ملخص الأهداف والمدخرات:`);
+      lines.push(`إجمالي المستهدف,+${Math.round(goals.totalTargetAmount).toLocaleString()} ${baseSymbol},إجمالي المجموع الفعلي,${Math.round(goals.totalSavedAmount).toLocaleString()} ${baseSymbol},نسبة الإنجاز العامة,${goals.overallProgressPercent.toFixed(1)}%`);
+      lines.push(`تفاصيل الأهداف المالية:`);
+      lines.push(`اسم الهدف,المبلغ المستهدف (${baseSymbol}),المدخر الحالي (${baseSymbol}),المتبقي للهدف (${baseSymbol}),نسبة الإنجاز,تاريخ الهدف,الحالة`);
+      goals.items.forEach(g => {
+        lines.push(
+          `${escapeCSV(g.name)},${Math.round(g.convertedTarget).toLocaleString()},${Math.round(g.convertedCurrent).toLocaleString()},${Math.round(g.remainingAmount).toLocaleString()},${g.progressPercent.toFixed(1)}%,${escapeCSV(g.deadline || '-')},${g.isCompleted ? 'مكتمل' : 'قيد التجميع'}`
+        );
+      });
+      lines.push(`--------------------------------------------------------------------------------------------------------`);
+    }
+  }
+
+  // Section 4: Multi-Currency Breakdown
   if (currencyBreakdown.length > 0) {
     lines.push(`تحليل وتوزيع العملات (Multi-Currency Breakdown):`);
     lines.push(`رمز العملة,اسم العملة,الرمز,عدد الحركات,إجمالي المقبوضات,إجمالي المنصرفات,الصافي بالعملة,القيمة المعادلة (${scope.baseCurrency.code}),سعر الصرف التقديري`);
@@ -51,7 +124,7 @@ export function buildExcelReportCSV(model: ReportModel): string {
     lines.push(`--------------------------------------------------------------------------------------------------------`);
   }
 
-  // Section 4: Wallet Allocation
+  // Section 5: Wallet Allocation
   if (walletSummaries.length > 0) {
     lines.push(`توزيع أرصدة المحافظ المالية:`);
     lines.push(`اسم المحفظة,العملة الأساسية,الرصيد الفعلي,الرصيد المعادل (${scope.baseCurrency.code}),الحصة من إجمالي الثروة`);
@@ -63,7 +136,7 @@ export function buildExcelReportCSV(model: ReportModel): string {
     lines.push(`--------------------------------------------------------------------------------------------------------`);
   }
 
-  // Section 5: Expense Categories Breakdown
+  // Section 6: Expense & Income Categories
   if (expenseCategories.length > 0) {
     lines.push(`تحليل المصروفات حسب التصنيف:`);
     lines.push(`اسم التصنيف,المبلغ المعادل (${scope.baseCurrency.code}),النسبة من إجمالي المصروفات,عدد العمليات`);
@@ -75,7 +148,6 @@ export function buildExcelReportCSV(model: ReportModel): string {
     lines.push(`--------------------------------------------------------------------------------------------------------`);
   }
 
-  // Section 6: Income Sources Breakdown
   if (incomeCategories.length > 0) {
     lines.push(`تحليل مصادر الدخل:`);
     lines.push(`اسم المصدر / التصنيف,المبلغ المعادل (${scope.baseCurrency.code}),النسبة من إجمالي الدخل,عدد العمليات`);
@@ -88,22 +160,24 @@ export function buildExcelReportCSV(model: ReportModel): string {
   }
 
   // Section 7: Transactions Ledger
-  const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
-  lines.push(`جدول القيود المحاسبية والمعاملات المسجلة (${displayTxs.length} حركة معروضة):`);
-  lines.push(`رقم القيد,التاريخ,نوع الحركة,التصنيف,المحفظة,المبلغ بالعملة الأصلية,العملة الأصلية,المقيد/المخصوم بالمحفظة,المعادل بـ (${scope.baseCurrency.code}),الرصيد التراكمي,البيان / تفاصيل القيد`);
+  if (reportType === 'detailed' || reportType === 'summary') {
+    const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
+    lines.push(`جدول القيود المحاسبية والمعاملات المسجلة (${displayTxs.length} حركة معروضة):`);
+    lines.push(`رقم القيد,التاريخ,نوع الحركة,التصنيف,المحفظة,المبلغ بالعملة الأصلية,العملة الأصلية,المقيد/المخصوم بالمحفظة,المعادل بـ (${scope.baseCurrency.code}),الرصيد التراكمي,البيان / تفاصيل القيد`);
 
-  displayTxs.forEach(t => {
-    const sign = t.type === 'income' ? '+' : '-';
-    const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
-      ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
-      : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
+    displayTxs.forEach(t => {
+      const sign = t.type === 'income' ? '+' : '-';
+      const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
+        ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
+        : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
 
-    lines.push(
-      `${t.index},${escapeCSV(t.date)},${escapeCSV(t.typeLabelAr)},${escapeCSV(t.categoryName)},${escapeCSV(t.walletName)},${sign}${t.originalAmount.toLocaleString()},${escapeCSV(t.currencyCode)},${escapeCSV(walletDeductionStr)},${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol},${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'},${escapeCSV(t.note || '-')}`
-    );
-  });
+      lines.push(
+        `${t.index},${escapeCSV(t.date)},${escapeCSV(t.typeLabelAr)},${escapeCSV(t.categoryName)},${escapeCSV(t.walletName)},${sign}${t.originalAmount.toLocaleString()},${escapeCSV(t.currencyCode)},${escapeCSV(walletDeductionStr)},${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol},${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'},${escapeCSV(t.note || '-')}`
+      );
+    });
+    lines.push(`--------------------------------------------------------------------------------------------------------`);
+  }
 
-  lines.push(`--------------------------------------------------------------------------------------------------------`);
   lines.push(`تنويه تقني,تم استخراج هذا التقرير المالي آلياً عبر تطبيق ثـري. البيانات محفوظة محلياً ومشفرة بالكامل على جهاز المستخدم.`);
   lines.push(`رمز التحقق,${escapeCSV(metadata.fingerprint)} | QR-ENCODED`);
   lines.push(`========================================================================================================`);
@@ -112,13 +186,38 @@ export function buildExcelReportCSV(model: ReportModel): string {
 }
 
 /**
- * Builds a gorgeous, highly structured professional multi-table HTML spreadsheet (.xls) for Microsoft Excel & Google Sheets
+ * Builds a structured multi-table HTML spreadsheet (.xls) for Microsoft Excel & Google Sheets
  */
 export function buildExcelReportHTML(model: ReportModel): string {
-  const { metadata, reportType, account, scope, kpis, currencyBreakdown, expenseCategories, incomeCategories, walletSummaries, transactions } = model;
+  const {
+    metadata,
+    reportType,
+    account,
+    scope,
+    kpis,
+    currencyBreakdown,
+    expenseCategories,
+    incomeCategories,
+    walletSummaries,
+    transactions,
+    budgets = [],
+    debts,
+    goals,
+  } = model;
+
   const baseSymbol = scope.baseCurrency.symbol;
   const isSummary = reportType === 'summary';
-  const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
+
+  const typeTitles: Record<ReportType, string> = {
+    summary: 'الملخص المالي التنفيذي العام',
+    detailed: 'كشف القيود والمعاملات المحاسبي التفصيلي',
+    category: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي',
+    wealth: 'تقرير صافي الثروة وتوزيع المحافظ والعملات',
+    debts: 'كشف الذمم والديون والالتزامات المالية',
+    savings_goals: 'تقرير الأهداف المالية ومتابعة المدخرات',
+  };
+
+  const reportTitleAr = typeTitles[reportType] || 'تقرير ثري المالي';
 
   return `
 <html dir="rtl" lang="ar">
@@ -138,7 +237,7 @@ export function buildExcelReportHTML(model: ReportModel): string {
 </style>
 </head>
 <body>
-  <h1>تطبيق ثـري المالي - ${isSummary ? 'الملخص المالي التنفيذي' : 'كشف القيود والمعاملات التفصيلي'}</h1>
+  <h1>تطبيق ثـري المالي - ${reportTitleAr}</h1>
   
   <table class="meta-table">
     <tr>
@@ -204,6 +303,84 @@ export function buildExcelReportHTML(model: ReportModel): string {
       <td>${kpis.totalTransactions} حركة</td>
     </tr>
   </table>
+
+  ${budgets.length > 0 ? `
+  <h2>جدول مطابقة الميزانيات المحددة والإنفاق الفعلي</h2>
+  <table>
+    <tr>
+      <th>التصنيف</th>
+      <th>الميزانية المعتمدة</th>
+      <th>الإنفاق الفعلي</th>
+      <th>المتبقي</th>
+      <th>نسبة الاستهلاك</th>
+      <th>الحالة</th>
+    </tr>
+    ${budgets.map(b => `
+    <tr>
+      <td><b>${b.categoryName}</b></td>
+      <td>${Math.round(b.budgetAmount).toLocaleString()} ${baseSymbol}</td>
+      <td style="color: ${b.isOverBudget ? '#be123c' : '#0f172a'}; font-weight: bold;">${Math.round(b.spentAmount).toLocaleString()} ${baseSymbol}</td>
+      <td style="color: ${b.remainingAmount < 0 ? '#be123c' : '#047857'}; font-weight: bold;">${Math.round(b.remainingAmount).toLocaleString()} ${baseSymbol}</td>
+      <td>${b.percentageUsed.toFixed(1)}%</td>
+      <td>${b.statusLabelAr}</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
+
+  ${debts && debts.items.length > 0 ? `
+  <h2>كشف الذمم والديون والالتزامات المالية</h2>
+  <table>
+    <tr>
+      <th>الطرف / الشخص</th>
+      <th>نوع الذمة</th>
+      <th>المبلغ الأصلي</th>
+      <th>المسدد</th>
+      <th>المتبقي بالعملة</th>
+      <th>المعادل (${baseSymbol})</th>
+      <th>تاريخ الاستحقاق</th>
+      <th>الحالة</th>
+    </tr>
+    ${debts.items.map(d => `
+    <tr>
+      <td><b>${d.personName}</b></td>
+      <td style="color: ${d.type === 'to_me' ? '#047857' : '#be123c'}; font-weight: bold;">${d.typeLabelAr}</td>
+      <td>${Math.round(d.originalAmount).toLocaleString()} ${d.currency}</td>
+      <td>${Math.round(d.paidAmount).toLocaleString()} ${d.currency}</td>
+      <td style="font-weight: bold;">${Math.round(d.remainingAmount).toLocaleString()} ${d.currency}</td>
+      <td><b>${Math.round(d.convertedRemaining).toLocaleString()} ${baseSymbol}</b></td>
+      <td>${d.dueDate || '-'}</td>
+      <td>${d.statusLabelAr}</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
+
+  ${goals && goals.items.length > 0 ? `
+  <h2>تقرير الأهداف المالية ومتابعة المدخرات</h2>
+  <table>
+    <tr>
+      <th>اسم الهدف</th>
+      <th>المستهدف (${baseSymbol})</th>
+      <th>المدخر الفعلي (${baseSymbol})</th>
+      <th>المتبقي للهدف (${baseSymbol})</th>
+      <th>نسبة الإنجاز</th>
+      <th>تاريخ الهدف</th>
+      <th>الحالة</th>
+    </tr>
+    ${goals.items.map(g => `
+    <tr>
+      <td><b>${g.name}</b></td>
+      <td>${Math.round(g.convertedTarget).toLocaleString()} ${baseSymbol}</td>
+      <td style="color: #047857; font-weight: bold;">${Math.round(g.convertedCurrent).toLocaleString()} ${baseSymbol}</td>
+      <td>${Math.round(g.remainingAmount).toLocaleString()} ${baseSymbol}</td>
+      <td><b>${g.progressPercent.toFixed(1)}%</b></td>
+      <td>${g.deadline || '-'}</td>
+      <td>${g.isCompleted ? 'مكتمل' : 'قيد التجميع'}</td>
+    </tr>
+    `).join('')}
+  </table>
+  ` : ''}
 
   ${currencyBreakdown.length > 0 ? `
   <h2>تحليل وتوزيع العملات (Multi-Currency Breakdown)</h2>
@@ -297,7 +474,8 @@ export function buildExcelReportHTML(model: ReportModel): string {
   </table>
   ` : ''}
 
-  <h2>جدول القيود المحاسبية والمعاملات المسجلة (${displayTxs.length} حركة)</h2>
+  ${(reportType === 'detailed' || reportType === 'summary') && transactions.length > 0 ? `
+  <h2>جدول القيود المحاسبية والمعاملات المسجلة (${(isSummary ? transactions.slice(0, 15) : transactions).length} حركة)</h2>
   <table>
     <tr>
       <th>#</th>
@@ -312,7 +490,7 @@ export function buildExcelReportHTML(model: ReportModel): string {
       <th>الرصيد التراكمي</th>
       <th>البيان / التفاصيل</th>
     </tr>
-    ${displayTxs.map(t => {
+    ${(isSummary ? transactions.slice(0, 15) : transactions).map(t => {
       const sign = t.type === 'income' ? '+' : '-';
       const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
         ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
@@ -334,6 +512,7 @@ export function buildExcelReportHTML(model: ReportModel): string {
       `;
     }).join('')}
   </table>
+  ` : ''}
 
   <br>
   <p style="font-size: 9pt; color: #64748b; text-align: center;">
@@ -345,25 +524,40 @@ export function buildExcelReportHTML(model: ReportModel): string {
 }
 
 /**
- * Exports CSV content to device download or native share
- */
-/**
- * Exports CSV content to device download or native share
- */
-export async function exportAndShareReportCSV(csvContent: string, fileName?: string): Promise<void> {
-  const actualFileName = fileName || `THARI_Report_${new Date().toISOString().split('T')[0]}.csv`;
-  await exportAndShareNativeFile(csvContent, actualFileName, 'text/csv;charset=utf-8;', 'تقرير ثري المالي (Excel CSV)');
-}
-
-/**
  * Builds a comprehensive, self-contained printable HTML document styled for A4/Letter PDF print
  * and iOS/Android mobile viewing and printing.
  */
 export function buildPrintableReportHTML(model: ReportModel, autoPrint = false): string {
-  const { metadata, reportType, account, scope, kpis, currencyBreakdown, expenseCategories, incomeCategories, walletSummaries, transactions } = model;
+  const {
+    metadata,
+    reportType,
+    account,
+    scope,
+    kpis,
+    currencyBreakdown,
+    expenseCategories,
+    incomeCategories,
+    walletSummaries,
+    transactions,
+    budgets = [],
+    debts,
+    goals,
+  } = model;
+
   const baseSymbol = scope.baseCurrency.symbol;
   const isSummary = reportType === 'summary';
   const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
+
+  const typeTitles: Record<ReportType, { ar: string; en: string }> = {
+    summary: { ar: 'الملخص المالي التنفيذي العام', en: 'Executive Financial Summary' },
+    detailed: { ar: 'كشف القيود والمعاملات المحاسبي التفصيلي', en: 'Detailed Financial Ledger' },
+    category: { ar: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي', en: 'Budget & Category Performance' },
+    wealth: { ar: 'تقرير صافي الثروة وتوزيع المحافظ والعملات', en: 'Wealth & Multi-Currency Portfolio' },
+    debts: { ar: 'كشف الذمم والديون والالتزامات المالية', en: 'Debts & Liabilities Statement' },
+    savings_goals: { ar: 'تقرير الأهداف المالية ومتابعة المدخرات', en: 'Goals & Savings Progress Report' },
+  };
+
+  const titleInfo = typeTitles[reportType] || typeTitles.summary;
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -374,7 +568,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
   <style>
     @page {
       size: A4;
-      margin: 12mm 15mm;
+      margin: 10mm 12mm;
     }
     * {
       box-sizing: border-box;
@@ -389,13 +583,13 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       margin: 0;
       padding: 15px;
       line-height: 1.5;
-      font-size: 12px;
+      font-size: 11.5px;
     }
     .report-container {
-      max-width: 900px;
+      max-width: 920px;
       margin: 0 auto;
       background: #ffffff;
-      padding: 30px;
+      padding: 26px;
       border-radius: 16px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       border: 1px solid #e2e8f0;
@@ -404,7 +598,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       position: sticky;
       top: 10px;
       z-index: 100;
-      max-width: 900px;
+      max-width: 920px;
       margin: 0 auto 15px auto;
       background: #0f172a;
       padding: 12px 18px;
@@ -433,8 +627,8 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     }
     .header {
       border-bottom: 2px solid #0f172a;
-      padding-bottom: 16px;
-      margin-bottom: 20px;
+      padding-bottom: 14px;
+      margin-bottom: 18px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -444,13 +638,13 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       font-size: 22px;
       font-weight: 900;
       color: #0f172a;
-      margin: 0 0 4px 0;
+      margin: 0 0 3px 0;
       display: flex;
       align-items: center;
       gap: 8px;
     }
     .brand-sub {
-      font-size: 11px;
+      font-size: 10.5px;
       color: #64748b;
       margin: 0;
       font-weight: bold;
@@ -459,8 +653,8 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 10.5px;
+      padding: 8px 12px;
+      font-size: 10px;
       color: #475569;
       text-align: left;
       direction: ltr;
@@ -471,50 +665,50 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     }
     .badge {
       display: inline-block;
-      padding: 3px 8px;
+      padding: 4px 10px;
       border-radius: 6px;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: bold;
-      background: #f1f5f9;
-      color: #334155;
+      background: #fef3c7;
+      color: #92400e;
     }
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 12px;
-      padding: 14px;
-      margin-bottom: 22px;
+      padding: 12px;
+      margin-bottom: 18px;
     }
     .info-item {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 2px;
     }
     .info-label {
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: bold;
       color: #64748b;
       text-transform: uppercase;
     }
     .info-val {
-      font-size: 12.5px;
+      font-size: 12px;
       font-weight: bold;
       color: #0f172a;
     }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 10px;
-      margin-bottom: 22px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      margin-bottom: 18px;
     }
     .kpi-card {
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 10px;
+      padding: 10px;
       text-align: center;
     }
     .kpi-card.highlight {
@@ -530,25 +724,25 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       border-color: #fef3c7;
     }
     .kpi-title {
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: bold;
       color: #64748b;
-      margin-bottom: 5px;
+      margin-bottom: 4px;
     }
     .kpi-amount {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 900;
       color: #0f172a;
     }
     .income-val { color: #15803d; }
     .expense-val { color: #be123c; }
     h2 {
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: bold;
       color: #0f172a;
       border-bottom: 1.5px solid #e2e8f0;
-      padding-bottom: 6px;
-      margin: 22px 0 12px 0;
+      padding-bottom: 5px;
+      margin: 18px 0 10px 0;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -556,7 +750,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     h2::before {
       content: "";
       width: 4px;
-      height: 14px;
+      height: 13px;
       background: #d97706;
       border-radius: 2px;
       display: inline-block;
@@ -564,19 +758,19 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 18px;
-      font-size: 11px;
+      margin-bottom: 16px;
+      font-size: 10.5px;
     }
     th {
       background-color: #0f172a;
       color: #ffffff;
       font-weight: bold;
-      padding: 8px 10px;
+      padding: 7px 9px;
       text-align: right;
       border: 1px solid #334155;
     }
     td {
-      padding: 7px 10px;
+      padding: 6px 9px;
       border: 1px solid #e2e8f0;
       text-align: right;
       color: #1e293b;
@@ -585,13 +779,13 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       background-color: #f8fafc;
     }
     .footer-seal {
-      margin-top: 30px;
-      padding-top: 15px;
+      margin-top: 25px;
+      padding-top: 12px;
       border-top: 2px solid #0f172a;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 10px;
+      font-size: 9.5px;
       color: #64748b;
       page-break-inside: avoid;
     }
@@ -614,12 +808,12 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
 </head>
 <body>
   <div class="action-bar no-print">
-    <span style="color: #f8fafc; font-size: 12px; font-weight: bold;">وثيقة تقرير ثري المالي (جاهزة للطباعة والحفظ)</span>
+    <span style="color: #f8fafc; font-size: 12px; font-weight: bold;">وثيقة تقرير ثري المالي (جاهزة للطباعة وتصدير PDF)</span>
     <div style="display: flex; gap: 8px;">
       <button onclick="window.print();">
         <span>🖨️ طباعة المستند / PDF</span>
       </button>
-      <button class="secondary" onclick="if(navigator.share){navigator.share({title:'تقرير ثري', url: window.location.href}).catch(()=>{});}">
+      <button class="secondary" onclick="if(navigator.share){navigator.share({title:'تقرير ثري', text: '${titleInfo.ar}', url: window.location.href}).catch(()=>{});}">
         <span>📤 مشاركة</span>
       </button>
     </div>
@@ -633,7 +827,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
           <span style="color: #d97706; font-size: 14px; font-family: monospace;">THARI</span>
         </h1>
         <p class="brand-sub">منظومة إدارة الأصول والميزانيات المالية المتكاملة</p>
-        <p style="font-size: 9.5px; color: #94a3b8; margin: 2px 0 0 0;">Institutional Financial Suite & Wealth Management</p>
+        <p style="font-size: 9px; color: #94a3b8; margin: 2px 0 0 0;">Institutional Financial Suite & Wealth Management</p>
       </div>
 
       <div class="meta-box">
@@ -644,10 +838,10 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       </div>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
       <div>
-        <span class="badge" style="background: #fef3c7; color: #92400e; font-size: 11px; padding: 4px 10px;">
-          ${isSummary ? 'الملخص المالي التنفيذي (Executive Summary)' : 'كشف القيود والمعاملات المحاسبي (Detailed Ledger)'}
+        <span class="badge">
+          ${titleInfo.ar} <span style="font-size: 9.5px; opacity: 0.85;">(${titleInfo.en})</span>
         </span>
       </div>
       <div style="font-weight: bold; font-size: 11px; color: #334155;">
@@ -698,6 +892,96 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
         <div class="kpi-amount">${Math.round(kpis.closingBalance).toLocaleString()} ${baseSymbol}</div>
       </div>
     </div>
+
+    ${budgets.length > 0 ? `
+    <h2>جدول متابعة الميزانيات المحددة والإنفاق الفعلي</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>التصنيف</th>
+          <th>الميزانية المعتمدة</th>
+          <th>الإنفاق الفعلي</th>
+          <th>المتبقي</th>
+          <th>نسبة الاستهلاك</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${budgets.map(b => `
+        <tr>
+          <td><b>${b.categoryName}</b></td>
+          <td>${Math.round(b.budgetAmount).toLocaleString()} ${baseSymbol}</td>
+          <td style="color: ${b.isOverBudget ? '#be123c' : '#0f172a'}; font-weight: bold;">${Math.round(b.spentAmount).toLocaleString()} ${baseSymbol}</td>
+          <td style="color: ${b.remainingAmount < 0 ? '#be123c' : '#15803d'}; font-weight: bold;">${Math.round(b.remainingAmount).toLocaleString()} ${baseSymbol}</td>
+          <td>${b.percentageUsed.toFixed(1)}%</td>
+          <td><b>${b.statusLabelAr}</b></td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ` : ''}
+
+    ${debts && debts.items.length > 0 ? `
+    <h2>كشف الذمم والديون والالتزامات المالية</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>الطرف / الشخص</th>
+          <th>نوع الذمة</th>
+          <th>المبلغ الأصلي</th>
+          <th>المسدد</th>
+          <th>المتبقي بالعملة</th>
+          <th>المعادل (${baseSymbol})</th>
+          <th>تاريخ الاستحقاق</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${debts.items.map(d => `
+        <tr>
+          <td><b>${d.personName}</b></td>
+          <td style="color: ${d.type === 'to_me' ? '#15803d' : '#be123c'}; font-weight: bold;">${d.typeLabelAr}</td>
+          <td>${Math.round(d.originalAmount).toLocaleString()} ${d.currency}</td>
+          <td>${Math.round(d.paidAmount).toLocaleString()} ${d.currency}</td>
+          <td style="font-weight: bold;">${Math.round(d.remainingAmount).toLocaleString()} ${d.currency}</td>
+          <td><b>${Math.round(d.convertedRemaining).toLocaleString()} ${baseSymbol}</b></td>
+          <td>${d.dueDate || '-'}</td>
+          <td><b>${d.statusLabelAr}</b></td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ` : ''}
+
+    ${goals && goals.items.length > 0 ? `
+    <h2>تقرير الأهداف المالية ومتابعة المدخرات</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>اسم الهدف</th>
+          <th>المستهدف (${baseSymbol})</th>
+          <th>المدخر الفعلي (${baseSymbol})</th>
+          <th>المتبقي للهدف (${baseSymbol})</th>
+          <th>نسبة الإنجاز</th>
+          <th>تاريخ الهدف</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${goals.items.map(g => `
+        <tr>
+          <td><b>${g.name}</b></td>
+          <td>${Math.round(g.convertedTarget).toLocaleString()} ${baseSymbol}</td>
+          <td style="color: #15803d; font-weight: bold;">${Math.round(g.convertedCurrent).toLocaleString()} ${baseSymbol}</td>
+          <td>${Math.round(g.remainingAmount).toLocaleString()} ${baseSymbol}</td>
+          <td><b>${g.progressPercent.toFixed(1)}%</b></td>
+          <td>${g.deadline || '-'}</td>
+          <td><b>${g.isCompleted ? 'مكتمل' : 'قيد التجميع'}</b></td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ` : ''}
 
     ${currencyBreakdown.length > 0 ? `
     <h2>تحليل وتوزيع العملات</h2>
@@ -755,6 +1039,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     </table>
     ` : ''}
 
+    ${(reportType === 'detailed' || reportType === 'summary') && displayTxs.length > 0 ? `
     <h2>جدول القيود والمعاملات المسجلة (${displayTxs.length} حركة)</h2>
     <table>
       <thead>
@@ -791,6 +1076,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
         }).join('')}
       </tbody>
     </table>
+    ` : ''}
 
     <div class="footer-seal">
       <div>
@@ -826,57 +1112,50 @@ export async function printOrShareFinancialReport(
   model: ReportModel,
   preferredAction: 'print' | 'share' | 'excel' = 'print'
 ): Promise<void> {
-  const isSummary = model.reportType === 'summary';
   const dateStr = new Date().toISOString().split('T')[0];
+  const typeKey = model.reportType || 'summary';
 
   if (preferredAction === 'excel') {
     const htmlContent = buildExcelReportHTML(model);
-    const fileName = `THARI_${isSummary ? 'Summary' : 'Ledger'}_${dateStr}.xls`;
-    await exportAndShareNativeFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
-    return;
-  }
-
-  const printableHtml = buildPrintableReportHTML(model, preferredAction === 'print');
-  const fileName = `THARI_Report_${isSummary ? 'Summary' : 'Detailed'}_${dateStr}.html`;
-
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (window.innerWidth <= 768);
-
-  if (preferredAction === 'share' || isMobile) {
-    // Attempt native file share (creates AirPrint and Save to Files on iOS)
+    const fileName = `THARI_${typeKey.toUpperCase()}_${dateStr}.xls`;
     await exportAndShareNativeFile(
-      printableHtml,
+      htmlContent,
       fileName,
-      'text/html;charset=utf-8;',
-      preferredAction === 'print' ? 'طباعة وحفظ التقرير المالي كـ PDF' : 'مشاركة التقرير المالي'
+      'application/vnd.ms-excel;charset=utf-8;',
+      'تقرير ثري المالي (Excel)'
     );
     return;
   }
 
-  // Desktop Print Action: Open clean printable window
-  try {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printableHtml);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        try {
-          printWindow.print();
-        } catch (e) {
-          console.warn('Desktop popup print failed, fallback to main print:', e);
-          window.print();
-        }
-      }, 500);
-      return;
-    }
-  } catch (err) {
-    console.warn('Popup print error:', err);
+  const printableHtml = buildPrintableReportHTML(model, preferredAction === 'print');
+  const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.html`;
+
+  if (preferredAction === 'share') {
+    await exportAndShareNativeFile(
+      printableHtml,
+      fileName,
+      'text/html;charset=utf-8;',
+      'مشاركة التقرير المالي ثـري'
+    );
+    return;
   }
 
-  // Ultimate desktop fallback
-  window.print();
+  // Print Action
+  if (typeof window !== 'undefined') {
+    try {
+      // In web/desktop/mobile, trigger native print dialog
+      window.print();
+    } catch {
+      // Fallback to sharing the HTML file
+      await exportAndShareNativeFile(
+        printableHtml,
+        fileName,
+        'text/html;charset=utf-8;',
+        'طباعة وحفظ التقرير المالي كـ PDF'
+      );
+    }
+  }
 }
-
 
 /**
  * Universally writes and shares files across Native iOS/Android (Capacitor Filesystem & Share Sheet)
@@ -955,4 +1234,3 @@ export async function exportAndShareNativeFile(
     }
   }
 }
-

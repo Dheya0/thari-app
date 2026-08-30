@@ -1,9 +1,8 @@
-import { Category, Transaction, Wallet } from '../../types';
+import { Budget, Category, Debt, Goal, Transaction, Wallet } from '../../types';
 import { convertCurrency } from '../../constants';
 import { calculateWalletBalances } from '../balanceEngine';
-import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../../utils/mathPrecision';
+import { safeAdd, safeSub, safeMul, safeDiv } from '../../utils/mathPrecision';
 import {
-  CurrencyMetadata,
   formatCurrencyAmount,
   getCurrencyMetadata,
   normalizeCurrencyCode,
@@ -15,8 +14,13 @@ import {
 } from './reportFingerprint';
 import { QueryResult } from './reportQueryService';
 import {
+  ReportBudgetSummary,
   ReportCategorySummary,
   ReportCurrencyBreakdown,
+  ReportDebtItem,
+  ReportDebtSummary,
+  ReportGoalItem,
+  ReportGoalSummary,
   ReportKPIs,
   ReportLedgerEntry,
   ReportMetadataInfo,
@@ -30,6 +34,9 @@ export interface AggregationContext {
   transactions: Transaction[];
   categories: Category[];
   wallets: Wallet[];
+  budgets?: Budget[];
+  debts?: Debt[];
+  goals?: Goal[];
   userName?: string;
   userEmail?: string;
   baseCurrencyCode?: string;
@@ -46,6 +53,9 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     transactions,
     categories,
     wallets,
+    budgets = [],
+    debts = [],
+    goals = [],
     userName = 'مستخدم ثري',
     userEmail,
     baseCurrencyCode = 'SAR',
@@ -400,7 +410,170 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     } : undefined,
   };
 
-  // 9. Generate Report Metadata & Fingerprint
+  // 9. Budget Performance Summary (for 'category' / 'budget_expense' report template)
+  const budgetSummaries: ReportBudgetSummary[] = categories
+    .filter(cat => cat.type === 'expense')
+    .map(cat => {
+      const b = budgets.find(bg => bg.categoryId === cat.id);
+      const rawBudget = b ? Number(b.amount) || 0 : 0;
+      const budgetAmount = b
+        ? convertCurrency(rawBudget, b.currencyCode || targetCurrencyCode, targetCurrencyCode, exchangeRates)
+        : 0;
+      const spentAmount = expenseCategoryMap[cat.id]?.amount || 0;
+      const remainingAmount = safeSub(budgetAmount, spentAmount);
+      const percentageUsed = budgetAmount > 0 ? safeMul(safeDiv(spentAmount, budgetAmount), 100) : 0;
+      const isOverBudget = budgetAmount > 0 && spentAmount > budgetAmount;
+
+      let statusLabelAr = 'بدون ميزانية محددة';
+      if (budgetAmount > 0) {
+        if (isOverBudget) {
+          statusLabelAr = 'تجاوز الميزانية';
+        } else if (percentageUsed >= 80) {
+          statusLabelAr = 'قارب على النفاذ (تحذير)';
+        } else {
+          statusLabelAr = 'ضمن النطاق السليم';
+        }
+      }
+
+      return {
+        categoryId: cat.id,
+        categoryName: cat.name,
+        categoryIcon: cat.icon || 'Tag',
+        categoryColor: cat.color || '#f43f5e',
+        budgetAmount,
+        spentAmount,
+        remainingAmount,
+        percentageUsed: Math.round(percentageUsed * 10) / 10,
+        isOverBudget,
+        statusLabelAr,
+      };
+    })
+    .filter(b => b.budgetAmount > 0 || b.spentAmount > 0)
+    .sort((a, b) => b.spentAmount - a.spentAmount);
+
+  // 10. Debts & Liabilities Summary (for 'debts' report template)
+  const nowTime = new Date().getTime();
+  let totalReceivable = 0;
+  let totalPayable = 0;
+  let receivableCount = 0;
+  let payableCount = 0;
+  let settledCount = 0;
+  let activeCount = 0;
+  let overdueCount = 0;
+
+  const debtItems: ReportDebtItem[] = debts.map(d => {
+    const origAmt = Number(d.amount) || 0;
+    const paidAmt = Number(d.paidAmount) || 0;
+    const remAmt = Math.max(0, origAmt - paidAmt);
+    const convertedRem = convertCurrency(remAmt, d.currency || targetCurrencyCode, targetCurrencyCode, exchangeRates);
+
+    const isSettled = d.isPaid || remAmt <= 0;
+    const isOverdue = !isSettled && d.dueDate && new Date(d.dueDate).getTime() < nowTime;
+
+    let debtStatus: 'active' | 'partial' | 'settled' | 'overdue' = 'active';
+    let statusLabelAr = 'قائم وفعال';
+
+    if (isSettled) {
+      debtStatus = 'settled';
+      statusLabelAr = 'مسدد بالكامل';
+      settledCount += 1;
+    } else if (isOverdue) {
+      debtStatus = 'overdue';
+      statusLabelAr = 'متأخر عن السداد';
+      overdueCount += 1;
+    } else if (paidAmt > 0) {
+      debtStatus = 'partial';
+      statusLabelAr = 'سداد جزئي';
+      activeCount += 1;
+    } else {
+      activeCount += 1;
+    }
+
+    if (d.type === 'to_me') {
+      receivableCount += 1;
+      if (!isSettled) totalReceivable = safeAdd(totalReceivable, convertedRem);
+    } else {
+      payableCount += 1;
+      if (!isSettled) totalPayable = safeAdd(totalPayable, convertedRem);
+    }
+
+    return {
+      id: d.id,
+      personName: d.personName,
+      personPhone: d.personPhone,
+      type: d.type,
+      typeLabelAr: d.type === 'to_me' ? 'دين لي (مستحق)' : 'دين عليّ (التزام)',
+      originalAmount: origAmt,
+      paidAmount: paidAmt,
+      remainingAmount: remAmt,
+      convertedRemaining: convertedRem,
+      currency: d.currency || targetCurrencyCode,
+      createdAt: d.createdAt,
+      dueDate: d.dueDate,
+      isPaid: isSettled,
+      status: debtStatus,
+      statusLabelAr,
+      note: d.note || '',
+      paymentCount: d.payments ? d.payments.length : 0,
+    };
+  }).sort((a, b) => (b.isPaid ? -1 : 1) - (a.isPaid ? -1 : 1) || b.remainingAmount - a.remainingAmount);
+
+  const debtsSummary: ReportDebtSummary = {
+    totalReceivable,
+    totalPayable,
+    netDebtPosition: safeSub(totalReceivable, totalPayable),
+    receivableCount,
+    payableCount,
+    settledCount,
+    activeCount,
+    overdueCount,
+    items: debtItems,
+  };
+
+  // 11. Goals & Savings Progress (for 'savings_goals' report template)
+  let totalGoalTarget = 0;
+  let totalGoalSaved = 0;
+  let completedGoalsCount = 0;
+
+  const goalItems: ReportGoalItem[] = goals.map(g => {
+    const targetAmt = Number(g.targetAmount) || 0;
+    const currAmt = Number(g.currentAmount) || 0;
+    const convertedTarget = convertCurrency(targetAmt, targetCurrencyCode, targetCurrencyCode, exchangeRates);
+    const convertedCurr = convertCurrency(currAmt, targetCurrencyCode, targetCurrencyCode, exchangeRates);
+    const progressPercent = targetAmt > 0 ? Math.min(100, Math.round((currAmt / targetAmt) * 100)) : 0;
+    const remainingAmount = Math.max(0, targetAmt - currAmt);
+    const isCompleted = currAmt >= targetAmt;
+
+    totalGoalTarget = safeAdd(totalGoalTarget, convertedTarget);
+    totalGoalSaved = safeAdd(totalGoalSaved, convertedCurr);
+    if (isCompleted) completedGoalsCount += 1;
+
+    return {
+      id: g.id,
+      name: g.name,
+      targetAmount: targetAmt,
+      currentAmount: currAmt,
+      convertedTarget,
+      convertedCurrent: convertedCurr,
+      progressPercent,
+      remainingAmount,
+      deadline: g.deadline || g.targetDate,
+      icon: g.icon || 'Target',
+      color: g.color || '#10b981',
+      isCompleted,
+    };
+  }).sort((a, b) => b.progressPercent - a.progressPercent);
+
+  const goalsSummary: ReportGoalSummary = {
+    totalTargetAmount: totalGoalTarget,
+    totalSavedAmount: totalGoalSaved,
+    overallProgressPercent: totalGoalTarget > 0 ? Math.min(100, Math.round((totalGoalSaved / totalGoalTarget) * 100)) : 0,
+    goalsCount: goals.length,
+    completedCount: completedGoalsCount,
+    items: goalItems,
+  };
+
+  // 12. Generate Report Metadata & Fingerprint
   const now = new Date();
   const reportId = generateReportId(now);
   const fingerprint = computeReportFingerprint(
@@ -449,14 +622,14 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     version: '2.5.0',
   };
 
-  // 10. Integrity Validation
+  // 13. Integrity Validation
   const validationErrors: string[] = [];
   const validationWarnings: string[] = [];
 
   if (isNaN(totalIncome) || isNaN(totalExpense)) {
     validationErrors.push('فشل التحقق الرياضي: وجود قيم غير رقمية في الإجماليات.');
   }
-  if (activeTransactions.length === 0) {
+  if (activeTransactions.length === 0 && (params.type === 'summary' || params.type === 'detailed')) {
     validationWarnings.push('لا توجد حركات مسجلة تطابق معايير التصفية المختارة.');
   }
 
@@ -480,6 +653,9 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     incomeCategories,
     transactions: transactionsList,
     ledger: transactionsList,
+    budgets: budgetSummaries,
+    debts: debtsSummary,
+    goals: goalsSummary,
     validation: {
       isValid: validationErrors.length === 0,
       errors: validationErrors,

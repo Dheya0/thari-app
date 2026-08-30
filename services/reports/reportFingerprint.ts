@@ -1,4 +1,6 @@
 
+import { ReportType } from './reportTypes';
+
 /**
  * Generate a unique Report ID: THR-RPT-YYYYMMDD-XXXXXX
  */
@@ -35,7 +37,7 @@ export function computeReportFingerprint(inputString: string): string {
  */
 export interface QRCodePayloadOptions {
   reportId: string;
-  reportType: 'summary' | 'detailed';
+  reportType: ReportType | string;
   currencyScope: string;
   walletScope: string;
   txCount: number;

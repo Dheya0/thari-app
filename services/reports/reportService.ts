@@ -1,4 +1,4 @@
-import { Category, Transaction, Wallet } from '../../types';
+import { Budget, Category, Debt, Goal, Transaction, Wallet } from '../../types';
 import { generateQRCodeDataUrl } from './reportFingerprint';
 import { queryReportTransactions } from './reportQueryService';
 import { buildReportModel } from './reportAggregationService';
@@ -8,6 +8,9 @@ export interface GenerateReportOptions {
   transactions: Transaction[];
   categories: Category[];
   wallets: Wallet[];
+  budgets?: Budget[];
+  debts?: Debt[];
+  goals?: Goal[];
   userName?: string;
   userEmail?: string;
   baseCurrencyCode?: string;
@@ -23,6 +26,9 @@ export async function generateFinancialReport(options: GenerateReportOptions): P
     transactions,
     categories,
     wallets,
+    budgets,
+    debts,
+    goals,
     userName,
     userEmail,
     baseCurrencyCode,
@@ -38,6 +44,9 @@ export async function generateFinancialReport(options: GenerateReportOptions): P
     transactions,
     categories,
     wallets,
+    budgets,
+    debts,
+    goals,
     userName,
     userEmail,
     baseCurrencyCode,
@@ -65,6 +74,9 @@ export function generateFinancialReportSync(options: GenerateReportOptions): Rep
     transactions,
     categories,
     wallets,
+    budgets,
+    debts,
+    goals,
     userName,
     userEmail,
     baseCurrencyCode,
@@ -78,6 +90,9 @@ export function generateFinancialReportSync(options: GenerateReportOptions): Rep
     transactions,
     categories,
     wallets,
+    budgets,
+    debts,
+    goals,
     userName,
     userEmail,
     baseCurrencyCode,

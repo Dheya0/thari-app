@@ -333,6 +333,42 @@ const App: React.FC = () => {
   const backgroundedAtRef = useRef<number | null>(null);
   const justUnlockedRef = useRef<number>(0);
 
+  // Home Screen Action & Quick Add Gesture Detection (iOS / Android Shortcuts & URL parameters)
+  useEffect(() => {
+    const handleQuickAddAction = () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const hash = window.location.hash;
+        if (
+          urlParams.get('action') === 'quick-add' ||
+          urlParams.get('action') === 'quick_add' ||
+          hash === '#quick-add' ||
+          hash === '#quick_add'
+        ) {
+          setShowAddForm(true);
+          // Clean URL without triggering page reload
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      } catch (e) {
+        console.warn('Quick add parameter check error:', e);
+      }
+    };
+
+    handleQuickAddAction();
+    window.addEventListener('popstate', handleQuickAddAction);
+    window.addEventListener('focus', handleQuickAddAction);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        handleQuickAddAction();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('popstate', handleQuickAddAction);
+      window.removeEventListener('focus', handleQuickAddAction);
+    };
+  }, []);
+
   // Check and process due recurring transactions on initial mount
   useEffect(() => {
     setState(prev => {
@@ -382,6 +418,20 @@ const App: React.FC = () => {
         if (showAddForm) {
           setShowAddForm(false);
           setEditingTransaction(null);
+        } else if (showReportModal) {
+          setShowReportModal(false);
+        } else if (showTrashModal) {
+          setShowTrashModal(false);
+        } else if (showRecurringModal) {
+          setShowRecurringModal(false);
+        } else if (showDiagnosticsModal) {
+          setShowDiagnosticsModal(false);
+        } else if (showToolsHub) {
+          setShowToolsHub(false);
+        } else if (showCurrencySelector) {
+          setShowCurrencySelector(false);
+        } else if (showWalletSelector) {
+          setShowWalletSelector(false);
         } else if (showPrivacyPolicy) {
           setShowPrivacyPolicy(false);
         } else if (activeTab !== 'dashboard') {
@@ -396,7 +446,18 @@ const App: React.FC = () => {
         backButtonListener.remove();
       }
     };
-  }, [showAddForm, showPrivacyPolicy, activeTab]);
+  }, [
+    showAddForm,
+    showReportModal,
+    showTrashModal,
+    showRecurringModal,
+    showDiagnosticsModal,
+    showToolsHub,
+    showCurrencySelector,
+    showWalletSelector,
+    showPrivacyPolicy,
+    activeTab,
+  ]);
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -708,6 +769,9 @@ const App: React.FC = () => {
         userName: state.userName,
         baseCurrencyCode: state.currency.code,
         exchangeRates: state.exchangeRates,
+        budgets: state.budgets,
+        debts: state.debts,
+        goals: state.goals,
         params: {
           type,
           walletId: targetWalletId,
@@ -750,6 +814,9 @@ const App: React.FC = () => {
         userName: state.userName,
         baseCurrencyCode: state.currency.code,
         exchangeRates: state.exchangeRates,
+        budgets: state.budgets,
+        debts: state.debts,
+        goals: state.goals,
         params: {
           type,
           walletId: targetWalletId,
@@ -781,6 +848,9 @@ const App: React.FC = () => {
         userName: state.userName,
         baseCurrencyCode: state.currency.code,
         exchangeRates: state.exchangeRates,
+        budgets: state.budgets,
+        debts: state.debts,
+        goals: state.goals,
         params: {
           type,
           walletId: selectedWalletId,
@@ -1209,9 +1279,33 @@ const App: React.FC = () => {
       <div className="flex flex-col flex-1 print:hidden relative z-20 overflow-hidden">
         <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 pb-2.5 sm:pb-3 md:py-4 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
           <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-2 min-w-0">
-            {/* App Branding */}
+            {/* App Branding & Quick Add Long Press */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
-              <Logo size={24} showText />
+              <div
+                className="cursor-pointer active:scale-95 transition-transform"
+                title="اضغط مطولاً للإضافة السريعة"
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  NativeHaptics.impact('HEAVY').catch(() => {});
+                  setShowAddForm(true);
+                }}
+                onTouchStart={(e) => {
+                  const target = e.currentTarget;
+                  const timer = setTimeout(() => {
+                    NativeHaptics.impact('HEAVY').catch(() => {});
+                    setShowAddForm(true);
+                  }, 450);
+                  const clear = () => {
+                    clearTimeout(timer);
+                    target.removeEventListener('touchend', clear);
+                    target.removeEventListener('touchmove', clear);
+                  };
+                  target.addEventListener('touchend', clear, { once: true });
+                  target.addEventListener('touchmove', clear, { once: true });
+                }}
+              >
+                <Logo size={24} showText />
+              </div>
               {/* Offline-First Sovereignty Badge - 100% Local */}
               <div
                 className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
@@ -1512,6 +1606,9 @@ const App: React.FC = () => {
               currentCurrency={state.currency}
               userName={state.userName}
               exchangeRates={state.exchangeRates}
+              budgets={state.budgets}
+              debts={state.debts}
+              goals={state.goals}
               initialType={printType}
               initialWalletId={selectedWalletId}
               initialCurrencyCode={printCurrencyFilter}

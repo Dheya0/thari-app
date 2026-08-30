@@ -71,6 +71,12 @@
             -webkit-touch-callout: none;
             overscroll-behavior: none;
         }
+
+        input, textarea, select, [contenteditable="true"] {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -webkit-touch-callout: default !important;
+        }
         
         .font-numeric {
             font-family: 'Plus Jakarta Sans', 'Readex Pro', -apple-system, sans-serif;

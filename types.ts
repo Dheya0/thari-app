@@ -163,6 +163,8 @@ export interface Goal {
   targetDate?: string; // When the user wants to reach this
 }
 
+export type SavingsGoal = Goal;
+
 export interface Subscription {
   id: string;
   name: string;

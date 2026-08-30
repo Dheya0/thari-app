@@ -2,6 +2,10 @@ import React from 'react';
 import { ReportModel } from '../../services/reports/reportTypes';
 import { FinancialReportSummaryView } from './FinancialReportSummaryView';
 import { FinancialReportDetailedView } from './FinancialReportDetailedView';
+import { FinancialReportBudgetView } from './FinancialReportBudgetView';
+import { FinancialReportWealthView } from './FinancialReportWealthView';
+import { FinancialReportDebtsView } from './FinancialReportDebtsView';
+import { FinancialReportGoalsView } from './FinancialReportGoalsView';
 import { ReportQRCode } from './ReportQRCode';
 import { Logo } from '../Logo';
 
@@ -14,8 +18,63 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
   model,
   id = 'financial-report-print-area',
 }) => {
-  const { metadata, reportType, account, scope } = model;
-  const isSummary = reportType === 'summary';
+  const { metadata, reportType, account } = model;
+
+  const getReportTitle = () => {
+    switch (reportType) {
+      case 'detailed':
+        return {
+          ar: 'كشف القيود والمعاملات المالية التفصيلي',
+          en: '(Financial Transaction Ledger)',
+        };
+      case 'category':
+        return {
+          ar: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي',
+          en: '(Budget Performance & Category Analysis)',
+        };
+      case 'wealth':
+        return {
+          ar: 'تقرير صافي الثروة وتوزيع المحافظ والعملات',
+          en: '(Wealth & Multi-Currency Asset Allocation)',
+        };
+      case 'debts':
+        return {
+          ar: 'كشف الذمم والديون والالتزامات المالية',
+          en: '(Debts & Liabilities Statement)',
+        };
+      case 'savings_goals':
+        return {
+          ar: 'تقرير الأهداف المالية ومتابعة المدخرات',
+          en: '(Goals & Savings Progress Report)',
+        };
+      case 'summary':
+      default:
+        return {
+          ar: 'الملخص المالي التنفيذي العام',
+          en: '(Executive Financial Summary)',
+        };
+    }
+  };
+
+  const titleInfo = getReportTitle();
+
+  const renderReportContent = () => {
+    switch (reportType) {
+      case 'detailed':
+        return <FinancialReportDetailedView model={model} />;
+      case 'category':
+        return <FinancialReportBudgetView model={model} />;
+      case 'wealth':
+        return <FinancialReportWealthView model={model} />;
+      case 'debts':
+        return <FinancialReportDebtsView model={model} />;
+      case 'savings_goals':
+        return <FinancialReportGoalsView model={model} />;
+      case 'summary':
+      default:
+        return <FinancialReportSummaryView model={model} />;
+    }
+  };
 
   return (
     <div
@@ -70,10 +129,10 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
             <h2 className="text-base sm:text-lg font-black text-slate-950">
-              {isSummary ? 'الملخص المالي التنفيذي' : 'كشف القيود والمعاملات المالية التفصيلي'}
+              {titleInfo.ar}
             </h2>
             <span className="text-xs font-bold text-slate-400 font-mono">
-              {isSummary ? '(Executive Financial Summary)' : '(Financial Transaction Ledger)'}
+              {titleInfo.en}
             </span>
           </div>
 
@@ -84,11 +143,7 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
       </div>
 
       {/* 2. Main Content View */}
-      {isSummary ? (
-        <FinancialReportSummaryView model={model} />
-      ) : (
-        <FinancialReportDetailedView model={model} />
-      )}
+      {renderReportContent()}
 
       {/* 3. Institutional Footer & Security Endorsement */}
       <div className="mt-10 pt-6 border-t-2 border-slate-900 break-inside-avoid">

@@ -14,11 +14,21 @@ import {
   Layers,
   ArrowRight,
   ShieldCheck,
+  Scale,
+  Target,
+  PieChart,
+  BookOpen,
 } from 'lucide-react';
-import { Category, Currency, Transaction, Wallet } from '../../types';
+import { Category, Currency, Transaction, Wallet, Budget, Debt, SavingsGoal } from '../../types';
 import { ReportModel, ReportType } from '../../services/reports/reportTypes';
 import { generateFinancialReportSync } from '../../services/reports/reportService';
-import { buildExcelReportCSV, buildExcelReportHTML, buildPrintableReportHTML, exportAndShareReportCSV, exportAndShareNativeFile, printOrShareFinancialReport } from '../../services/reports/reportExportService';
+import {
+  buildExcelReportCSV,
+  buildExcelReportHTML,
+  buildPrintableReportHTML,
+  exportAndShareNativeFile,
+  printOrShareFinancialReport,
+} from '../../services/reports/reportExportService';
 import { FinancialReportDocument } from './FinancialReportDocument';
 
 interface ReportModalProps {
@@ -31,10 +41,19 @@ interface ReportModalProps {
   currentCurrency: Currency;
   userName?: string;
   exchangeRates?: Record<string, number>;
+  budgets?: Budget[];
+  debts?: Debt[];
+  goals?: SavingsGoal[];
   initialType?: ReportType;
   initialWalletId?: string | null;
   initialCurrencyCode?: string | null;
-  onTriggerPrint?: (type: ReportType, walletId?: string | null, currencyFilter?: string | null, startDate?: string | null, endDate?: string | null) => void;
+  onTriggerPrint?: (
+    type: ReportType,
+    walletId?: string | null,
+    currencyFilter?: string | null,
+    startDate?: string | null,
+    endDate?: string | null
+  ) => void;
 }
 
 type DateRangePreset = 'all' | 'this_month' | 'last_month' | 'last_90_days' | 'custom';
@@ -49,6 +68,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   currentCurrency,
   userName = 'مستخدم ثري',
   exchangeRates = {},
+  budgets = [],
+  debts = [],
+  goals = [],
   initialType = 'detailed',
   initialWalletId = null,
   initialCurrencyCode = null,
@@ -103,6 +125,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       userName,
       baseCurrencyCode: currentCurrency?.code || 'SAR',
       exchangeRates,
+      budgets,
+      debts,
+      goals,
       params: {
         type: reportType,
         walletId: selectedWalletId,
@@ -119,6 +144,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     userName,
     currentCurrency?.code,
     exchangeRates,
+    budgets,
+    debts,
+    goals,
     reportType,
     selectedWalletId,
     selectedCurrencyCode,
@@ -126,7 +154,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     endDate,
   ]);
 
-  // Print / PDF handler optimized for iPhone, Android & Web
+  // Print / PDF handler
   const handlePrint = async () => {
     try {
       await printOrShareFinancialReport(reportModel, 'print');
@@ -136,7 +164,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (e) {
       console.warn('Print handler error:', e);
     }
-    onClose();
   };
 
   // Dedicated share handler for mobile/iPhone & Android
@@ -146,7 +173,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (e) {
       console.warn('Share handler error:', e);
     }
-    onClose();
   };
 
   // Excel Spreadsheet (.xls) Export handler
@@ -156,10 +182,60 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (e) {
       console.warn('Excel export error:', e);
     }
-    onClose();
   };
 
   if (!isOpen) return null;
+
+  const REPORT_TYPE_OPTIONS: Array<{
+    type: ReportType;
+    title: string;
+    desc: string;
+    icon: any;
+    color: string;
+  }> = [
+    {
+      type: 'summary',
+      title: 'ملخص تنفيذي',
+      desc: 'مؤشرات عامة، تحليل التدفق، وتوزيع الأرصدة والعملات.',
+      icon: PieChart,
+      color: '#D9B978',
+    },
+    {
+      type: 'detailed',
+      title: 'كشف قيود تفصيلي',
+      desc: 'كشف حساب محاسبي كامل يشمل جدول جميع المعاملات والرصيد التراكمي.',
+      icon: BookOpen,
+      color: '#3B82F6',
+    },
+    {
+      type: 'category',
+      title: 'الميزانيات والإنفاق',
+      desc: 'مطابقة الإنفاق الفعلي مع الميزانيات المعتمدة ونسب الاستهلاك.',
+      icon: Layers,
+      color: '#10B981',
+    },
+    {
+      type: 'wealth',
+      title: 'توزيع الثروة والمحافظ',
+      desc: 'صافي الأصول وتوزيع المحافظ النقدية وتفصيل العملات الأجنبية.',
+      icon: Coins,
+      color: '#8B5CF6',
+    },
+    {
+      type: 'debts',
+      title: 'الديون والالتزامات',
+      desc: 'كشف المستحقات والالتزامات المالية وحالات السداد والاستحقاق.',
+      icon: Scale,
+      color: '#EF4444',
+    },
+    {
+      type: 'savings_goals',
+      title: 'الأهداف والمدخرات',
+      desc: 'متابعة الخطط والمدخرات المحققة ونسب إنجاز الأهداف.',
+      icon: Target,
+      color: '#06B6D4',
+    },
+  ];
 
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden no-print">
@@ -167,7 +243,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-2xl bg-[#11161C] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[85vh] text-[#F4F1EA]"
+        className="w-full max-w-2xl bg-[#11161C] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[88vh] text-[#F4F1EA]"
         dir="rtl"
       >
         {/* Header */}
@@ -191,48 +267,44 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar overscroll-contain">
-          
-          {/* 1. Report Type Switcher */}
+          {/* 1. Report Type Grid */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              1. نوع التقرير المالي
+              1. نوع التقرير المالي المطلوب
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setReportType('summary')}
-                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between ${
-                  reportType === 'summary'
-                    ? 'bg-[#D9B978]/10 border-[#D9B978] shadow-md text-[#F4F1EA]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:border-white/15'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-[#D9B978]">ملخص تنفيذي</span>
-                  {reportType === 'summary' && <CheckCircle2 size={16} className="text-[#D9B978]" />}
-                </div>
-                <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                  مؤشرات عامة، تحليل التدفق، توزيع الأرصدة والعملات بدون جدول القيود الطويل.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setReportType('detailed')}
-                className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between ${
-                  reportType === 'detailed'
-                    ? 'bg-[#D9B978]/10 border-[#D9B978] shadow-md text-[#F4F1EA]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:border-white/15'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-[#D9B978]">كشف قيود تفصيلي</span>
-                  {reportType === 'detailed' && <CheckCircle2 size={16} className="text-[#D9B978]" />}
-                </div>
-                <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                  كشف حساب محاسبي كامل يشمل جدول جميع المعاملات والقيود والرصيد التراكمي.
-                </p>
-              </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {REPORT_TYPE_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const isSelected = reportType === opt.type;
+                return (
+                  <button
+                    key={opt.type}
+                    type="button"
+                    onClick={() => setReportType(opt.type)}
+                    className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-[#D9B978]/15 border-[#D9B978] shadow-md text-[#F4F1EA]'
+                        : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:border-white/15'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-6 h-6 rounded-lg flex items-center justify-center"
+                          style={{ backgroundColor: `${opt.color}20`, color: opt.color }}
+                        >
+                          <Icon size={14} />
+                        </div>
+                        <span className="text-xs font-black text-[#F4F1EA]">{opt.title}</span>
+                      </div>
+                      {isSelected && <CheckCircle2 size={16} className="text-[#D9B978]" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-1">
+                      {opt.desc}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -243,7 +315,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 2. نطاق العملة
               </label>
               <span className="text-[10px] font-bold text-slate-500">
-                {selectedCurrencyCode ? 'تصفية لعملة واحدة محددة' : 'تقرير متعدد العملات'}
+                {selectedCurrencyCode ? 'تصفية لعملة واحدة محددة' : 'تقرير شامل متعدد العملات'}
               </span>
             </div>
 
@@ -300,53 +372,78 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   key={w.id}
                   type="button"
                   onClick={() => setSelectedWalletId(w.id)}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right ${
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right flex items-center justify-between ${
                     selectedWalletId === w.id
                       ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
                       : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
                   }`}
                 >
-                  {w.name} ({w.currencyCode})
+                  <span className="truncate">{w.name}</span>
+                  <span className="text-[10px] opacity-70 ml-1">({w.currencyCode})</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* 4. Date Range Scope */}
+          {/* 4. Date Filter */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
               4. الفترة الزمنية
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { id: 'all', label: 'كافة الفترات' },
-                { id: 'this_month', label: 'الشهر الحالي' },
-                { id: 'last_month', label: 'الشهر السابق' },
-                { id: 'last_90_days', label: 'آخر 90 يوم' },
-              ].map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setDatePreset(p.id as DateRangePreset)}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-all text-center ${
-                    datePreset === p.id
-                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => setDatePreset('all')}
+                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                  datePreset === 'all'
+                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                }`}
+              >
+                كامل السجل
+              </button>
+              <button
+                type="button"
+                onClick={() => setDatePreset('this_month')}
+                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                  datePreset === 'this_month'
+                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                }`}
+              >
+                هذا الشهر
+              </button>
+              <button
+                type="button"
+                onClick={() => setDatePreset('last_month')}
+                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                  datePreset === 'last_month'
+                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                }`}
+              >
+                الشهر الماضي
+              </button>
+              <button
+                type="button"
+                onClick={() => setDatePreset('last_90_days')}
+                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                  datePreset === 'last_90_days'
+                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                }`}
+              >
+                آخر 90 يوماً
+              </button>
             </div>
 
-            {/* Custom Dates Option Button */}
             <button
               type="button"
-              onClick={() => setDatePreset('custom')}
-              className={`w-full p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
+              onClick={() => setDatePreset(datePreset === 'custom' ? 'all' : 'custom')}
+              className={`w-full mt-2 p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
                 datePreset === 'custom'
                   ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                  : 'bg-[#0A0D10]/40 border-white/5 text-slate-500 hover:text-slate-300'
+                  : 'bg-[#0A0D10]/40 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
               }`}
             >
               تحديد فترة مخصصة (من تاريخ - إلى تاريخ)
@@ -383,7 +480,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 ملخص التقرير المجهز
               </span>
               <p className="text-xs font-bold text-slate-200">
-                {reportModel.transactions.length} حركة مسجلة • إجمالي الوارد: +{Math.round(reportModel.kpis.totalIncome).toLocaleString()} {currentCurrency.symbol}
+                {reportModel.transactions.length} حركة مسجلة • إجمالي الوارد: +
+                {Math.round(reportModel.kpis.totalIncome).toLocaleString()} {currentCurrency.symbol}
               </p>
             </div>
             <button
@@ -411,7 +509,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               </motion.div>
             )}
           </AnimatePresence>
-
         </div>
 
         {/* Footer Actions with Safe-Area Insets */}
