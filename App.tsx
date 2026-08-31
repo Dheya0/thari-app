@@ -161,6 +161,11 @@ function normalizeStoredState(parsed: any): AppState {
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
+  const stateRevisionRef = useRef(0);
+
+  useEffect(() => {
+    stateRevisionRef.current += 1;
+  }, [state]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
@@ -179,18 +184,40 @@ const App: React.FC = () => {
           // Instantly set normalized state so UI paints without waiting for migration
           setState(normalizeStoredState(parsed));
           isHydratedRef.current = true;
+          const initialRevision = stateRevisionRef.current;
 
           if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
             console.log('[perf] hydration-complete');
           }
 
-          // Run non-critical receipt migration in background
+          // Run non-critical receipt migration in background with revision check
           setTimeout(async () => {
             try {
               const migrated = await migrateStateReceipts(parsed);
-              if (!cancelled && JSON.stringify(migrated) !== JSON.stringify(parsed)) {
-                setState(normalizeStoredState(migrated));
-                queueSecureStateSave(STORAGE_KEY, migrated);
+              if (!cancelled) {
+                if (stateRevisionRef.current === initialRevision) {
+                  setState(normalizeStoredState(migrated));
+                  queueSecureStateSave(STORAGE_KEY, migrated);
+                } else {
+                  // User mutations occurred during migration: safely merge only receipt paths without overwriting newer state
+                  setState(currentState => {
+                    let hasMergeChanges = false;
+                    const updatedTransactions = currentState.transactions.map(currTx => {
+                      const migTx = migrated.transactions.find((t: Transaction) => t.id === currTx.id);
+                      if (migTx && migTx.receipt && migTx.receipt.receiptPath && !currTx.receipt?.receiptPath) {
+                        hasMergeChanges = true;
+                        return { ...currTx, receipt: migTx.receipt };
+                      }
+                      return currTx;
+                    });
+                    if (hasMergeChanges) {
+                      const mergedState = { ...currentState, transactions: updatedTransactions };
+                      queueSecureStateSave(STORAGE_KEY, mergedState);
+                      return mergedState;
+                    }
+                    return currentState;
+                  });
+                }
               }
             } catch (bgErr) {
               console.warn('Background migration warning:', bgErr);

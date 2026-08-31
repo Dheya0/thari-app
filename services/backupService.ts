@@ -162,6 +162,18 @@ export function validateAndInspectBackup(rawJson: string): RestorePreview {
       const checksum = parsed.checksum || parsed.dataChecksum;
       const payload = parsed.payload;
 
+      if (schemaVersion > CURRENT_SCHEMA_VERSION) {
+        return {
+          isValid: false,
+          schemaVersion,
+          version: parsed.version || CURRENT_BACKUP_VERSION,
+          createdAt: parsed.createdAt || '',
+          errorMessage: `إصدار المخطط (${schemaVersion}) أحدث من الإصدار المدعوم (${CURRENT_SCHEMA_VERSION}). النسخ الاحتياطية المستقبلية غير مدعومة.`,
+          summary: parsed.summary || { transactionsCount: 0, walletsCount: 0, debtsCount: 0, budgetsCount: 0, categoriesCount: 0, userName: '', currencyCode: '' },
+          payload: {},
+        };
+      }
+
       if (!backupId) {
         return {
           isValid: false,

@@ -111,9 +111,24 @@ const TransactionList: React.FC<TransactionListProps> = ({
     );
   }, [filteredTransactions]);
 
-  const displayedTransactions = useMemo(() => {
-    return sortedTransactions.slice(0, visibleCount);
-  }, [sortedTransactions, visibleCount]);
+  const [scrollTop, setScrollTop] = useState(0);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const ROW_HEIGHT = 86; // px per transaction card
+  const overscan = 6;
+  const containerHeight = 650;
+
+  const totalCount = sortedTransactions.length;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
+  const endIndex = Math.min(totalCount, startIndex + Math.ceil(containerHeight / ROW_HEIGHT) + overscan * 2);
+  const visibleSlice = sortedTransactions.slice(startIndex, endIndex);
+
+  // Reset scrollTop when search or filters change
+  useEffect(() => {
+    setScrollTop(0);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [searchQuery, typeFilter, walletFilter, currencyFilter]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
@@ -263,71 +278,78 @@ const TransactionList: React.FC<TransactionListProps> = ({
         </div>
       )}
 
-      {/* Transaction Cards List */}
-      <div className="space-y-2.5">
-        <AnimatePresence mode="popLayout">
-          {sortedTransactions.length === 0 ? (
-            <div className="text-center py-10 bg-slate-900/40 rounded-2xl border border-white/5">
-              <p className="text-xs text-slate-400 font-bold">لا توجد عمليات تطابق معايير التصفية المختارة.</p>
-            </div>
-          ) : (
-            displayedTransactions.map((tx, index) => {
-              const category = categories.find(c => c.id === tx.categoryId);
-              const wallet = wallets.find(w => w.id === tx.walletId);
-              const destWallet = wallets.find(w => w.id === tx.destinationWalletId);
+      {/* Transaction Cards List with True Virtualization */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        className="space-y-2.5 overflow-y-auto max-h-[68vh] relative pr-1"
+        style={{ willChange: 'transform' }}
+      >
+        {totalCount === 0 ? (
+          <div className="text-center py-10 bg-slate-900/40 rounded-2xl border border-white/5">
+            <p className="text-xs text-slate-400 font-bold">لا توجد عمليات تطابق معايير التصفية المختارة.</p>
+          </div>
+        ) : (
+          <div style={{ height: `${totalCount * ROW_HEIGHT}px`, position: 'relative' }}>
+            <div style={{ transform: `translateY(${startIndex * ROW_HEIGHT}px)`, position: 'absolute', top: 0, left: 0, right: 0 }} className="space-y-2.5">
+              {visibleSlice.map((tx, idx) => {
+                const index = startIndex + idx;
+                const category = categories.find(c => c.id === tx.categoryId);
+                const wallet = wallets.find(w => w.id === tx.walletId);
+                const destWallet = wallets.find(w => w.id === tx.destinationWalletId);
 
-              const isIncome = tx.type === 'income';
-              const isTransfer = tx.type === 'transfer';
-              const isAdjustment = tx.type === 'adjustment';
+                const isIncome = tx.type === 'income';
+                const isTransfer = tx.type === 'transfer';
+                const isAdjustment = tx.type === 'adjustment';
 
-              // Exact transaction currency details
-              const txCurrencyCode = tx.currency || wallet?.currencyCode || currentCurrencyCode;
-              const txCurrencyObj =
-                currencies.find(c => c.code === txCurrencyCode) ||
-                DEFAULT_CURRENCIES.find(c => c.code === txCurrencyCode);
-              const txLoc = getLocalizedCurrency(txCurrencyCode, txCurrencyObj?.name, txCurrencyObj?.symbol, language);
-              const txSymbol = txLoc.symbol;
-              const txCurrencyName = txLoc.name;
+                // Exact transaction currency details
+                const txCurrencyCode = tx.currency || wallet?.currencyCode || currentCurrencyCode;
+                const txCurrencyObj =
+                  currencies.find(c => c.code === txCurrencyCode) ||
+                  DEFAULT_CURRENCIES.find(c => c.code === txCurrencyCode);
+                const txLoc = getLocalizedCurrency(txCurrencyCode, txCurrencyObj?.name, txCurrencyObj?.symbol, language);
+                const txSymbol = txLoc.symbol;
+                const txCurrencyName = txLoc.name;
 
-              // Converted amount calculation for Base Currency
-              const isDiffCurrency = txCurrencyCode !== currentCurrencyCode;
-              const baseLoc = getLocalizedCurrency(currentCurrencyCode, undefined, currencySymbol, language);
-              const resolvedBaseSymbol = baseLoc.symbol;
-              const convertedAmount =
-                isDiffCurrency && !isTransfer
-                  ? convertCurrency(tx.amount, txCurrencyCode, currentCurrencyCode, exchangeRates)
+                // Converted amount calculation for Base Currency
+                const isDiffCurrency = txCurrencyCode !== currentCurrencyCode;
+                const baseLoc = getLocalizedCurrency(currentCurrencyCode, undefined, currencySymbol, language);
+                const resolvedBaseSymbol = baseLoc.symbol;
+                const convertedAmount =
+                  isDiffCurrency && !isTransfer
+                    ? convertCurrency(tx.amount, txCurrencyCode, currentCurrencyCode, exchangeRates)
+                    : null;
+
+                // Cross-Currency deduction relative to the specific Wallet's Primary Currency
+                const isDiffFromWallet = Boolean(wallet && txCurrencyCode !== wallet.currencyCode && !isTransfer);
+                const walletCurrencyCode = wallet?.currencyCode || currentCurrencyCode;
+                const walletLoc = getLocalizedCurrency(walletCurrencyCode, undefined, undefined, language);
+                const walletSymbol = walletLoc.symbol;
+                const amountInWallet = isDiffFromWallet
+                  ? (tx.convertedAmountInWalletCurrency || convertCurrency(tx.amount, txCurrencyCode, walletCurrencyCode, exchangeRates))
+                  : null;
+                const exchangeRateToWallet = isDiffFromWallet
+                  ? (tx.exchangeRateUsed || convertCurrency(1, txCurrencyCode, walletCurrencyCode, exchangeRates))
                   : null;
 
-              // Cross-Currency deduction relative to the specific Wallet's Primary Currency
-              const isDiffFromWallet = Boolean(wallet && txCurrencyCode !== wallet.currencyCode && !isTransfer);
-              const walletCurrencyCode = wallet?.currencyCode || currentCurrencyCode;
-              const walletLoc = getLocalizedCurrency(walletCurrencyCode, undefined, undefined, language);
-              const walletSymbol = walletLoc.symbol;
-              const amountInWallet = isDiffFromWallet
-                ? (tx.convertedAmountInWalletCurrency || convertCurrency(tx.amount, txCurrencyCode, walletCurrencyCode, exchangeRates))
-                : null;
-              const exchangeRateToWallet = isDiffFromWallet
-                ? (tx.exchangeRateUsed || convertCurrency(1, txCurrencyCode, walletCurrencyCode, exchangeRates))
-                : null;
-
-              return (
-                <motion.div
-                  layout
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -30, scale: 0.95 }}
-                  transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.2) }}
-                  key={tx.id}
-                  className="w-full"
-                >
-                  <SwipeableRow
-                    id={tx.id}
-                    onEdit={() => onEdit(tx)}
-                    onDelete={() => onDelete(tx.id)}
-                    onClick={() => onEdit(tx)}
-                    editLabel="تعديل"
-                    deleteLabel="حذف"
+                return (
+                  <motion.div
+                    layout={false}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.15 }}
+                    key={tx.id}
+                    className="w-full"
+                    style={{ height: `${ROW_HEIGHT - 6}px` }}
                   >
+                    <SwipeableRow
+                      id={tx.id}
+                      onEdit={() => onEdit(tx)}
+                      onDelete={() => onDelete(tx.id)}
+                      onClick={() => onEdit(tx)}
+                      editLabel="تعديل"
+                      deleteLabel="حذف"
+                    >
                     <div
                       className="group bg-slate-900/90 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-amber-500/40 hover:bg-slate-900/95 transition-colors duration-200 gap-2.5 cursor-pointer"
                       title="اسحب لليمين/اليسار للحذف والتعديل، أو انقر للتفاصيل"
@@ -506,20 +528,9 @@ const TransactionList: React.FC<TransactionListProps> = ({
                     </div>
                   </SwipeableRow>
                 </motion.div>
-              );
-            })
-          )}
-        </AnimatePresence>
-
-        {sortedTransactions.length > visibleCount && (
-          <div className="text-center py-4">
-            <button
-              type="button"
-              onClick={() => setVisibleCount(prev => prev + 50)}
-              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-black rounded-2xl border border-amber-500/30 transition-all shadow-sm cursor-pointer"
-            >
-              عرض المزيد من العمليات ({sortedTransactions.length - visibleCount} متبقية)
-            </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
