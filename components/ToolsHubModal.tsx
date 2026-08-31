@@ -43,8 +43,8 @@ const STRINGS = {
         desc: 'مطابقة ميزان المحافظ والتحقق من العمليات المعزولة والنزاهة'
       },
       advisor: {
-        title: 'المستشار المالي الخاص',
-        desc: 'تحليل التدفقات النقدية وتقديم الرأي المالي والخطط المخصصة'
+        title: 'المساعد المالي والتحليل',
+        desc: 'تحليل التدفقات النقدية وتقديم التوصيات والخطط المخصصة'
       }
     }
   },
@@ -72,8 +72,8 @@ const STRINGS = {
         desc: 'Reconcile wallet balances, verify invariants & inspect ledger integrity'
       },
       advisor: {
-        title: 'Private Financial Advisor',
-        desc: 'Analyze cash flows, executive insights & personalized financial plans'
+        title: 'Financial Assistant & Analytics',
+        desc: 'Analyze cash flows, recommendations & personalized financial plans'
       }
     }
   }

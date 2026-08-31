@@ -76,16 +76,19 @@ const deriveKey = async (password: string, salt: Uint8Array): Promise<CryptoKey>
 };
 
 /**
- * تشفير البيانات باستخدام AES-256-GCM
+ * تشفير البيانات باستخدام AES-256-GCM مع تطبيق سياسة الفشل المغلق (Fail-Closed)
  */
 export const encryptData = async (data: string, password: string): Promise<string> => {
+    if (typeof window === 'undefined' || !window.crypto || !window.crypto.subtle) {
+        throw new Error("ENCRYPTION_UNAVAILABLE: Strong cryptographic encryption is not available in this environment.");
+    }
     try {
         if (!password) {
-            throw new Error("كلمة المرور مطلوبة للتشفير");
+            throw new Error("SECURE_KEY_UNAVAILABLE: Password or encryption key is required.");
         }
         // 1. توليد قيم عشوائية آمنة
-        const salt = window.crypto.getRandomValues(new Uint8Array(16)); // 16 bytes for PBKDF2
-        const iv = window.crypto.getRandomValues(new Uint8Array(12));   // 12 bytes for AES-GCM IV
+        const salt = window.crypto.getRandomValues(new Uint8Array(16));
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
 
         // 2. اشتقاق المفتاح
         const key = await deriveKey(password, salt);
@@ -100,95 +103,77 @@ export const encryptData = async (data: string, password: string): Promise<strin
             ENCODING.encode(data)
         );
 
-        // 4. دمج النتائج: Salt + IV + CipherText(+AuthTag)
+        // 4. دمج النتائج: Salt + IV + CipherText
         const finalBuffer = concatBuffers([
             salt,
             iv,
             new Uint8Array(encryptedContent)
         ]);
 
-        // 5. التحويل إلى Base64 للحفظ
         return "THARI_AES_GCM:" + bufferToBase64(finalBuffer.buffer as unknown as ArrayBuffer);
 
-    } catch (e) {
-        console.warn("AES Encryption Notice:", e);
-        throw new Error("فشل التشفير الآمن. يرجى المحاولة مرة أخرى.");
+    } catch (e: any) {
+        if (e.message && (e.message.includes('ENCRYPTION_UNAVAILABLE') || e.message.includes('SECURE_KEY_UNAVAILABLE'))) {
+            throw e;
+        }
+        throw new Error("ENCRYPTION_UNAVAILABLE: Secure encryption failed. Preserving state securely (Fail-Closed).");
     }
 };
 
 /**
- * فك تشفير البيانات بمرونة عالية ودعم كافة صيغ النسخ الاحتياطي
+ * فك تشفير البيانات مع تطبيق سياسة الفشل المغلق (Fail-Closed) وعدم السماح بأي بدائل ضعيفة
  */
 export const decryptData = async (encryptedData: string, password: string): Promise<string> => {
+    if (typeof window === 'undefined' || !window.crypto || !window.crypto.subtle) {
+        throw new Error("ENCRYPTION_UNAVAILABLE: Strong cryptographic decryption is not available.");
+    }
     if (!encryptedData) {
-        throw new Error("لا توجد بيانات لفك تشفيرها");
+        throw new Error("DECRYPTION_FAILED: No encrypted data provided.");
     }
 
     const trimmed = encryptedData.trim();
 
-    // 1. فحص إذا كان ملف JSON مباشر
+    // Allow unencrypted JSON only if it's explicitly plaintext backup format, but for strict secure storage, require THARI_AES_GCM or fail closed if password provided/required.
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
         return trimmed;
     }
 
-    // 2. فحص صيغة THARI_AES_GCM المشفرة بـ AES-256-GCM
-    if (trimmed.startsWith("THARI_AES_GCM:")) {
-        if (!password) {
-            throw new Error("يرجى إدخال كلمة المرور لفك تشفير هذا الملف");
-        }
-        try {
-            const rawBase64 = trimmed.replace("THARI_AES_GCM:", "").trim();
-            const fullBuffer = base64ToBuffer(rawBase64);
-
-            if (fullBuffer.length < 28) {
-                throw new Error("بيانات الملف غير مكتملة أو تالفة");
-            }
-
-            // استخراج الأجزاء: Salt (16) | IV (12) | CipherText (Rest)
-            const salt = fullBuffer.slice(0, 16);
-            const iv = fullBuffer.slice(16, 28);
-            const cipherText = fullBuffer.slice(28);
-
-            // اشتقاق المفتاح
-            const key = await deriveKey(password, salt);
-
-            // فك التشفير
-            const decryptedBuffer = await window.crypto.subtle.decrypt(
-                {
-                    name: "AES-GCM",
-                    iv: iv
-                },
-                key,
-                cipherText
-            );
-
-            return DECODING.decode(decryptedBuffer);
-        } catch (e) {
-            console.warn("Decryption Attempt Failed with Provided Password:", e);
-            throw new Error("كلمة المرور غير صحيحة أو الملف تالف");
-        }
+    if (!trimmed.startsWith("THARI_AES_GCM:")) {
+        throw new Error("DECRYPTION_FAILED: Unsupported or insecure payload format. Fail-Closed enforced.");
     }
 
-    // 3. فحص صيغة التخزين الآمن THR4_ أو RAW_
-    if (trimmed.startsWith("THR4_") || trimmed.startsWith("RAW_")) {
-        const deobf = deobfuscateData(trimmed);
-        if (deobf) return deobf;
+    if (!password) {
+        throw new Error("SECURE_KEY_UNAVAILABLE: Password required to decrypt secure payload.");
     }
 
-    // 4. محاولة فك تشفير Base64 JSON عادي
     try {
-        const decodedBase64 = window.atob(trimmed);
-        const trimmedDecoded = decodedBase64.trim();
-        if (trimmedDecoded.startsWith("{") || trimmedDecoded.startsWith("[")) {
-            return trimmedDecoded;
+        const rawBase64 = trimmed.replace("THARI_AES_GCM:", "").trim();
+        const fullBuffer = base64ToBuffer(rawBase64);
+
+        if (fullBuffer.length < 28) {
+            throw new Error("DECRYPTION_FAILED: Ciphertext buffer too short.");
         }
-    } catch {}
 
-    // 5. محاولة قراءة JSON مباشرة
-    try {
-        JSON.parse(trimmed);
-        return trimmed;
-    } catch {}
+        const salt = fullBuffer.slice(0, 16);
+        const iv = fullBuffer.slice(16, 28);
+        const cipherText = fullBuffer.slice(28);
 
-    throw new Error("تنسيق الملف غير مدعوم أو كلمة المرور غير صحيحة");
+        const key = await deriveKey(password, salt);
+
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv
+            },
+            key,
+            cipherText
+        );
+
+        return DECODING.decode(decryptedBuffer);
+    } catch (e: any) {
+        if (e.message && (e.message.includes('DECRYPTION_FAILED') || e.message.includes('SECURE_KEY_UNAVAILABLE'))) {
+            throw e;
+        }
+        throw new Error("DECRYPTION_FAILED: Incorrect password or corrupted secure payload. State preserved (Fail-Closed).");
+    }
 };

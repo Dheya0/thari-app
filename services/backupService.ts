@@ -10,33 +10,38 @@ import { Directory, Filesystem } from '@capacitor/filesystem';
 export const CURRENT_SCHEMA_VERSION = 1;
 export const CURRENT_BACKUP_VERSION = 4;
 
+/**
+ * Convert base64 string to Uint8Array binary bytes.
+ */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+  const binaryString = atob(cleanBase64.replace(/\s/g, ''));
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Convert Uint8Array binary bytes to base64 string.
+ */
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 export interface ReceiptManifestItem {
   receiptId: string;
   relativePath: string;
   mimeType: string;
   size: number;
   sha256: string;
-}
-
-export interface BackupPackage {
-  format: 'THARI_BACKUP';
-  schemaVersion: number;
-  appVersion: string;
-  createdAt: string;
-  backupId: string;
-  dataChecksum: string;
-  stateChecksum: string;
-  receiptManifest: ReceiptManifestItem[];
-  summary: {
-    transactionsCount: number;
-    walletsCount: number;
-    debtsCount: number;
-    budgetsCount: number;
-    categoriesCount: number;
-    userName: string;
-    currencyCode: string;
-  };
-  payload: Partial<AppState>;
 }
 
 export interface RestorePreview {
@@ -58,18 +63,27 @@ export interface RestorePreview {
   payload: Partial<AppState>;
 }
 
-/**
- * Convert base64 string to Uint8Array binary bytes.
- */
-export function base64ToUint8Array(base64: string): Uint8Array {
-  const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
-  const binaryString = atob(cleanBase64.replace(/\s/g, ''));
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
+export interface BackupPackage {
+  format: 'THARI_BACKUP';
+  schemaVersion: number;
+  appVersion: string;
+  createdAt: string;
+  backupId: string;
+  checksum?: string;
+  dataChecksum: string;
+  stateChecksum: string;
+  receiptManifest: ReceiptManifestItem[];
+  receiptFiles?: Record<string, string>; // receiptId -> base64 binary bytes
+  summary: {
+    transactionsCount: number;
+    walletsCount: number;
+    debtsCount: number;
+    budgetsCount: number;
+    categoriesCount: number;
+    userName: string;
+    currencyCode: string;
+  };
+  payload: Partial<AppState>;
 }
 
 /**
@@ -188,7 +202,26 @@ export async function createBackupPackage(state: AppState): Promise<BackupPackag
   const payloadString = JSON.stringify(cleanState);
   const dataChecksum = await computeSha256(payloadString);
   const stateChecksum = await computeSha256(payloadString + (state.userName || ''));
-  const receiptManifest = await generateReceiptManifest(cleanState.transactions);
+
+  const receiptFiles: Record<string, string> = {};
+  const receiptManifest: ReceiptManifestItem[] = [];
+  for (const tx of cleanState.transactions || []) {
+    if (tx.receipt) {
+      const bytes = await getReceiptBytes(tx.receipt);
+      if (!bytes || bytes.length === 0) {
+        throw new Error(`RECEIPT_NOT_FOUND: Missing or unreadable receipt file for receipt ID ${tx.receipt.id}`);
+      }
+      const sha = await computeSha256(bytes);
+      receiptManifest.push({
+        receiptId: tx.receipt.id,
+        relativePath: tx.receipt.receiptPath || '',
+        mimeType: tx.receipt.mimeType || 'image/jpeg',
+        size: bytes.length,
+        sha256: sha,
+      });
+      receiptFiles[tx.receipt.id] = uint8ArrayToBase64(bytes);
+    }
+  }
 
   const backupId = 'bkp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
 
@@ -201,6 +234,7 @@ export async function createBackupPackage(state: AppState): Promise<BackupPackag
     dataChecksum,
     stateChecksum,
     receiptManifest,
+    receiptFiles,
     summary: {
       transactionsCount: cleanState.transactions!.length,
       walletsCount: cleanState.wallets!.length,
@@ -212,6 +246,59 @@ export async function createBackupPackage(state: AppState): Promise<BackupPackag
     },
     payload: cleanState,
   };
+}
+
+/**
+ * Strict Schema & Referential Integrity Validation Layer with Actual Receipt Binary Verification
+ */
+export async function validateAndInspectBackupAsync(rawJson: string): Promise<RestorePreview> {
+  const preview = validateAndInspectBackup(rawJson);
+  if (!preview.isValid) {
+    return preview;
+  }
+  try {
+    const parsed = JSON.parse(rawJson);
+    const receiptManifest: ReceiptManifestItem[] = parsed.receiptManifest || [];
+    const receiptFiles: Record<string, string> = parsed.receiptFiles || {};
+
+    for (const item of receiptManifest) {
+      const b64 = receiptFiles[item.receiptId];
+      if (!b64) {
+        return {
+          ...preview,
+          isValid: false,
+          errorMessage: `RECEIPT_NOT_FOUND: Missing receipt binary file in backup for receipt ID ${item.receiptId}`,
+          payload: {},
+        };
+      }
+      const bytes = base64ToUint8Array(b64);
+      if (bytes.length !== item.size) {
+        return {
+          ...preview,
+          isValid: false,
+          errorMessage: `RECEIPT_SIZE_MISMATCH: Size mismatch for receipt ${item.receiptId} (expected ${item.size}, got ${bytes.length})`,
+          payload: {},
+        };
+      }
+      const sha = await computeSha256(bytes);
+      if (sha !== item.sha256) {
+        return {
+          ...preview,
+          isValid: false,
+          errorMessage: `RECEIPT_HASH_MISMATCH: SHA-256 hash mismatch for receipt ${item.receiptId}`,
+          payload: {},
+        };
+      }
+    }
+  } catch (e: any) {
+    return {
+      ...preview,
+      isValid: false,
+      errorMessage: `RECEIPT_VALIDATION_FAILED: ${e.message}`,
+      payload: {},
+    };
+  }
+  return preview;
 }
 
 /**
