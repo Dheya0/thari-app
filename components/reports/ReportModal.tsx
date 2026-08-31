@@ -172,7 +172,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (e) {
       console.warn('Print handler error:', e);
     } finally {
-      setTimeout(() => { isProcessingRef.current = false; }, 600);
+      isProcessingRef.current = false;
     }
   };
 
@@ -189,7 +189,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (e) {
       console.warn('Share handler error:', e);
     } finally {
-      setTimeout(() => { isProcessingRef.current = false; }, 600);
+      isProcessingRef.current = false;
     }
   };
 
@@ -206,7 +206,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (e) {
       console.warn('Excel export error:', e);
     } finally {
-      setTimeout(() => { isProcessingRef.current = false; }, 600);
+      isProcessingRef.current = false;
     }
   };
 

@@ -190,14 +190,12 @@ const App: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
-  const [isLoadingSplash, setIsLoadingSplash] = useState(true);
+  const [isLoadingSplash, setIsLoadingSplash] = useState(false);
   const isHydratedRef = useRef(false);
 
+  // Instant Launch: Remove artificial splash delay so UI paints immediately
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoadingSplash(false);
-    }, 1600);
-    return () => clearTimeout(timer);
+    setIsLoadingSplash(false);
   }, []);
 
   // Handle Home Screen Quick Actions (PWA Shortcuts for iOS / Android Long-Press)
@@ -464,12 +462,13 @@ const App: React.FC = () => {
     stateRef.current = state;
   }, [state]);
 
-  // Dual Encrypted Offline-Safe Persistence to LocalStorage & Filesystem
+  // Dual Encrypted Offline-Safe Persistence with Debounce to prevent rapid encryption overhead
   useEffect(() => {
-    // 1. Synchronous atomic write for zero data loss on sudden shutdown
-    saveSecureStateSync(STORAGE_KEY, state);
-    // 2. Async persistent write for Native Filesystem vault
-    saveSecureState(STORAGE_KEY, state);
+    const handler = setTimeout(() => {
+      saveSecureStateSync(STORAGE_KEY, state);
+      saveSecureState(STORAGE_KEY, state);
+    }, 400);
+    return () => clearTimeout(handler);
   }, [state]);
 
   // Flush state immediately on page unload or native lifecycle termination

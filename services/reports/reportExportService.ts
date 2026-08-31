@@ -2,6 +2,8 @@ import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { ReportModel, ReportType } from './reportTypes';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 function escapeCSV(val: any): string {
   const str = String(val ?? '');
@@ -524,10 +526,9 @@ export function buildExcelReportHTML(model: ReportModel): string {
 }
 
 /**
- * Builds a comprehensive, self-contained printable HTML document styled for A4/Letter PDF print
- * and iOS/Android mobile viewing and printing.
+ * Builds a clean, self-contained printable HTML document styled for A4 PDF rendering.
  */
-export function buildPrintableReportHTML(model: ReportModel, autoPrint = false): string {
+export function buildPrintableReportHTML(model: ReportModel): string {
   const {
     metadata,
     reportType,
@@ -563,12 +564,12 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تقرير ثري المالي - ${metadata.reportId}</title>
   <style>
     @page {
       size: A4;
-      margin: 10mm 12mm;
+      margin: 10mm;
     }
     * {
       box-sizing: border-box;
@@ -577,74 +578,41 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, Tahoma, sans-serif;
-      background: #f8fafc;
+      background: #ffffff;
       color: #0f172a;
       direction: rtl;
       margin: 0;
-      padding: 15px;
+      padding: 0;
       line-height: 1.5;
-      font-size: 11.5px;
+      font-size: 11px;
     }
     .report-container {
-      max-width: 920px;
+      width: 100%;
+      max-width: 794px;
       margin: 0 auto;
       background: #ffffff;
-      padding: 26px;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-      border: 1px solid #e2e8f0;
-    }
-    .action-bar {
-      position: sticky;
-      top: 10px;
-      z-index: 100;
-      max-width: 920px;
-      margin: 0 auto 15px auto;
-      background: #0f172a;
-      padding: 12px 18px;
-      border-radius: 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
-    }
-    .action-bar button {
-      background: #d97706;
-      color: #ffffff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .action-bar button.secondary {
-      background: #334155;
-      color: #f1f5f9;
+      padding: 20px;
     }
     .header {
       border-bottom: 2px solid #0f172a;
-      padding-bottom: 14px;
-      margin-bottom: 18px;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
       gap: 15px;
     }
     .brand-title {
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 900;
       color: #0f172a;
-      margin: 0 0 3px 0;
+      margin: 0 0 2px 0;
       display: flex;
       align-items: center;
       gap: 8px;
     }
     .brand-sub {
-      font-size: 10.5px;
+      font-size: 10px;
       color: #64748b;
       margin: 0;
       font-weight: bold;
@@ -652,9 +620,9 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     .meta-box {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 8px 12px;
-      font-size: 10px;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 9.5px;
       color: #475569;
       text-align: left;
       direction: ltr;
@@ -665,22 +633,22 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     }
     .badge {
       display: inline-block;
-      padding: 4px 10px;
+      padding: 3px 8px;
       border-radius: 6px;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: bold;
       background: #fef3c7;
       color: #92400e;
     }
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 10px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 18px;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 14px;
     }
     .info-item {
       display: flex;
@@ -688,27 +656,27 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       gap: 2px;
     }
     .info-label {
-      font-size: 9.5px;
+      font-size: 9px;
       font-weight: bold;
       color: #64748b;
       text-transform: uppercase;
     }
     .info-val {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       color: #0f172a;
     }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
-      margin-bottom: 18px;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-bottom: 16px;
     }
     .kpi-card {
       background: #ffffff;
       border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 10px;
+      border-radius: 8px;
+      padding: 8px;
       text-align: center;
     }
     .kpi-card.highlight {
@@ -724,33 +692,33 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       border-color: #fef3c7;
     }
     .kpi-title {
-      font-size: 9.5px;
+      font-size: 8.5px;
       font-weight: bold;
       color: #64748b;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .kpi-amount {
-      font-size: 14px;
+      font-size: 11.5px;
       font-weight: 900;
       color: #0f172a;
     }
     .income-val { color: #15803d; }
     .expense-val { color: #be123c; }
     h2 {
-      font-size: 13px;
+      font-size: 11px;
       font-weight: bold;
       color: #0f172a;
       border-bottom: 1.5px solid #e2e8f0;
-      padding-bottom: 5px;
-      margin: 18px 0 10px 0;
+      padding-bottom: 4px;
+      margin: 14px 0 6px 0;
       display: flex;
       align-items: center;
       gap: 6px;
     }
     h2::before {
       content: "";
-      width: 4px;
-      height: 13px;
+      width: 3px;
+      height: 11px;
       background: #d97706;
       border-radius: 2px;
       display: inline-block;
@@ -758,19 +726,19 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 16px;
-      font-size: 10.5px;
+      margin-bottom: 12px;
+      font-size: 9.5px;
     }
     th {
       background-color: #0f172a;
       color: #ffffff;
       font-weight: bold;
-      padding: 7px 9px;
+      padding: 5px 7px;
       text-align: right;
       border: 1px solid #334155;
     }
     td {
-      padding: 6px 9px;
+      padding: 4px 7px;
       border: 1px solid #e2e8f0;
       text-align: right;
       color: #1e293b;
@@ -779,55 +747,28 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       background-color: #f8fafc;
     }
     .footer-seal {
-      margin-top: 25px;
-      padding-top: 12px;
+      margin-top: 16px;
+      padding-top: 8px;
       border-top: 2px solid #0f172a;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 9.5px;
+      font-size: 8.5px;
       color: #64748b;
       page-break-inside: avoid;
-    }
-    @media print {
-      body {
-        background: #ffffff !important;
-        padding: 0 !important;
-      }
-      .report-container {
-        box-shadow: none !important;
-        border: none !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-      }
-      .no-print {
-        display: none !important;
-      }
     }
   </style>
 </head>
 <body>
-  <div class="action-bar no-print">
-    <span style="color: #f8fafc; font-size: 12px; font-weight: bold;">وثيقة تقرير ثري المالي (جاهزة للطباعة وتصدير PDF)</span>
-    <div style="display: flex; gap: 8px;">
-      <button onclick="window.print();">
-        <span>🖨️ طباعة المستند / PDF</span>
-      </button>
-      <button class="secondary" onclick="if(navigator.share){navigator.share({title:'تقرير ثري', text: '${titleInfo.ar}', url: window.location.href}).catch(()=>{});}">
-        <span>📤 مشاركة</span>
-      </button>
-    </div>
-  </div>
-
   <div class="report-container">
     <div class="header">
       <div>
         <h1 class="brand-title">
           <span>ثَـــري</span>
-          <span style="color: #d97706; font-size: 14px; font-family: monospace;">THARI</span>
+          <span style="color: #d97706; font-size: 13px; font-family: monospace;">THARI</span>
         </h1>
         <p class="brand-sub">منظومة إدارة الأصول والميزانيات المالية المتكاملة</p>
-        <p style="font-size: 9px; color: #94a3b8; margin: 2px 0 0 0;">Institutional Financial Suite & Wealth Management</p>
+        <p style="font-size: 8.5px; color: #94a3b8; margin: 2px 0 0 0;">Institutional Financial Suite & Wealth Management</p>
       </div>
 
       <div class="meta-box">
@@ -838,13 +779,13 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
       </div>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
       <div>
         <span class="badge">
-          ${titleInfo.ar} <span style="font-size: 9.5px; opacity: 0.85;">(${titleInfo.en})</span>
+          ${titleInfo.ar} <span style="font-size: 9px; opacity: 0.85;">(${titleInfo.en})</span>
         </span>
       </div>
-      <div style="font-weight: bold; font-size: 11px; color: #334155;">
+      <div style="font-weight: bold; font-size: 10.5px; color: #334155;">
         الحساب: <span style="color: #0f172a; font-weight: 900;">${account.name}</span> (${account.accountTypeAr})
       </div>
     </div>
@@ -863,8 +804,8 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
         <span class="info-val">${scope.periodLabelAr}</span>
       </div>
       <div class="info-item">
-        <span class="info-label">إجمالي الحركات المشمولة</span>
-        <span class="info-val">${kpis.totalTransactions} حركة مالية</span>
+        <span class="info-label">إجمالي الحركات</span>
+        <span class="info-val">${kpis.totalTransactions} حركة</span>
       </div>
     </div>
 
@@ -874,11 +815,11 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
         <div class="kpi-amount">${Math.round(kpis.openingBalance).toLocaleString()} ${baseSymbol}</div>
       </div>
       <div class="kpi-card highlight">
-        <div class="kpi-title">إجمالي المقبوضات (+)</div>
+        <div class="kpi-title">المقبوضات (+)</div>
         <div class="kpi-amount income-val">+${Math.round(kpis.totalIncome).toLocaleString()} ${baseSymbol}</div>
       </div>
       <div class="kpi-card warning">
-        <div class="kpi-title">إجمالي المصروفات (-)</div>
+        <div class="kpi-title">المصروفات (-)</div>
         <div class="kpi-amount expense-val">-${Math.round(kpis.totalExpense).toLocaleString()} ${baseSymbol}</div>
       </div>
       <div class="kpi-card amber">
@@ -894,7 +835,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     </div>
 
     ${budgets.length > 0 ? `
-    <h2>جدول متابعة الميزانيات المحددة والإنفاق الفعلي</h2>
+    <h2>متابعة الميزانيات والإنفاق الفعلي</h2>
     <table>
       <thead>
         <tr>
@@ -954,15 +895,15 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     ` : ''}
 
     ${goals && goals.items.length > 0 ? `
-    <h2>تقرير الأهداف المالية ومتابعة المدخرات</h2>
+    <h2>الأهداف المالية ومتابعة المدخرات</h2>
     <table>
       <thead>
         <tr>
           <th>اسم الهدف</th>
           <th>المستهدف (${baseSymbol})</th>
-          <th>المدخر الفعلي (${baseSymbol})</th>
-          <th>المتبقي للهدف (${baseSymbol})</th>
-          <th>نسبة الإنجاز</th>
+          <th>المدخر (${baseSymbol})</th>
+          <th>المتبقي (${baseSymbol})</th>
+          <th>الإنجاز</th>
           <th>تاريخ الهدف</th>
           <th>الحالة</th>
         </tr>
@@ -990,11 +931,11 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
         <tr>
           <th>العملة</th>
           <th>اسم العملة</th>
-          <th>عدد الحركات</th>
+          <th>الحركات</th>
           <th>المقبوضات</th>
           <th>المنصرفات</th>
-          <th>الصافي الفعلي</th>
-          <th>المعادل بـ (${scope.baseCurrency.code})</th>
+          <th>الصافي</th>
+          <th>المعادل (${scope.baseCurrency.code})</th>
         </tr>
       </thead>
       <tbody>
@@ -1021,8 +962,8 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
           <th>المحفظة</th>
           <th>العملة</th>
           <th>الرصيد الفعلي</th>
-          <th>الرصيد المعادل بـ (${scope.baseCurrency.code})</th>
-          <th>الحصة من إجمالي الثروة</th>
+          <th>الرصيد المعادل (${scope.baseCurrency.code})</th>
+          <th>الحصة من الثروة</th>
         </tr>
       </thead>
       <tbody>
@@ -1040,7 +981,7 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
     ` : ''}
 
     ${(reportType === 'detailed' || reportType === 'summary') && displayTxs.length > 0 ? `
-    <h2>جدول القيود والمعاملات المسجلة (${displayTxs.length} حركة)</h2>
+    <h2>جدول المعاملات المسجلة (${displayTxs.length} حركة)</h2>
     <table>
       <thead>
         <tr>
@@ -1083,32 +1024,71 @@ export function buildPrintableReportHTML(model: ReportModel, autoPrint = false):
         <p style="margin: 0; font-weight: bold; color: #0f172a;">تم التوليد إلكترونياً وبشكل مشفر عبر تطبيق ثـري المالي</p>
         <p style="margin: 2px 0 0 0;">جميع الحقوق محفوظة © ${new Date().getFullYear()} • بصمة التحقق: ${metadata.fingerprint}</p>
       </div>
-      <div style="text-align: left; font-family: monospace; font-size: 9px; color: #475569;">
+      <div style="text-align: left; font-family: monospace; font-size: 8.5px; color: #475569;">
         DOCUMENT AUTHENTICITY VALIDATED<br>
         SECURE LOCAL-STORAGE LEDGER
       </div>
     </div>
   </div>
-
-  ${autoPrint ? `
-  <script>
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        try {
-          window.print();
-        } catch(e) {}
-      }, 400);
-    });
-  </script>
-  ` : ''}
 </body>
 </html>`;
+}
+
+/**
+ * Generates a real PDF Blob from ReportModel using html2canvas and jsPDF
+ */
+export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob> {
+  const htmlContent = buildPrintableReportHTML(model);
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.top = '-10000px';
+  container.style.left = '-10000px';
+  container.style.width = '794px';
+  container.style.background = '#ffffff';
+  container.style.direction = 'rtl';
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
+
+  try {
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: 794,
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    let heightLeft = pdfHeight;
+    let position = 0;
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft >= 0) {
+      position = heightLeft - pdfHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+    }
+
+    return pdf.output('blob');
+  } finally {
+    if (container.parentNode) {
+      container.parentNode.removeChild(container);
+    }
+  }
 }
 
 let isExportingActive = false;
 
 /**
- * Universally triggers print or share for any financial report model across iPhone, Android, and Desktop
+ * Universally triggers print/PDF generation or share for any financial report model across iPhone, Android, and Desktop
  */
 export async function printOrShareFinancialReport(
   model: ReportModel,
@@ -1133,71 +1113,105 @@ export async function printOrShareFinancialReport(
       return;
     }
 
-    const printableHtml = buildPrintableReportHTML(model, preferredAction === 'print');
-    const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.html`;
+    // Generate real PDF blob for print or share actions
+    const pdfBlob = await generatePdfBlobFromModel(model);
+    const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.pdf`;
+    const dialogTitle = preferredAction === 'share' ? 'مشاركة التقرير المالي (PDF)' : 'حفظ وطباعة التقرير المالي (PDF)';
 
-    if (preferredAction === 'share') {
-      await exportAndShareNativeFile(
-        printableHtml,
-        fileName,
-        'text/html;charset=utf-8;',
-        'مشاركة التقرير المالي ثـري'
-      );
-      return;
-    }
-
-    // Print Action with dedicated iOS WebView / iOS Safari handling
-    if (typeof window !== 'undefined') {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios');
-      
-      if (isIOS) {
-        // On iOS (WebView or Safari), window.open can trigger duplicate modals or be blocked.
-        // Use native Capacitor Share Sheet / Filesystem or single-tab fallback reliably.
-        if (Capacitor.isNativePlatform()) {
-          await exportAndShareNativeFile(
-            printableHtml,
-            fileName,
-            'text/html;charset=utf-8;',
-            'طباعة وحفظ التقرير المالي (iOS)'
-          );
-        } else {
-          const blob = new Blob([printableHtml], { type: 'text/html;charset=utf-8;' });
-          const url = URL.createObjectURL(blob);
-          const newWin = window.open(url, '_blank');
-          if (!newWin) {
-            await exportAndShareNativeFile(
-              printableHtml,
-              fileName,
-              'text/html;charset=utf-8;',
-              'طباعة وحفظ التقرير المالي (iOS)'
-            );
-          }
-        }
-      } else {
-        // Standard Web & Android handling
-        const blob = new Blob([printableHtml], { type: 'text/html;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const newWindow = window.open(url, '_blank');
-        if (!newWindow) {
-          await exportAndShareNativeFile(
-            printableHtml,
-            fileName,
-            'text/html;charset=utf-8;',
-            'طباعة وحفظ التقرير المالي'
-          );
-        }
-      }
-    }
+    await exportAndSharePdfFile(pdfBlob, fileName, dialogTitle);
   } finally {
+    isExportingActive = false;
+  }
+}
+
+/**
+ * Universally shares or downloads PDF files across iOS/Android Native (Capacitor Filesystem & Share Sheet),
+ * Web Share API with files, and standard browser downloads.
+ */
+export async function exportAndSharePdfFile(
+  pdfBlob: Blob,
+  fileName: string,
+  dialogTitle: string
+): Promise<void> {
+  const mimeType = 'application/pdf';
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = reader.result as string;
+          const base64 = res.includes(',') ? res.split(',')[1] : res;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(pdfBlob);
+      });
+
+      const result = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Documents,
+      });
+
+      await Share.share({
+        title: dialogTitle,
+        url: result.uri,
+        dialogTitle: dialogTitle,
+      });
+      return;
+    } catch (e) {
+      const errName = (e as Error).name;
+      const errMsg = (e as Error).message || '';
+      if (errName === 'AbortError' || errMsg.includes('cancel') || errMsg.includes('abort')) {
+        return; // User cancelled share sheet
+      }
+      console.warn('Native PDF Filesystem/Share failed, attempting fallback download:', e);
+    }
+  }
+
+  // Web Share API with files (ideal for iPhone Safari & Android Chrome)
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([pdfBlob], fileName, { type: mimeType });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: dialogTitle,
+          text: dialogTitle,
+          files: [file],
+        });
+        return;
+      }
+    } catch (err) {
+      const errName = (err as Error).name;
+      if (errName === 'AbortError') {
+        return; // User cancelled share dialog
+      }
+      console.warn('Web Share API PDF failed, using download fallback:', err);
+    }
+  }
+
+  // Web Browser / Fallback Download Handler
+  try {
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
     setTimeout(() => {
-      isExportingActive = false;
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }, 1000);
+  } catch (err) {
+    console.error('PDF download fallback error:', err);
   }
 }
 
 /**
  * Universally writes and shares files across Native iOS/Android (Capacitor Filesystem & Share Sheet)
- * and Web Browser downloads.
+ * and Web Browser downloads (specifically for Excel .xls files).
  */
 export async function exportAndShareNativeFile(
   fileContent: string,
@@ -1205,10 +1219,6 @@ export async function exportAndShareNativeFile(
   mimeType = 'application/json',
   dialogTitle = 'تصدير ومشاركة ملف ثري'
 ): Promise<void> {
-  if (isExportingActive && !fileName.includes('THARI_')) {
-    // If already exporting another task, prevent overlap unless distinct
-  }
-
   if (Capacitor.isNativePlatform()) {
     try {
       const result = await Filesystem.writeFile({
@@ -1225,11 +1235,15 @@ export async function exportAndShareNativeFile(
       });
       return;
     } catch (e) {
+      const errName = (e as Error).name;
+      const errMsg = (e as Error).message || '';
+      if (errName === 'AbortError' || errMsg.includes('cancel') || errMsg.includes('abort')) {
+        return;
+      }
       console.warn('Native Filesystem/Share failed, attempting fallback download:', e);
     }
   }
 
-  // Check if Web Share API with Files is supported (ideal for iPhone Safari & Android Chrome)
   if (navigator.share && navigator.canShare) {
     try {
       const blob = new Blob([fileContent], { type: mimeType });
@@ -1243,15 +1257,12 @@ export async function exportAndShareNativeFile(
         return;
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.warn('Web Share API failed, using download fallback:', err);
-      } else {
-        return; // User cancelled share dialog
+      if ((err as Error).name === 'AbortError') {
+        return;
       }
     }
   }
 
-  // Web Browser / Fallback Download Handler
   try {
     const blob = new Blob([fileContent], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -1267,12 +1278,5 @@ export async function exportAndShareNativeFile(
     }, 1000);
   } catch (err) {
     console.error('Export download error:', err);
-    // Ultimate fallback: open data URI in new tab
-    try {
-      const dataUri = `data:${mimeType};charset=utf-8,${encodeURIComponent(fileContent)}`;
-      window.open(dataUri, '_blank');
-    } catch (e2) {
-      console.error('Data URI open error:', e2);
-    }
   }
 }
