@@ -4,7 +4,8 @@
  * Receipt Manifest Verification, Referential Checks, and Safe Recovery Point Rollback.
  */
 
-import { AppState, Transaction, Wallet, Debt, Budget, Category } from '../types';
+import { AppState, Transaction, Wallet, Debt, Budget, Category, ReceiptAttachment } from '../types';
+import { Directory, Filesystem } from '@capacitor/filesystem';
 
 export const CURRENT_SCHEMA_VERSION = 1;
 export const CURRENT_BACKUP_VERSION = 4;
@@ -15,7 +16,6 @@ export interface ReceiptManifestItem {
   mimeType: string;
   size: number;
   sha256: string;
-  checksum?: string;
 }
 
 export interface BackupPackage {
@@ -59,7 +59,49 @@ export interface RestorePreview {
 }
 
 /**
- * Generate a true cryptographic SHA-256 hash for payload and receipt file bytes.
+ * Convert base64 string to Uint8Array binary bytes.
+ */
+export function base64ToUint8Array(base64: string): Uint8Array {
+  const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+  const binaryString = atob(cleanBase64.replace(/\s/g, ''));
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Access actual receipt file bytes from filesystem storage or legacy dataUrl.
+ * Returns null if receipt file is missing or unreadable.
+ */
+export async function getReceiptBytes(receipt: { receiptPath?: string; dataUrl?: string }): Promise<Uint8Array | null> {
+  if (receipt.receiptPath) {
+    try {
+      const fileResult = await Filesystem.readFile({
+        path: receipt.receiptPath,
+        directory: Directory.Data,
+      });
+      const data = fileResult.data;
+      if (typeof data === 'string') {
+        return base64ToUint8Array(data);
+      }
+    } catch (err) {
+      console.warn('Could not read receipt file from filesystem:', err);
+    }
+  }
+
+  if (receipt.dataUrl) {
+    return base64ToUint8Array(receipt.dataUrl);
+  }
+
+  return null;
+}
+
+/**
+ * Generate a true cryptographic SHA-256 hash for payload and actual receipt file bytes.
+ * Fails closed with an error if cryptographic SHA-256 is unavailable.
  */
 export async function computeSha256(content: string | Uint8Array): Promise<string> {
   const encoder = new TextEncoder();
@@ -70,19 +112,14 @@ export async function computeSha256(content: string | Uint8Array): Promise<strin
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     } catch (e) {
-      console.warn('crypto.subtle.digest fallback:', e);
+      console.error('crypto.subtle.digest cryptographic error:', e);
     }
   }
-  let h = 0x811c9dc5;
-  for (let i = 0; i < bytes.length; i++) {
-    h ^= bytes[i];
-    h = Math.imul(h, 0x01000193);
-  }
-  return 'sha256_' + (h >>> 0).toString(16).padStart(8, '0');
+  throw new Error('SHA256_UNAVAILABLE: Cryptographic SHA-256 is required for financial data integrity.');
 }
 
 /**
- * Legacy checksum helper for synchronous compatibility
+ * Legacy checksum helper for backward compatibility validation only
  */
 export function calculateChecksum(content: string): string {
   let hash = 5381;
@@ -94,21 +131,24 @@ export function calculateChecksum(content: string): string {
 }
 
 /**
- * Extract receipt manifest from transactions containing attachments with actual byte hashes
+ * Extract receipt manifest from transactions containing attachments based on actual byte length and SHA-256.
+ * Fails closed if any receipt file is missing or unreadable.
  */
 export async function generateReceiptManifest(transactions: Transaction[] = []): Promise<ReceiptManifestItem[]> {
   const manifest: ReceiptManifestItem[] = [];
   for (const tx of transactions) {
-    if (tx.receipt && (tx.receipt.receiptPath || tx.receipt.dataUrl)) {
-      const dataStr = tx.receipt.dataUrl || tx.receipt.receiptPath || '';
-      const sha = await computeSha256(dataStr);
+    if (tx.receipt) {
+      const bytes = await getReceiptBytes(tx.receipt);
+      if (!bytes || bytes.length === 0) {
+        throw new Error(`RECEIPT_NOT_FOUND: Missing or unreadable receipt file for receipt ID ${tx.receipt.id}`);
+      }
+      const sha = await computeSha256(bytes);
       manifest.push({
         receiptId: tx.receipt.id,
         relativePath: tx.receipt.receiptPath || '',
         mimeType: tx.receipt.mimeType || 'image/jpeg',
-        size: tx.receipt.size || dataStr.length,
+        size: bytes.length,
         sha256: sha,
-        checksum: sha,
       });
     }
   }
