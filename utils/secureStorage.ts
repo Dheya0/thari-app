@@ -328,22 +328,95 @@ export function saveSecureStateSync(primaryKey: string, stateObj: any): void {
   try {
     if (!stateObj) return;
     const jsonStr = JSON.stringify(stateObj);
-
-    // Synchronous obfuscated safeguard to prevent race-condition data loss
-    try {
-      localStorage.setItem(`${primaryKey}_sync_guard`, obfuscateData(jsonStr));
-    } catch {}
-
-    void (async () => {
-      try {
-        await writeEncryptedValue(primaryKey, jsonStr);
-      } catch (err) {
-        console.warn('SecureStorage: async encrypted write notice:', err);
-      }
-    })();
+    // Minimal recovery snapshot only (synchronous obfuscated safeguard without async write duplication)
+    localStorage.setItem(`${primaryKey}_sync_guard`, obfuscateData(jsonStr));
   } catch (err) {
-    console.error('SecureStorage: Error in sync state save', err);
+    console.error('SecureStorage: Error in sync recovery save', err);
   }
+}
+
+let saveGeneration = 0;
+let saveInFlight: Promise<void> | null = null;
+let pendingSaveState: any | null = null;
+let debounceTimer: any = null;
+
+export function queueSecureStateSave(primaryKey: string, stateObj: any, onComplete?: () => void) {
+  pendingSaveState = stateObj;
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[persistence] scheduled');
+  }
+
+  if (debounceTimer) clearTimeout(debounceTimer);
+
+  debounceTimer = setTimeout(() => {
+    void executeSavePipeline(primaryKey, onComplete);
+  }, 400);
+}
+
+export async function flushSecureStateSave(primaryKey: string): Promise<void> {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  if (pendingSaveState) {
+    await executeSavePipeline(primaryKey);
+  }
+}
+
+async function executeSavePipeline(primaryKey: string, onComplete?: () => void) {
+  const stateToSave = pendingSaveState;
+  if (!stateToSave) return;
+  pendingSaveState = null;
+
+  const currentGen = ++saveGeneration;
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[persistence] started', { gen: currentGen });
+  }
+
+  while (saveInFlight) {
+    try {
+      await saveInFlight;
+    } catch {}
+  }
+
+  // If a newer save arrived while waiting
+  if (currentGen !== saveGeneration && pendingSaveState !== null) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[persistence] skipped-stale', { gen: currentGen });
+    }
+    return;
+  }
+
+  saveInFlight = (async () => {
+    try {
+      if (currentGen !== saveGeneration && pendingSaveState !== null) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[persistence] skipped-stale', { gen: currentGen });
+        }
+        return;
+      }
+
+      await saveSecureState(primaryKey, stateToSave);
+
+      if (currentGen !== saveGeneration && pendingSaveState !== null) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[persistence] skipped-stale', { gen: currentGen });
+        }
+        return;
+      }
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[persistence] completed', { gen: currentGen });
+      }
+      if (onComplete) onComplete();
+    } catch (err) {
+      console.error('[persistence] error', err);
+    } finally {
+      saveInFlight = null;
+    }
+  })();
+
+  await saveInFlight;
 }
 
 export async function saveSecureState(primaryKey: string, stateObj: any): Promise<void> {

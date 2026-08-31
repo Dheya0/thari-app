@@ -7,7 +7,7 @@ import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convert
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { generateFinancialReportSync } from './services/reports/reportService';
 import { printOrShareFinancialReport } from './services/reports/reportExportService';
-import { saveSecureState, saveSecureStateSync, loadSecureStateAsync } from './utils/secureStorage';
+import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
 import { processDueRecurringRules } from './services/recurringService';
 import { isNativeCapacitorEnvironment } from './services/biometricService';
@@ -462,20 +462,17 @@ const App: React.FC = () => {
     stateRef.current = state;
   }, [state]);
 
-  // Dual Encrypted Offline-Safe Persistence with Debounce to prevent rapid encryption overhead
+  // Single Save Pipeline with 400ms debounce, generation counter, and coalescing
   useEffect(() => {
-    const handler = setTimeout(() => {
-      saveSecureStateSync(STORAGE_KEY, state);
-      saveSecureState(STORAGE_KEY, state);
-    }, 400);
-    return () => clearTimeout(handler);
+    queueSecureStateSave(STORAGE_KEY, state);
   }, [state]);
 
-  // Flush state immediately on page unload or native lifecycle termination
+  // Flush state immediately on page unload / pagehide using sync recovery snapshot + async flush
   useEffect(() => {
     const handleImmediateFlush = () => {
       if (stateRef.current) {
         saveSecureStateSync(STORAGE_KEY, stateRef.current);
+        void flushSecureStateSave(STORAGE_KEY);
       }
     };
 
@@ -499,6 +496,11 @@ const App: React.FC = () => {
       try {
         sessionStorage.setItem('thari_bg_ts', now.toString());
       } catch (e) {}
+
+      if (stateRef.current) {
+        saveSecureStateSync(STORAGE_KEY, stateRef.current);
+        void flushSecureStateSave(STORAGE_KEY);
+      }
 
       if (!state.autoLockTime || state.autoLockTime === 'instant') {
         setState(p => ({ ...p, isLocked: true }));
