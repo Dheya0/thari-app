@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 
-export type LifecycleEventType = 'APP_FOREGROUND' | 'APP_BACKGROUND' | 'APP_VISIBLE' | 'APP_HIDDEN' | 'DEEP_LINK' | 'QUICK_ACTION';
+export type LifecycleEventType = 'APP_FOREGROUND' | 'APP_BACKGROUND' | 'DEEP_LINK' | 'QUICK_ACTION';
 
 type LifecycleListener = (event: LifecycleEventType, payload?: any) => void;
 
@@ -10,21 +10,24 @@ class AppLifecycleService {
   private initialized = false;
   private lastState: 'foreground' | 'background' | null = null;
   private lastUrlProcessed: string | null = null;
+  private lastQuickActionProcessed: string | null = null;
   private cleanupFns: Array<() => void> = [];
 
   public init() {
     if (this.initialized) return;
     this.initialized = true;
 
-    // Check initial URL / Quick Action on startup
+    // Check initial URL / Quick Action on startup (idempotent)
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
       const action = urlParams.get('action') || urlParams.get('quick-add') || urlParams.get('quickAdd') || (hash.includes('quick-add') || hash.includes('quick_add') ? 'quick-add' : null);
-      if (action) {
+      if (action && action !== this.lastQuickActionProcessed) {
+        this.lastQuickActionProcessed = action;
         this.emit('QUICK_ACTION', action);
       }
-      if (window.location.href) {
+      if (window.location.href && window.location.href !== this.lastUrlProcessed) {
+        this.lastUrlProcessed = window.location.href;
         this.emit('DEEP_LINK', window.location.href);
       }
     } catch (e) {}
@@ -37,11 +40,9 @@ class AppLifecycleService {
           if (isForeground && this.lastState !== 'foreground') {
             this.lastState = 'foreground';
             this.emit('APP_FOREGROUND');
-            this.emit('APP_VISIBLE');
           } else if (!isForeground && this.lastState !== 'background') {
             this.lastState = 'background';
             this.emit('APP_BACKGROUND');
-            this.emit('APP_HIDDEN');
           }
         }).then(handle => {
           this.cleanupFns.push(() => handle.remove());
@@ -51,7 +52,8 @@ class AppLifecycleService {
           if (data && data.url && data.url !== this.lastUrlProcessed) {
             this.lastUrlProcessed = data.url;
             this.emit('DEEP_LINK', data.url);
-            if (data.url.includes('quick') || data.url.includes('add') || data.url.includes('action=quick')) {
+            if ((data.url.includes('quick') || data.url.includes('add') || data.url.includes('action=quick')) && data.url !== this.lastQuickActionProcessed) {
+              this.lastQuickActionProcessed = data.url;
               this.emit('QUICK_ACTION', data.url);
             }
           }
@@ -61,46 +63,40 @@ class AppLifecycleService {
       } catch (e) {}
     }
 
-    // 2. Web / PWA Document Visibility, Focus, Popstate, Hashchange, Pagehide, Pageshow
+    // 2. Web / PWA Document Visibility, Focus, Pagehide, Pageshow, Popstate, Hashchange (Normalized to ONE transition event)
+    const handleBackground = () => {
+      if (this.lastState !== 'background') {
+        this.lastState = 'background';
+        this.emit('APP_BACKGROUND');
+      }
+    };
+
+    const handleForeground = () => {
+      if (this.lastState !== 'foreground') {
+        this.lastState = 'foreground';
+        this.emit('APP_FOREGROUND');
+        this.checkUrlActions();
+      }
+    };
+
     const handleVisibilityChange = () => {
       if (document.hidden || document.visibilityState === 'hidden') {
-        if (this.lastState !== 'background') {
-          this.lastState = 'background';
-          this.emit('APP_BACKGROUND');
-          this.emit('APP_HIDDEN');
-        }
+        handleBackground();
       } else {
-        if (this.lastState !== 'foreground') {
-          this.lastState = 'foreground';
-          this.emit('APP_FOREGROUND');
-          this.emit('APP_VISIBLE');
-          this.checkUrlActions();
-        }
+        handleForeground();
       }
     };
 
     const handleFocus = () => {
-      if (this.lastState !== 'foreground') {
-        this.lastState = 'foreground';
-        this.emit('APP_FOREGROUND');
-      }
-      this.checkUrlActions();
+      handleForeground();
     };
 
     const handlePageHide = () => {
-      if (this.lastState !== 'background') {
-        this.lastState = 'background';
-        this.emit('APP_BACKGROUND');
-        this.emit('APP_HIDDEN');
-      }
+      handleBackground();
     };
 
     const handlePageShow = () => {
-      if (this.lastState !== 'foreground') {
-        this.lastState = 'foreground';
-        this.emit('APP_FOREGROUND');
-        this.emit('APP_VISIBLE');
-      }
+      handleForeground();
     };
 
     const handlePopStateOrHash = () => {
@@ -129,7 +125,8 @@ class AppLifecycleService {
       const urlParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
       const action = urlParams.get('action') || urlParams.get('quick-add') || urlParams.get('quickAdd') || (hash.includes('quick-add') || hash.includes('quick_add') ? 'quick-add' : null);
-      if (action) {
+      if (action && action !== this.lastQuickActionProcessed) {
+        this.lastQuickActionProcessed = action;
         this.emit('QUICK_ACTION', action);
       }
       if (window.location.href && window.location.href !== this.lastUrlProcessed) {

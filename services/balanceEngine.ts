@@ -7,7 +7,7 @@
 import { Transaction, Wallet, Currency, Debt } from '../types';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
-import { generateCoreLedger, calculateLedgerBalances } from './coreLedger';
+import { generateCoreLedger, calculateLedgerBalances, resolveHistoricalConversion } from './coreLedger';
 export * from './coreLedger';
 
 export interface WalletBalanceSummary {
@@ -802,12 +802,11 @@ export function diagnoseWalletBalanceDiscrepancies(
         let convertedInWallet = amount;
         if (isCrossCurrency) {
           crossCurrencyTxCount++;
-          // Stored converted amount vs on-the-fly calculation
-          const dynamicallyConverted = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
-          const recordedConverted = Number(tx.convertedAmountInWalletCurrency) || dynamicallyConverted;
-          convertedInWallet = recordedConverted;
+          const conversion = resolveHistoricalConversion(tx, walletCurrency, exchangeRates);
+          convertedInWallet = conversion.amountInWallet;
 
-          const drift = Math.abs(safeSub(dynamicallyConverted, recordedConverted));
+          const dynamicallyConverted = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
+          const drift = conversion.isLegacy ? Math.abs(safeSub(dynamicallyConverted, convertedInWallet)) : 0;
           conversionDriftSum = safeAdd(conversionDriftSum, drift);
 
           crossCurrencyTxs.push({
@@ -817,7 +816,7 @@ export function diagnoseWalletBalanceDiscrepancies(
             originalAmount: amount,
             originalCurrency: txCurrency,
             convertedAmountInWalletCurrency: roundToCurrency(convertedInWallet),
-            rateUsed: tx.exchangeRateUsed,
+            rateUsed: tx.exchangeRateUsed || conversion.effectiveRate,
           });
         }
 
@@ -845,7 +844,8 @@ export function diagnoseWalletBalanceDiscrepancies(
         if (tx.destinationAmount !== undefined && tx.destinationAmount !== null && Number(tx.destinationAmount) > 0) {
           receivedAmount = Number(tx.destinationAmount);
         } else if (isCrossCurrency) {
-          receivedAmount = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
+          const destConversion = resolveHistoricalConversion(tx, walletCurrency, exchangeRates);
+          receivedAmount = destConversion.destinationAmount;
         }
 
         if (isCrossCurrency) {

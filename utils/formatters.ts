@@ -155,18 +155,27 @@ export function formatAppDate(dateString: string, includeTime = false): string {
 }
 
 /**
+ * Normalizes Arabic-Indic (٠-٩) and Persian (۰-۹) digits to standard ASCII digits (0-9),
+ * and normalizes Arabic decimal separator (٫) to dot (.).
+ */
+export function normalizeDigits(input: string | null | undefined): string {
+  if (input === null || input === undefined) return '';
+  let str = String(input);
+  str = str.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
+  str = str.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
+  str = str.replace(/٫/g, '.');
+  return str;
+}
+
+/**
  * Sanitizes numeric user input across Arabic/English keyboards.
  * Accepts Arabic digits, Persian digits, Arabic decimal separators, and comma.
  */
 export function sanitizeNumericInput(raw: string, allowNegative = true): string {
   if (raw === null || raw === undefined) return '';
 
-  let str = String(raw).trim();
+  let str = normalizeDigits(String(raw)).trim();
   if (!str) return '';
-
-  // Normalize Arabic/Persian digits
-  str = str.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 1632));
-  str = str.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 1776));
 
   // Normalize decimal separators and thousands separators used by Arabic keyboards
   str = str.replace(/٫/g, '.').replace(/٬/g, '').replace(/,/g, '.');
@@ -206,12 +215,37 @@ export function parseArabicNumber(input: string | number | null | undefined): nu
   if (input === null || input === undefined || input === '') return 0;
   if (typeof input === 'number') return isNaN(input) ? 0 : input;
 
-  let str = String(input).trim();
+  let str = normalizeDigits(String(input)).trim();
   if (!str) return 0;
 
   str = sanitizeNumericInput(str, true);
   str = str.replace(/,/g, '.');
   const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Helper to handle numeric input change with cursor preservation and normalization.
+ */
+export function handleNumericInputChange(
+  e: React.ChangeEvent<HTMLInputElement>,
+  setValue: (val: string) => void,
+  allowNegative = true
+) {
+  const input = e.target;
+  const start = input.selectionStart;
+  const oldVal = input.value;
+  const sanitized = sanitizeNumericInput(oldVal, allowNegative);
+  setValue(sanitized);
+
+  requestAnimationFrame(() => {
+    if (input && start !== null) {
+      const newLen = input.value.length;
+      const targetPos = Math.min(start, newLen);
+      try {
+        input.setSelectionRange(targetPos, targetPos);
+      } catch (err) {}
+    }
+  });
 }
 

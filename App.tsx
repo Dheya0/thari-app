@@ -453,7 +453,7 @@ const App: React.FC = () => {
     appLifecycleService.init();
 
     const unsubscribe = appLifecycleService.addListener((event) => {
-      if (event === 'APP_BACKGROUND' || event === 'APP_HIDDEN') {
+      if (event === 'APP_BACKGROUND') {
         const now = Date.now();
         backgroundedAtRef.current = now;
         try {
@@ -470,7 +470,7 @@ const App: React.FC = () => {
         if (isSecurityConfigured && (!currentState.autoLockTime || currentState.autoLockTime === 'instant')) {
           setState(p => ({ ...p, isLocked: true }));
         }
-      } else if (event === 'APP_FOREGROUND' || event === 'APP_VISIBLE') {
+      } else if (event === 'APP_FOREGROUND') {
         if (Date.now() < justUnlockedRef.current) {
           backgroundedAtRef.current = null;
           try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
