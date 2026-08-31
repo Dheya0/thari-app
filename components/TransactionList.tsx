@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Trash2,
@@ -55,6 +55,12 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const [walletFilter, setWalletFilter] = useState<string>('all');
   const [currencyFilter, setCurrencyFilter] = useState<string>('all');
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(50);
+
+  // Reset visibleCount when search or filters change
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [searchQuery, typeFilter, walletFilter, currencyFilter]);
 
   // Extract all unique currencies present in current transactions
   const uniqueCurrenciesInTx = useMemo(() => {
@@ -104,6 +110,23 @@ const TransactionList: React.FC<TransactionListProps> = ({
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
   }, [filteredTransactions]);
+
+  const displayedTransactions = useMemo(() => {
+    return sortedTransactions.slice(0, visibleCount);
+  }, [sortedTransactions, visibleCount]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      console.log('[perf] transaction-list-render', sortedTransactions.length);
+    }
+  }, [sortedTransactions.length]);
+
+  const closeReceiptViewer = () => {
+    if (viewingReceipt && viewingReceipt.startsWith('blob:')) {
+      URL.revokeObjectURL(viewingReceipt);
+    }
+    setViewingReceipt(null);
+  };
 
   if (transactions.length === 0) {
     return (
@@ -248,7 +271,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
               <p className="text-xs text-slate-400 font-bold">لا توجد عمليات تطابق معايير التصفية المختارة.</p>
             </div>
           ) : (
-            sortedTransactions.map((tx, index) => {
+            displayedTransactions.map((tx, index) => {
               const category = categories.find(c => c.id === tx.categoryId);
               const wallet = wallets.find(w => w.id === tx.walletId);
               const destWallet = wallets.find(w => w.id === tx.destinationWalletId);
@@ -487,6 +510,18 @@ const TransactionList: React.FC<TransactionListProps> = ({
             })
           )}
         </AnimatePresence>
+
+        {sortedTransactions.length > visibleCount && (
+          <div className="text-center py-4">
+            <button
+              type="button"
+              onClick={() => setVisibleCount(prev => prev + 50)}
+              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-black rounded-2xl border border-amber-500/30 transition-all shadow-sm cursor-pointer"
+            >
+              عرض المزيد من العمليات ({sortedTransactions.length - visibleCount} متبقية)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Full-size receipt viewer */}
@@ -503,8 +538,9 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 <Paperclip size={14} /> الفاتورة / السند المرفق
               </span>
               <button
-                onClick={() => setViewingReceipt(null)}
-                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white"
+                type="button"
+                onClick={closeReceiptViewer}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white cursor-pointer"
               >
                 <X size={20} />
               </button>

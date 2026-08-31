@@ -633,6 +633,168 @@ export function runBalanceEngineAudit(): {
     actual: xferTestPassed,
   });
 
+  // Test 1: Same Currency
+  const test1Wallet: Wallet[] = [{ id: 'w-usd', name: 'USD Wallet', currencyCode: 'USD', color: '#000', openingBalance: 1000 }];
+  const test1Tx: Transaction[] = [{ id: 'tx-1', walletId: 'w-usd', type: 'expense', amount: 100, currency: 'USD', categoryId: '1', date: '2026-08-01', note: '100 USD', frequency: 'once' }];
+  const test1Res = calculateWalletBalances(test1Wallet, test1Tx, DEFAULT_EXCHANGE_RATES);
+  const test1Passed = test1Res['w-usd'].currentBalance === 900;
+  testResults.push({
+    testName: 'Test 1 — Same Currency (100 USD expense from 1000 USD wallet = 900 USD)',
+    passed: test1Passed,
+    expected: 900,
+    actual: test1Res['w-usd'].currentBalance,
+    details: 'Same currency transaction reduces wallet balance by exact amount.'
+  });
+
+  // Test 2: Foreign transaction into YER wallet
+  const test2Wallet: Wallet[] = [{ id: 'w-yer', name: 'YER Wallet', currencyCode: 'YER_ADEN', color: '#000', openingBalance: 500000 }];
+  const test2Tx: Transaction[] = [{
+    id: 'tx-2',
+    walletId: 'w-yer',
+    type: 'expense',
+    amount: 100,
+    currency: 'USD',
+    convertedAmountInWalletCurrency: 157600,
+    exchangeRateUsed: 1576,
+    categoryId: '1',
+    date: '2026-08-01',
+    note: '100 USD -> 157600 YER',
+    frequency: 'once'
+  }];
+  const test2ResBefore = calculateWalletBalances(test2Wallet, test2Tx, DEFAULT_EXCHANGE_RATES);
+  const mutatedRates2 = { ...DEFAULT_EXCHANGE_RATES, YER_ADEN: 1700 };
+  const test2ResAfter = calculateWalletBalances(test2Wallet, test2Tx, mutatedRates2);
+  const test2Passed = test2ResBefore['w-yer'].currentBalance === test2ResAfter['w-yer'].currentBalance && test2ResBefore['w-yer'].currentBalance === 342400;
+  testResults.push({
+    testName: 'Test 2 — Foreign transaction into YER wallet (Stored conversion 157600 maintained despite rate change)',
+    passed: test2Passed,
+    expected: 342400,
+    actual: test2ResAfter['w-yer'].currentBalance,
+    details: 'Current market rate changes do not affect historical transaction YER deduction.'
+  });
+
+  // Test 3: Cross-currency transfer
+  const test3Wallets: Wallet[] = [
+    { id: 'w-usd', name: 'USD', currencyCode: 'USD', color: '#000', openingBalance: 1000 },
+    { id: 'w-yer', name: 'YER', currencyCode: 'YER_ADEN', color: '#000', openingBalance: 100000 }
+  ];
+  const test3Tx: Transaction[] = [{
+    id: 'tx-3',
+    walletId: 'w-usd',
+    destinationWalletId: 'w-yer',
+    type: 'transfer',
+    amount: 100,
+    currency: 'USD',
+    destinationCurrency: 'YER_ADEN',
+    destinationAmount: 157600,
+    exchangeRateUsed: 1576,
+    categoryId: 'transfer',
+    date: '2026-08-01',
+    note: 'Xfer',
+    frequency: 'once'
+  }];
+  const test3Balances = calculateWalletBalances(test3Wallets, test3Tx, DEFAULT_EXCHANGE_RATES);
+  const test3Pos = calculateConsolidatedPosition(test3Tx, test3Wallets, 'YER_ADEN', DEFAULT_EXCHANGE_RATES, null, 'YER_ADEN');
+  const test3Passed = test3Balances['w-usd'].currentBalance === 900 && test3Balances['w-yer'].currentBalance === 257600 && test3Pos.totalIncomeInBase === 0 && test3Pos.totalExpenseInBase === 0;
+  testResults.push({
+    testName: 'Test 3 — Cross-currency transfer (USD -100, YER +157600, Income=0, Expense=0)',
+    passed: test3Passed,
+    expected: true,
+    actual: test3Passed,
+    details: 'Cross-currency transfer correctly debits source wallet and credits destination wallet with zero P&L impact.'
+  });
+
+  // Test 4: Reversed rates protection
+  const test4Tx: Transaction = {
+    id: 'tx-4',
+    walletId: 'w-yer',
+    type: 'expense',
+    amount: 100,
+    currency: 'USD',
+    exchangeRateUsed: 1576,
+    convertedAmountInWalletCurrency: 157600,
+    categoryId: '1',
+    date: '2026-08-01',
+    note: 'Reversed test',
+    frequency: 'once'
+  };
+  const conv4 = resolveHistoricalConversion(test4Tx, 'YER_ADEN', DEFAULT_EXCHANGE_RATES);
+  const test4Passed = conv4.sourceAmountInWalletCurrency === 157600 && conv4.effectiveRate === 1576;
+  testResults.push({
+    testName: 'Test 4 — Reversed rates protection (Directional precedence maintained)',
+    passed: test4Passed,
+    expected: 157600,
+    actual: conv4.sourceAmountInWalletCurrency,
+    details: 'Ensures exchange rates are never inverted or incorrectly applied.'
+  });
+
+  // Test 5: Current rate change does not alter historical tx
+  const test5Tx: Transaction = {
+    id: 'tx-5',
+    walletId: 'w-yer',
+    type: 'expense',
+    amount: 100,
+    currency: 'USD',
+    convertedAmountInWalletCurrency: 157600,
+    exchangeRateUsed: 1576,
+    categoryId: '1',
+    date: '2026-08-01',
+    note: 'Immutability',
+    frequency: 'once'
+  };
+  const res5a = resolveHistoricalConversion(test5Tx, 'YER_ADEN', DEFAULT_EXCHANGE_RATES);
+  const res5b = resolveHistoricalConversion(test5Tx, 'YER_ADEN', { ...DEFAULT_EXCHANGE_RATES, USD: 5000 });
+  const test5Passed = res5a.sourceAmountInWalletCurrency === res5b.sourceAmountInWalletCurrency;
+  testResults.push({
+    testName: 'Test 5 — Current rate change does not alter historical tx',
+    passed: test5Passed,
+    expected: true,
+    actual: test5Passed,
+    details: 'Historical conversion snapshot remains completely independent of current rate table updates.'
+  });
+
+  // Test 6: Two markets
+  const test6Wallets: Wallet[] = [
+    { id: 'w-aden', name: 'Aden', currencyCode: 'YER_ADEN', color: '#000', openingBalance: 0 },
+    { id: 'w-sanaa', name: 'Sanaa', currencyCode: 'YER_SANAA', color: '#000', openingBalance: 0 }
+  ];
+  const test6Txs: Transaction[] = [
+    { id: 'tx-6a', walletId: 'w-aden', type: 'income', amount: 100, currency: 'USD', convertedAmountInWalletCurrency: 157600, categoryId: '1', date: '2026-08-01', note: 'Aden', frequency: 'once' },
+    { id: 'tx-6b', walletId: 'w-sanaa', type: 'income', amount: 100, currency: 'USD', convertedAmountInWalletCurrency: 560, categoryId: '1', date: '2026-08-01', note: 'Sanaa', frequency: 'once' }
+  ];
+  const test6Res = calculateWalletBalances(test6Wallets, test6Txs, DEFAULT_EXCHANGE_RATES);
+  const test6Passed = test6Res['w-aden'].currentBalance === 157600 && test6Res['w-sanaa'].currentBalance === 560;
+  testResults.push({
+    testName: 'Test 6 — Two markets (Aden vs Sanaa independent YER valuations)',
+    passed: test6Passed,
+    expected: true,
+    actual: test6Passed,
+    details: 'Different regional currencies/markets maintain completely independent balances.'
+  });
+
+  // Test 7: Destination mismatch protection
+  const test7Tx: Transaction = {
+    id: 'tx-7',
+    walletId: 'w-usd',
+    type: 'expense',
+    amount: 100,
+    currency: 'USD',
+    destinationAmount: 157600,
+    categoryId: '1',
+    date: '2026-08-01',
+    note: 'Mismatch test',
+    frequency: 'once'
+  };
+  const conv7 = resolveHistoricalConversion(test7Tx, 'USD', DEFAULT_EXCHANGE_RATES);
+  const test7Passed = conv7.sourceAmountInWalletCurrency === 100 && conv7.destinationAmount === 157600;
+  testResults.push({
+    testName: 'Test 7 — Destination mismatch protection (Source wallet USD never takes destination amount 157600)',
+    passed: test7Passed,
+    expected: 100,
+    actual: conv7.sourceAmountInWalletCurrency,
+    details: 'Guarantees source and destination amounts/currencies are strictly separated and never confused.'
+  });
+
   const allPassed = testResults.every(r => r.passed);
   return { allPassed, testResults };
 }
@@ -803,7 +965,7 @@ export function diagnoseWalletBalanceDiscrepancies(
         if (isCrossCurrency) {
           crossCurrencyTxCount++;
           const conversion = resolveHistoricalConversion(tx, walletCurrency, exchangeRates);
-          convertedInWallet = conversion.amountInWallet;
+          convertedInWallet = conversion.sourceAmountInWalletCurrency;
 
           const dynamicallyConverted = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
           const drift = conversion.isLegacy ? Math.abs(safeSub(dynamicallyConverted, convertedInWallet)) : 0;

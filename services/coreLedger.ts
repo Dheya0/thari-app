@@ -25,92 +25,112 @@ import { convertCurrency, tryConvertCurrency, DEFAULT_EXCHANGE_RATES } from '../
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
 export interface HistoricalConversionResult {
-  amountInWallet: number;
+  sourceAmount: number;
+  sourceCurrency: string;
+
   destinationAmount: number;
+  destinationCurrency: string;
+
+  sourceAmountInWalletCurrency: number;
+  walletCurrency: string;
+
   effectiveRate: number;
+  rateDirection: 'source_to_wallet' | 'source_to_destination';
+
   isLegacy: boolean;
 }
 
 /**
  * Centralized Historical FX Conversion Resolver (Single Source of Truth for FX).
- * Precedence order:
- * 1. Explicit transaction snapshot (convertedAmountInWalletCurrency, exchangeRateUsed, exchangeRate)
- * 2. Explicit destination amount
- * 3. Legacy fallback rate / Current rate as last fallback for legacy data
+ * Strictly separates:
+ * Case A: Same currency
+ * Case B: Transaction currency different from wallet currency
+ * Case C: Cross-currency transfer
  */
 export function resolveHistoricalConversion(
   tx: Transaction,
   walletCurrency: string,
   exchangeRates: Record<string, number> = DEFAULT_EXCHANGE_RATES
 ): HistoricalConversionResult {
-  const amount = Number(tx.amount) || 0;
-  const txCurrency = tx.currency || walletCurrency;
-  const isCrossCurrency = txCurrency !== walletCurrency;
+  const sourceAmount = Number(tx.amount) || 0;
+  const sourceCurrency = tx.currency || walletCurrency;
+  const isTransfer = tx.type === 'transfer';
+  const destCurrency = tx.destinationCurrency || (isTransfer ? walletCurrency : sourceCurrency);
+  const isCrossCurrency = sourceCurrency !== walletCurrency || (isTransfer && tx.destinationWalletId && destCurrency !== sourceCurrency);
 
-  if (!isCrossCurrency) {
+  // Case A — Same currency
+  if (!isCrossCurrency && sourceCurrency === walletCurrency) {
+    const destinationAmount = tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount))
+      ? Number(tx.destinationAmount)
+      : sourceAmount;
     return {
-      amountInWallet: amount,
-      destinationAmount: amount,
+      sourceAmount,
+      sourceCurrency,
+      destinationAmount,
+      destinationCurrency: destCurrency,
+      sourceAmountInWalletCurrency: sourceAmount,
+      walletCurrency,
       effectiveRate: 1.0,
+      rateDirection: 'source_to_wallet',
       isLegacy: false,
     };
   }
 
-  // 1. Explicit transaction snapshot precedence
+  // Case B & C — Different currency or cross-currency transfer
+  // Precedence for sourceAmountInWalletCurrency:
+  // 1. convertedAmountInWalletCurrency
+  // 2. exchangeRateUsed / exchangeRate
+  // 3. destinationAmount
+  // 4. legacy fallback
+
+  let sourceAmountInWalletCurrency = sourceAmount;
+  let effectiveRate = 1.0;
+  let destinationAmount = tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount))
+    ? Number(tx.destinationAmount)
+    : sourceAmount;
+  let isLegacy = false;
+  const rateDirection: 'source_to_wallet' | 'source_to_destination' = 'source_to_wallet';
+
   if (tx.convertedAmountInWalletCurrency !== undefined && tx.convertedAmountInWalletCurrency !== null && !isNaN(Number(tx.convertedAmountInWalletCurrency))) {
-    const converted = Number(tx.convertedAmountInWalletCurrency);
-    const rate = tx.exchangeRateUsed || tx.exchangeRate || (amount > 0 ? converted / amount : 1);
-    return {
-      amountInWallet: converted,
-      destinationAmount: tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount)) ? Number(tx.destinationAmount) : converted,
-      effectiveRate: rate,
-      isLegacy: false,
-    };
+    sourceAmountInWalletCurrency = Number(tx.convertedAmountInWalletCurrency);
+    effectiveRate = tx.exchangeRateUsed || tx.exchangeRate || (sourceAmount > 0 ? sourceAmountInWalletCurrency / sourceAmount : 1.0);
+    if (tx.destinationAmount === undefined || tx.destinationAmount === null || isNaN(Number(tx.destinationAmount))) {
+      destinationAmount = sourceAmountInWalletCurrency;
+    }
+  } else if (tx.exchangeRateUsed !== undefined && tx.exchangeRateUsed !== null && !isNaN(Number(tx.exchangeRateUsed))) {
+    effectiveRate = Number(tx.exchangeRateUsed);
+    sourceAmountInWalletCurrency = safeMul(sourceAmount, effectiveRate);
+    if (tx.destinationAmount === undefined || tx.destinationAmount === null || isNaN(Number(tx.destinationAmount))) {
+      destinationAmount = sourceAmountInWalletCurrency;
+    }
+  } else if (tx.exchangeRate !== undefined && tx.exchangeRate !== null && !isNaN(Number(tx.exchangeRate))) {
+    effectiveRate = Number(tx.exchangeRate);
+    sourceAmountInWalletCurrency = safeMul(sourceAmount, effectiveRate);
+    if (tx.destinationAmount === undefined || tx.destinationAmount === null || isNaN(Number(tx.destinationAmount))) {
+      destinationAmount = sourceAmountInWalletCurrency;
+    }
+  } else if (tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount))) {
+    destinationAmount = Number(tx.destinationAmount);
+    sourceAmountInWalletCurrency = destinationAmount;
+    effectiveRate = sourceAmount > 0 ? destinationAmount / sourceAmount : 1.0;
+  } else {
+    isLegacy = true;
+    const dynamicRate = tryConvertCurrency ? tryConvertCurrency(1, sourceCurrency, walletCurrency, exchangeRates) : { effectiveRate: 1 };
+    effectiveRate = dynamicRate.effectiveRate ?? (exchangeRates[sourceCurrency] && exchangeRates[walletCurrency] ? exchangeRates[sourceCurrency] / exchangeRates[walletCurrency] : 1.0);
+    sourceAmountInWalletCurrency = convertCurrency(sourceAmount, sourceCurrency, walletCurrency, exchangeRates);
+    destinationAmount = sourceAmountInWalletCurrency;
   }
-
-  if (tx.exchangeRateUsed !== undefined && tx.exchangeRateUsed !== null && !isNaN(Number(tx.exchangeRateUsed))) {
-    const rate = Number(tx.exchangeRateUsed);
-    const converted = safeMul(amount, rate);
-    return {
-      amountInWallet: converted,
-      destinationAmount: tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount)) ? Number(tx.destinationAmount) : converted,
-      effectiveRate: rate,
-      isLegacy: false,
-    };
-  }
-
-  if (tx.exchangeRate !== undefined && tx.exchangeRate !== null && !isNaN(Number(tx.exchangeRate))) {
-    const rate = Number(tx.exchangeRate);
-    const converted = safeMul(amount, rate);
-    return {
-      amountInWallet: converted,
-      destinationAmount: tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount)) ? Number(tx.destinationAmount) : converted,
-      effectiveRate: rate,
-      isLegacy: false,
-    };
-  }
-
-  // 2. Explicit destination amount
-  if (tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount))) {
-    const destAmt = Number(tx.destinationAmount);
-    return {
-      amountInWallet: destAmt,
-      destinationAmount: destAmt,
-      effectiveRate: amount > 0 ? destAmt / amount : 1.0,
-      isLegacy: false,
-    };
-  }
-
-  // 3 & 4. Legacy fallback rate / Current rate as last fallback for legacy data
-  const dynamicRate = tryConvertCurrency ? tryConvertCurrency(1, txCurrency, walletCurrency, exchangeRates) : { effectiveRate: 1 };
-  const fallbackRate = dynamicRate.effectiveRate ?? (exchangeRates[txCurrency] && exchangeRates[walletCurrency] ? exchangeRates[txCurrency] / exchangeRates[walletCurrency] : 1.0);
-  const legacyConverted = convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
 
   return {
-    amountInWallet: legacyConverted,
-    destinationAmount: tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount)) ? Number(tx.destinationAmount) : legacyConverted,
-    effectiveRate: fallbackRate,
-    isLegacy: true,
+    sourceAmount,
+    sourceCurrency,
+    destinationAmount,
+    destinationCurrency: destCurrency,
+    sourceAmountInWalletCurrency,
+    walletCurrency,
+    effectiveRate,
+    rateDirection,
+    isLegacy,
   };
 }
 
@@ -239,9 +259,9 @@ export function generateCoreLedger(
     
     // Centralized historical conversion helper (guarantees immutability and exact FX snapshot precedence)
     const conversion = resolveHistoricalConversion(tx, walletCurrency, exchangeRates);
-    const amountInSourceWallet = conversion.amountInWallet;
+    const amountInSourceWallet = conversion.sourceAmountInWalletCurrency;
     const rate = conversion.effectiveRate;
-    const baseAmount = calcBaseAmount(amount, txCurrency, rate);
+    const baseAmount = calcBaseAmount(conversion.sourceAmount, conversion.sourceCurrency, rate);
 
     if (tx.type === 'expense' || tx.type === 'transfer_to_goal') {
       // EXPENSE: Debit Expense Category Account, Credit Asset Wallet

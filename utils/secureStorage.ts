@@ -224,7 +224,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
 async function encryptWithAesGcm(dataString: string): Promise<string> {
   const cryptoImpl = getCrypto();
   if (!cryptoImpl) {
-    return obfuscateData(dataString);
+    throw new Error('Secure encryption (WebCrypto API) unavailable. Cannot save state securely.');
   }
 
   const salt = cryptoImpl.getRandomValues(new Uint8Array(16));
@@ -314,13 +314,11 @@ export async function writeEncryptedValue(primaryKey: string, value: string): Pr
       localStorage.setItem(targetSnapKey, encryptedData);
       localStorage.setItem('thari_last_save_ts', Date.now().toString());
     } catch (storageErr) {
-      console.warn('SecureStorage: localStorage write failed, skipping persistent snapshot.', storageErr);
+      console.warn('[Security] localStorage write failed, skipping persistent snapshot.');
     }
   } catch (err) {
-    console.warn('SecureStorage: Encryption failed; falling back to obfuscation.', err);
-    try {
-      localStorage.setItem(primaryKey, obfuscateData(value));
-    } catch {}
+    // Fail safely: do not overwrite with weak fallback or plaintext; preserve existing valid state
+    console.warn('[Security] Encryption failed or unavailable. Preserving previous valid encrypted state without overwrite.');
   }
 }
 

@@ -163,6 +163,9 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      console.log('[perf] startup-start');
+    }
     // Hide Capacitor native splash immediately when app loads
     SplashScreen.hide().catch(() => {});
     let cancelled = false;
@@ -173,12 +176,32 @@ const App: React.FC = () => {
         if (cancelled) return;
 
         if (parsed && typeof parsed === 'object') {
-          const migrated = await migrateStateReceipts(parsed);
-          if (cancelled) return;
-          setState(normalizeStoredState(migrated));
-        }
+          // Instantly set normalized state so UI paints without waiting for migration
+          setState(normalizeStoredState(parsed));
+          isHydratedRef.current = true;
 
-        isHydratedRef.current = true;
+          if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+            console.log('[perf] hydration-complete');
+          }
+
+          // Run non-critical receipt migration in background
+          setTimeout(async () => {
+            try {
+              const migrated = await migrateStateReceipts(parsed);
+              if (!cancelled && JSON.stringify(migrated) !== JSON.stringify(parsed)) {
+                setState(normalizeStoredState(migrated));
+                queueSecureStateSave(STORAGE_KEY, migrated);
+              }
+            } catch (bgErr) {
+              console.warn('Background migration warning:', bgErr);
+            }
+          }, 500);
+        } else {
+          isHydratedRef.current = true;
+          if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+            console.log('[perf] hydration-complete');
+          }
+        }
       } catch (error) {
         console.warn('App hydrate error:', error);
         if (!cancelled) {
