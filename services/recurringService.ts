@@ -23,7 +23,7 @@ export function formatDateOnly(year: number, month: number, day: number): string
 
 export function isLastDayOfMonth(year: number, month: number, day: number): boolean {
   const lastDay = new Date(year, month + 1, 0).getDate();
-  return day >= lastDay;
+  return day === lastDay;
 }
 
 /**
@@ -38,7 +38,6 @@ export function calculateNextDate(
   const { year, month, day } = parseDateOnly(currentDateStr);
   const base = originalStartDateStr ? parseDateOnly(originalStartDateStr) : { year, month, day };
   const wasLastDay = isLastDayOfMonth(base.year, base.month, base.day);
-  const isCurrentLastDay = isLastDayOfMonth(year, month, day);
 
   if (frequency === 'daily') {
     const d = new Date(year, month, day + 1);
@@ -55,26 +54,28 @@ export function calculateNextDate(
     }
 
     const lastDayOfTarget = new Date(targetYear, targetMonth + 1, 0).getDate();
-    let targetDay = day;
+    let targetDay = base.day;
 
-    if (wasLastDay || isCurrentLastDay || day >= 28) {
+    if (wasLastDay) {
       targetDay = lastDayOfTarget;
     } else {
-      targetDay = Math.min(day, lastDayOfTarget);
+      targetDay = Math.min(base.day, lastDayOfTarget);
     }
 
     return formatDateOnly(targetYear, targetMonth, targetDay);
   } else if (frequency === 'yearly') {
     let targetYear = year + 1;
     let targetMonth = month;
-    let targetDay = day;
+    let targetDay = base.day;
 
     // Leap year handling for Feb 29
-    if (month === 1 && day === 29) {
+    if (base.month === 1 && base.day === 29) {
       const isLeap = (targetYear % 4 === 0 && targetYear % 100 !== 0) || (targetYear % 400 === 0);
-      if (!isLeap) {
-        targetDay = 28;
-      }
+      targetDay = isLeap ? 29 : 28;
+    } else if (wasLastDay) {
+      targetDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    } else {
+      targetDay = Math.min(base.day, new Date(targetYear, targetMonth + 1, 0).getDate());
     }
 
     return formatDateOnly(targetYear, targetMonth, targetDay);

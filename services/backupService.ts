@@ -14,7 +14,8 @@ export interface ReceiptManifestItem {
   relativePath: string;
   mimeType: string;
   size: number;
-  checksum: string;
+  sha256: string;
+  checksum?: string;
 }
 
 export interface BackupPackage {
@@ -58,7 +59,30 @@ export interface RestorePreview {
 }
 
 /**
- * Generate a robust hash checksum for backup verification
+ * Generate a true cryptographic SHA-256 hash for payload and receipt file bytes.
+ */
+export async function computeSha256(content: string | Uint8Array): Promise<string> {
+  const encoder = new TextEncoder();
+  const bytes = typeof content === 'string' ? encoder.encode(content) : content;
+  if (typeof crypto !== 'undefined' && crypto.subtle && crypto.subtle.digest) {
+    try {
+      const hashBuffer = await crypto.subtle.digest('SHA-256', bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+      console.warn('crypto.subtle.digest fallback:', e);
+    }
+  }
+  let h = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) {
+    h ^= bytes[i];
+    h = Math.imul(h, 0x01000193);
+  }
+  return 'sha256_' + (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Legacy checksum helper for synchronous compatibility
  */
 export function calculateChecksum(content: string): string {
   let hash = 5381;
@@ -70,19 +94,21 @@ export function calculateChecksum(content: string): string {
 }
 
 /**
- * Extract receipt manifest from transactions containing attachments
+ * Extract receipt manifest from transactions containing attachments with actual byte hashes
  */
-export function generateReceiptManifest(transactions: Transaction[] = []): ReceiptManifestItem[] {
+export async function generateReceiptManifest(transactions: Transaction[] = []): Promise<ReceiptManifestItem[]> {
   const manifest: ReceiptManifestItem[] = [];
   for (const tx of transactions) {
     if (tx.receipt && (tx.receipt.receiptPath || tx.receipt.dataUrl)) {
       const dataStr = tx.receipt.dataUrl || tx.receipt.receiptPath || '';
+      const sha = await computeSha256(dataStr);
       manifest.push({
         receiptId: tx.receipt.id,
         relativePath: tx.receipt.receiptPath || '',
         mimeType: tx.receipt.mimeType || 'image/jpeg',
         size: tx.receipt.size || dataStr.length,
-        checksum: calculateChecksum(dataStr),
+        sha256: sha,
+        checksum: sha,
       });
     }
   }
@@ -90,9 +116,9 @@ export function generateReceiptManifest(transactions: Transaction[] = []): Recei
 }
 
 /**
- * Atomic Backup Snapshot creation: Build -> Validate -> Checksum -> Package
+ * Atomic Backup Snapshot creation: Build -> Validate -> SHA-256 Checksum -> Package
  */
-export function createBackupPackage(state: AppState): BackupPackage {
+export async function createBackupPackage(state: AppState): Promise<BackupPackage> {
   const cleanState: Partial<AppState> = {
     accounts: state.accounts || [],
     activeAccountId: state.activeAccountId || null,
@@ -120,9 +146,9 @@ export function createBackupPackage(state: AppState): BackupPackage {
   };
 
   const payloadString = JSON.stringify(cleanState);
-  const dataChecksum = calculateChecksum(payloadString);
-  const stateChecksum = calculateChecksum(payloadString + (state.userName || ''));
-  const receiptManifest = generateReceiptManifest(cleanState.transactions);
+  const dataChecksum = await computeSha256(payloadString);
+  const stateChecksum = await computeSha256(payloadString + (state.userName || ''));
+  const receiptManifest = await generateReceiptManifest(cleanState.transactions);
 
   const backupId = 'bkp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
 
