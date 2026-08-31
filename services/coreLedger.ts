@@ -146,13 +146,18 @@ export function generateCoreLedger(
     const sourceWallet = activeWallets.find(w => w.id === tx.walletId);
     const walletCurrency = sourceWallet?.currencyCode || tx.currency || 'SAR';
     const txCurrency = tx.currency || walletCurrency;
-    const rate = tx.exchangeRateUsed || getRateSnapshot(txCurrency);
+    
+    // Historical FX snapshot precedence: exchangeRateUsed, exchangeRate, or fallback rate
+    const historicalRate = tx.exchangeRateUsed || tx.exchangeRate;
+    const rate = historicalRate || getRateSnapshot(txCurrency);
     const baseAmount = calcBaseAmount(amount, txCurrency, rate);
 
-    // Converted amount in source wallet's native currency
+    // Converted amount in source wallet's native currency (immutable snapshot or exact historical rate)
     const amountInSourceWallet = (txCurrency === walletCurrency)
       ? amount
-      : (tx.convertedAmountInWalletCurrency || convertCurrency(amount, txCurrency, walletCurrency, exchangeRates));
+      : (tx.convertedAmountInWalletCurrency !== undefined && tx.convertedAmountInWalletCurrency !== null
+          ? Number(tx.convertedAmountInWalletCurrency)
+          : (historicalRate ? safeMul(amount, historicalRate) : convertCurrency(amount, txCurrency, walletCurrency, exchangeRates)));
 
     if (tx.type === 'expense' || tx.type === 'transfer_to_goal') {
       // EXPENSE: Debit Expense Category Account, Credit Asset Wallet
@@ -233,9 +238,11 @@ export function generateCoreLedger(
       const destWallet = activeWallets.find(w => w.id === tx.destinationWalletId);
       const destCurrency = destWallet?.currencyCode || tx.destinationCurrency || walletCurrency;
       
-      const receivedAmount = (tx.destinationAmount !== undefined && tx.destinationAmount > 0)
+      const receivedAmount = (tx.destinationAmount !== undefined && tx.destinationAmount !== null && Number(tx.destinationAmount) > 0)
         ? Number(tx.destinationAmount)
-        : (txCurrency === destCurrency ? amount : convertCurrency(amount, txCurrency, destCurrency, exchangeRates));
+        : (txCurrency === destCurrency
+            ? amount
+            : (historicalRate ? safeMul(amount, historicalRate) : convertCurrency(amount, txCurrency, destCurrency, exchangeRates)));
 
       journal.push({
         id: `entry-tx-${tx.id}`,

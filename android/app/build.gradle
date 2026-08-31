@@ -7,8 +7,8 @@ android {
         applicationId "com.thari.finance.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode = (System.getenv("CM_BUILD_NUMBER") != null && System.getenv("CM_BUILD_NUMBER").isInteger()) ? System.getenv("CM_BUILD_NUMBER").toInteger() + 120000 : 120001
+        versionName = "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -19,17 +19,19 @@ android {
     signingConfigs {
         release {
             def ksFile = file('/tmp/keystore.jks')
-            if (ksFile.exists()) {
-                storeFile = ksFile
-                storePassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("CM_KEY_ALIAS") ?: "key"
-                keyPassword = System.getenv("CM_KEY_PASSWORD") ?: System.getenv("CM_KEYSTORE_PASSWORD") ?: ""
-            } else {
-                storeFile = signingConfigs.debug.storeFile
-                storePassword = signingConfigs.debug.storePassword
-                keyAlias = signingConfigs.debug.keyAlias
-                keyPassword = signingConfigs.debug.keyPassword
+            if (!ksFile.exists()) {
+                throw new GradleException("ERROR: Production signing credentials are missing. Keystore file /tmp/keystore.jks does not exist.")
             }
+            def storePwd = System.getenv("CM_KEYSTORE_PASSWORD")
+            def aliasVal = System.getenv("CM_KEY_ALIAS")
+            def keyPwd = System.getenv("CM_KEY_PASSWORD")
+            if (!storePwd || !aliasVal || !keyPwd) {
+                throw new GradleException("ERROR: Production signing credentials are missing. CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, or CM_KEY_PASSWORD not set.")
+            }
+            storeFile = ksFile
+            storePassword = storePwd
+            keyAlias = aliasVal
+            keyPassword = keyPwd
         }
     }
     buildTypes {

@@ -7,6 +7,7 @@
 import { Transaction, Wallet, Currency, Debt } from '../types';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { generateCoreLedger, calculateLedgerBalances } from './coreLedger';
 export * from './coreLedger';
 
 export interface WalletBalanceSummary {
@@ -74,7 +75,6 @@ export function calculateDateBasedGrowth(
   let prevMonthExpense = 0;
 
   activeTxs.forEach(tx => {
-    // Financing flows are not operating income/expense
     if (tx.isFinancing) return;
     const rawAmount = Number(tx.amount) || 0;
     if (rawAmount === 0) return;
@@ -114,7 +114,6 @@ export function calculateDateBasedGrowth(
     };
   }
 
-  // Calculate percentage change in net performance
   const diff = currentNet - previousNet;
   const rate = Math.round((diff / Math.abs(previousNet)) * 100);
   const clampedRate = Math.min(Math.max(rate, -999), 999);
@@ -128,9 +127,7 @@ export function calculateDateBasedGrowth(
 }
 
 /**
- * Calculate precise balance for each wallet independently.
- * Accurately converts transaction amounts to the wallet's native currency
- * when a transaction is recorded in a different currency (e.g. spending $100 from a Yemeni wallet).
+ * Calculate precise balance for each wallet via Core Ledger (Single Source of Truth).
  */
 export function calculateWalletBalances(
   wallets: Wallet[],
@@ -138,82 +135,29 @@ export function calculateWalletBalances(
   exchangeRates: Record<string, number> = DEFAULT_EXCHANGE_RATES
 ): Record<string, WalletBalanceSummary> {
   const activeTxs = getActiveTransactions(transactions);
+  const ledger = generateCoreLedger(wallets, activeTxs, [], exchangeRates);
+  const summary = calculateLedgerBalances(ledger, wallets, [], 'SAR', exchangeRates);
+  
   const result: Record<string, WalletBalanceSummary> = {};
-
-  (wallets || []).forEach(w => {
-    result[w.id] = {
-      walletId: w.id,
-      walletName: w.name,
-      currencyCode: w.currencyCode,
-      openingBalance: Number(w.openingBalance) || 0,
-      totalIncome: 0,
-      totalExpense: 0,
-      transfersOut: 0,
-      transfersIn: 0,
-      adjustments: 0,
-      currentBalance: Number(w.openingBalance) || 0,
+  Object.values(summary.walletBalances).forEach(wb => {
+    result[wb.walletId] = {
+      walletId: wb.walletId,
+      walletName: wb.walletName,
+      currencyCode: wb.currencyCode,
+      openingBalance: wb.openingBalance,
+      totalIncome: wb.inflows,
+      totalExpense: wb.outflows,
+      transfersOut: wb.transfersOut,
+      transfersIn: wb.transfersIn,
+      adjustments: wb.adjustments,
+      currentBalance: wb.currentBalance
     };
   });
-
-  activeTxs.forEach(tx => {
-    const rawAmount = Number(tx.amount) || 0;
-    if (rawAmount === 0) return;
-    const amount = Math.abs(rawAmount);
-
-    // 1. Source wallet deduction / credit
-    const sourceSummary = result[tx.walletId];
-    if (sourceSummary) {
-      const walletCurrency = sourceSummary.currencyCode;
-      const txCurrency = tx.currency || walletCurrency;
-
-      // Accurately convert the transaction amount to the wallet's native currency
-      const amountInWalletCurrency = (txCurrency === walletCurrency)
-        ? amount
-        : convertCurrency(amount, txCurrency, walletCurrency, exchangeRates);
-
-      if (tx.type === 'income') {
-        sourceSummary.totalIncome = safeAdd(sourceSummary.totalIncome, amountInWalletCurrency);
-        sourceSummary.currentBalance = safeAdd(sourceSummary.currentBalance, amountInWalletCurrency);
-      } else if (tx.type === 'expense' || tx.type === 'transfer_to_goal') {
-        sourceSummary.totalExpense = safeAdd(sourceSummary.totalExpense, amountInWalletCurrency);
-        sourceSummary.currentBalance = safeSub(sourceSummary.currentBalance, amountInWalletCurrency);
-      } else if (tx.type === 'transfer') {
-        sourceSummary.transfersOut = safeAdd(sourceSummary.transfersOut, amountInWalletCurrency);
-        sourceSummary.currentBalance = safeSub(sourceSummary.currentBalance, amountInWalletCurrency);
-      } else if (tx.type === 'adjustment') {
-        sourceSummary.adjustments = safeAdd(sourceSummary.adjustments, amountInWalletCurrency);
-        sourceSummary.currentBalance = safeAdd(sourceSummary.currentBalance, amountInWalletCurrency);
-      }
-    }
-
-    // 2. Destination wallet credit (for internal transfers)
-    if (tx.type === 'transfer' && tx.destinationWalletId) {
-      const destSummary = result[tx.destinationWalletId];
-      if (destSummary) {
-        const destCurrency = destSummary.currencyCode;
-        const txCurrency = tx.currency || destCurrency;
-
-        // Use destinationAmount if explicitly provided; otherwise convert using exchange rates
-        const receivedAmount = (tx.destinationAmount !== undefined && tx.destinationAmount !== null && tx.destinationAmount > 0)
-          ? Number(tx.destinationAmount)
-          : (txCurrency === destCurrency ? amount : convertCurrency(amount, txCurrency, destCurrency, exchangeRates));
-
-        destSummary.transfersIn = safeAdd(destSummary.transfersIn, receivedAmount);
-        destSummary.currentBalance = safeAdd(destSummary.currentBalance, receivedAmount);
-      }
-    }
-  });
-
   return result;
 }
 
 /**
- * Calculate multi-currency breakdowns and global consolidated figures.
- * Supports:
- * - Single Currency mode (pure currency calculations without mixing exchange rates)
- * - Multi-Currency mode (normalized valuation in base currency with transparent rate breakdowns)
- * - Wallet filtering
- * - Lifetime Cumulative Balance vs Period Flow separation for 100% accurate Net Worth
+ * Calculate multi-currency breakdowns and global consolidated figures via Core Ledger.
  */
 export function calculateConsolidatedPosition(
   transactions: Transaction[],
@@ -232,14 +176,12 @@ export function calculateConsolidatedPosition(
   let periodTxs = getActiveTransactions(transactions);
   const lifetimeTxs = getActiveTransactions(allTransactionsForBalance || transactions);
 
-  // Apply wallet filtering if specified
   if (filterWalletId) {
     periodTxs = periodTxs.filter(
       t => t.walletId === filterWalletId || t.destinationWalletId === filterWalletId
     );
   }
 
-  // Apply single currency filtering if specified
   const isSingleCurrency = Boolean(filterCurrencyCode && filterCurrencyCode !== 'ALL');
   if (isSingleCurrency && filterCurrencyCode) {
     periodTxs = periodTxs.filter(t => t.currency === filterCurrencyCode);
@@ -249,33 +191,48 @@ export function calculateConsolidatedPosition(
     ? (wallets || []).filter(w => w.id === filterWalletId)
     : (wallets || []);
 
-  // Calculate true lifetime cumulative balances for active wallets
-  const walletSummaries = calculateWalletBalances(activeWallets, lifetimeTxs, exchangeRates);
+  const activeDebts = debts || [];
+
+  // Core Ledger generation as Single Financial Truth
+  const lifetimeLedger = generateCoreLedger(wallets, lifetimeTxs, activeDebts, exchangeRates, baseCurrencyCode);
+  const ledgerSummary = calculateLedgerBalances(lifetimeLedger, wallets, activeDebts, baseCurrencyCode, exchangeRates);
+
+  const walletSummaries: Record<string, WalletBalanceSummary> = {};
+  Object.values(ledgerSummary.walletBalances).forEach(wb => {
+    if (!filterWalletId || wb.walletId === filterWalletId) {
+      walletSummaries[wb.walletId] = {
+        walletId: wb.walletId,
+        walletName: wb.walletName,
+        currencyCode: wb.currencyCode,
+        openingBalance: wb.openingBalance,
+        totalIncome: wb.inflows,
+        totalExpense: wb.outflows,
+        transfersOut: wb.transfersOut,
+        transfersIn: wb.transfersIn,
+        adjustments: wb.adjustments,
+        currentBalance: wb.currentBalance
+      };
+    }
+  });
 
   const currencyBalances: Record<string, number> = {};
-  const expenseByCurrency: Record<string, number> = {};
-  const incomeByCurrency: Record<string, number> = {};
-  const transfersByCurrency: Record<string, number> = {};
-
-  // Initialize currency balances from relevant wallets
   activeWallets.forEach(w => {
     if (!currencyBalances[w.currencyCode]) {
       currencyBalances[w.currencyCode] = 0;
     }
   });
-
-  // Aggregate current balance per currency directly from wallet summaries
   Object.values(walletSummaries).forEach(summary => {
     currencyBalances[summary.currencyCode] = safeAdd(currencyBalances[summary.currencyCode] || 0, summary.currentBalance);
   });
 
-  // Calculate Inflows, Outflows, and Internal Transfers for the given period
-  let totalIncomeInBase = 0;
-  let totalExpenseInBase = 0;
-  let internalTransfersInBase = 0;
+  const periodLedger = generateCoreLedger(wallets, periodTxs, [], exchangeRates, baseCurrencyCode);
+  const periodSummary = calculateLedgerBalances(periodLedger, wallets, [], baseCurrencyCode, exchangeRates);
+
+  const expenseByCurrency: Record<string, number> = {};
+  const incomeByCurrency: Record<string, number> = {};
+  const transfersByCurrency: Record<string, number> = {};
 
   periodTxs.forEach(tx => {
-    // Exclude financing movements from operating P&L
     if (tx.isFinancing) return;
     const rawAmount = Number(tx.amount) || 0;
     if (rawAmount === 0) return;
@@ -284,18 +241,25 @@ export function calculateConsolidatedPosition(
 
     if (tx.type === 'income') {
       incomeByCurrency[txCurr] = safeAdd(incomeByCurrency[txCurr] || 0, amount);
-      totalIncomeInBase = safeAdd(totalIncomeInBase, convertCurrency(amount, txCurr, baseCurrencyCode, exchangeRates));
     } else if (tx.type === 'expense' || tx.type === 'transfer_to_goal') {
       expenseByCurrency[txCurr] = safeAdd(expenseByCurrency[txCurr] || 0, amount);
-      totalExpenseInBase = safeAdd(totalExpenseInBase, convertCurrency(amount, txCurr, baseCurrencyCode, exchangeRates));
     } else if (tx.type === 'transfer') {
-      // Internal transfers are tracked separately and strictly NOT added to income or expense
       transfersByCurrency[txCurr] = safeAdd(transfersByCurrency[txCurr] || 0, amount);
-      internalTransfersInBase = safeAdd(internalTransfersInBase, convertCurrency(amount, txCurr, baseCurrencyCode, exchangeRates));
     }
   });
 
-  // Calculate Liquid Cash Available across wallets
+  const totalIncomeInBase = periodSummary.totalIncomeInBase;
+  const totalExpenseInBase = periodSummary.totalExpenseInBase;
+
+  let internalTransfersInBase = 0;
+  periodTxs.forEach(tx => {
+    if (tx.type === 'transfer') {
+      const rawAmount = Number(tx.amount) || 0;
+      const txCurr = tx.currency || baseCurrencyCode;
+      internalTransfersInBase = safeAdd(internalTransfersInBase, convertCurrency(Math.abs(rawAmount), txCurr, baseCurrencyCode, exchangeRates));
+    }
+  });
+
   let availableLiquidityInBase = 0;
   if (isSingleCurrency && filterCurrencyCode) {
     availableLiquidityInBase = currencyBalances[filterCurrencyCode] || 0;
@@ -306,32 +270,12 @@ export function calculateConsolidatedPosition(
     }, 0);
   }
 
-  // Calculate Debts (Receivables & Payables)
-  let receivablesInBase = 0;
-  let payablesInBase = 0;
+  const receivablesInBase = ledgerSummary.totalReceivablesInBase;
+  const payablesInBase = ledgerSummary.totalLiabilitiesInBase;
+  const netWorthInBase = ledgerSummary.netWorthInBase;
 
-  (debts || []).forEach(d => {
-    if (d.isPaid || d.status === 'settled') return;
-    const original = Number(d.originalAmount || d.amount) || 0;
-    const paid = Number(d.paidAmount) || 0;
-    const remaining = Math.max(0, safeSub(original, paid));
-    if (remaining <= 0) return;
-    const inBase = convertCurrency(remaining, d.currency || baseCurrencyCode, baseCurrencyCode, exchangeRates);
-    if (d.type === 'to_me') {
-      receivablesInBase = safeAdd(receivablesInBase, inBase);
-    } else if (d.type === 'on_me') {
-      payablesInBase = safeAdd(payablesInBase, inBase);
-    }
-  });
-
-  // Net Worth = Liquid Cash + Receivables - Payables
-  const netWorthInBase = safeSub(safeAdd(availableLiquidityInBase, receivablesInBase), payablesInBase);
-
-  // Net Cash Flow strictly = Total Operating Income - Total Operating Expense (excluding transfers and financing)
   const netCashFlowInBase = safeSub(totalIncomeInBase, totalExpenseInBase);
   const savingsRate = totalIncomeInBase > 0 ? Math.max(0, Math.round((netCashFlowInBase / totalIncomeInBase) * 100)) : 0;
-
-  // Calculate Date-Based Growth
   const growthData = calculateDateBasedGrowth(lifetimeTxs, baseCurrencyCode, exchangeRates);
 
   return {
@@ -491,7 +435,38 @@ export function runBalanceEngineAudit(): {
     actual: position.netCashFlowInBase,
   });
 
-  // Check 7: Liquidity vs Net Worth Separation with Debts
+  // Check 7: Ledger Invariant (Total Debits === Total Credits for every Journal Entry)
+  const generatedJournal = generateCoreLedger(testWallets, testTransactions, [], DEFAULT_EXCHANGE_RATES, 'YER_ADEN');
+  const allEntriesBalanced = generatedJournal.every(entry => {
+    const dr = entry.lines.reduce((s, l) => s + l.amountInBaseCurrency, 0);
+    const cr = entry.lines.reduce((s, l) => s + l.credit, 0); // or amountInBaseCurrency
+    const drBase = entry.lines.reduce((s, l) => s + l.amountInBaseCurrency, 0);
+    // For each entry, sum(debits in base) should equal sum(credits in base)
+    const debitsSum = entry.lines.reduce((s, l) => s + (l.debit > 0 ? l.amountInBaseCurrency : 0), 0);
+    const creditsSum = entry.lines.reduce((s, l) => s + (l.credit > 0 ? l.amountInBaseCurrency : 0), 0);
+    return Math.abs(debitsSum - creditsSum) < 0.01;
+  });
+  testResults.push({
+    testName: 'Ledger Invariant (Total Debit === Total Credit in Base Currency)',
+    passed: allEntriesBalanced,
+    details: `Every journal entry must balance perfectly: sum(Debits) === sum(Credits)`,
+    expected: true,
+    actual: allEntriesBalanced,
+  });
+
+  // Check 8: Transaction-to-Ledger Invariant (1 Transaction -> 1 corresponding ledger event)
+  const txToLedgerMapValid = testTransactions.every(tx => {
+    return generatedJournal.some(e => e.eventId === tx.id);
+  });
+  testResults.push({
+    testName: 'Transaction-to-Ledger Invariant (1 Tx -> 1 Ledger Event)',
+    passed: txToLedgerMapValid,
+    details: `Every valid transaction must have a corresponding journal entry event`,
+    expected: true,
+    actual: txToLedgerMapValid,
+  });
+
+  // Check 9: Liquidity vs Net Worth Separation with Debts
   const testDebts: Debt[] = [
     {
       id: 'd-test-1',
@@ -590,6 +565,72 @@ export function runBalanceEngineAudit(): {
     details: `Calculated balance must reconcile with raw transaction history and log into AuditLogs`,
     expected: true,
     actual: diagnosticPassed,
+  });
+
+  // Scenario 4: Historical FX Snapshot Immutability Test (Changing current exchange rates later must not alter historical result)
+  const historicalTx: Transaction[] = [
+    {
+      id: 'tx-hist-1',
+      walletId: 'w-yer-main',
+      type: 'expense',
+      amount: 100,
+      currency: 'USD',
+      exchangeRateUsed: 1576,
+      convertedAmountInWalletCurrency: 157600,
+      categoryId: '1',
+      date: '2026-08-01',
+      note: 'Historical 100 USD -> 157,600 YER_ADEN',
+      frequency: 'once'
+    }
+  ];
+  // Mutate current exchange rates dramatically
+  const mutatedRates = { ...DEFAULT_EXCHANGE_RATES, USD: 3000, YER_ADEN: 1 };
+  const balBeforeRateChange = calculateWalletBalances(crossWallets, historicalTx, DEFAULT_EXCHANGE_RATES);
+  const balAfterRateChange = calculateWalletBalances(crossWallets, historicalTx, mutatedRates);
+  const fxImmutablePassed = balBeforeRateChange['w-yer-main'].currentBalance === balAfterRateChange['w-yer-main'].currentBalance;
+  testResults.push({
+    testName: 'Historical FX Snapshot Immutability (Changing current rates does not affect historical Tx)',
+    passed: fxImmutablePassed,
+    details: `Historical transaction value must remain identical regardless of subsequent market rate changes`,
+    expected: true,
+    actual: fxImmutablePassed,
+  });
+
+  // Scenario 5: Cross-Currency Transfer Invariant (Source decreases by actual source, Destination increases by destinationAmount, Income = 0, Expense = 0)
+  const transferWallets: Wallet[] = [
+    { id: 'w-usd', name: 'USD Wallet', currencyCode: 'USD', color: '#3b82f6', openingBalance: 1000 },
+    { id: 'w-sar', name: 'SAR Wallet', currencyCode: 'SAR', color: '#10b981', openingBalance: 1000 }
+  ];
+  const transferTx: Transaction[] = [
+    {
+      id: 'tx-xfer-1',
+      walletId: 'w-usd',
+      destinationWalletId: 'w-sar',
+      type: 'transfer',
+      amount: 100,
+      currency: 'USD',
+      destinationCurrency: 'SAR',
+      destinationAmount: 385,
+      exchangeRateUsed: 3.85,
+      categoryId: 'transfer',
+      date: '2026-08-02',
+      note: 'Transfer 100 USD -> 385 SAR',
+      frequency: 'once'
+    }
+  ];
+  const xferBalances = calculateWalletBalances(transferWallets, transferTx, DEFAULT_EXCHANGE_RATES);
+  const xferPosition = calculateConsolidatedPosition(transferTx, transferWallets, 'SAR', DEFAULT_EXCHANGE_RATES, null, 'SAR');
+  const xferUsdPassed = xferBalances['w-usd'].currentBalance === 900; // 1000 - 100
+  const xferSarPassed = xferBalances['w-sar'].currentBalance === 1385; // 1000 + 385
+  const xferZeroIncomeExpense = xferPosition.totalIncomeInBase === 0 && xferPosition.totalExpenseInBase === 0;
+  const xferTestPassed = xferUsdPassed && xferSarPassed && xferZeroIncomeExpense;
+
+  testResults.push({
+    testName: 'Cross-Currency Transfer Invariant (Source -100 USD, Dest +385 SAR, Income=0, Expense=0)',
+    passed: xferTestPassed,
+    details: `USD wallet decreases by 100, SAR wallet increases by 385, with zero impact on income/expense`,
+    expected: true,
+    actual: xferTestPassed,
   });
 
   const allPassed = testResults.every(r => r.passed);

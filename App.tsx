@@ -18,7 +18,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Filesystem } from '@capacitor/filesystem';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { migrateStateReceipts } from './services/receiptStorage';
+import { migrateStateReceipts, deleteReceiptFile } from './services/receiptStorage';
 import { appLifecycleService } from './services/appLifecycleService';
 import BalanceCard from './components/BalanceCard';
 import ElegantDashboard from './components/ElegantDashboard';
@@ -865,6 +865,10 @@ const App: React.FC = () => {
   };
 
   const handlePermanentDelete = (id: string) => {
+    const target = state.trashTransactions?.find(t => t.id === id);
+    if (target?.receipt?.receiptPath) {
+      deleteReceiptFile(target.receipt.receiptPath).catch(() => {});
+    }
     setState(p => ({
       ...p,
       trashTransactions: (p.trashTransactions || []).filter(t => t.id !== id),
@@ -872,6 +876,11 @@ const App: React.FC = () => {
   };
 
   const handleEmptyTrash = () => {
+    (state.trashTransactions || []).forEach(t => {
+      if (t.receipt?.receiptPath) {
+        deleteReceiptFile(t.receipt.receiptPath).catch(() => {});
+      }
+    });
     setState(p => ({
       ...p,
       trashTransactions: [],

@@ -1035,7 +1035,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 }
 
 /**
- * Generates a real PDF Blob from ReportModel using html2canvas and jsPDF
+ * Generates a paginated A4 PDF Blob from ReportModel using html2canvas slicing and jsPDF
+ * without memory spikes on long detailed reports.
  */
 export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob> {
   const htmlContent = buildPrintableReportHTML(model);
@@ -1049,36 +1050,76 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
   container.innerHTML = htmlContent;
   document.body.appendChild(container);
 
+  let masterCanvas: HTMLCanvasElement | null = null;
   try {
-    await new Promise(resolve => setTimeout(resolve, 350));
-    const canvas = await html2canvas(container, {
-      scale: 2,
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const totalHeight = container.scrollHeight || 1123;
+    const scale = totalHeight > 4000 ? 1.25 : 1.5;
+
+    masterCanvas = await html2canvas(container, {
+      scale,
       useCORS: true,
       logging: false,
       windowWidth: 794,
     });
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+    const canvasWidth = masterCanvas.width;
+    const canvasHeight = masterCanvas.height;
 
-    let heightLeft = pdfHeight;
-    let position = 0;
-    const pageHeight = pdf.internal.pageSize.getHeight();
+    // A4 height in canvas pixels for this scale (~1123px at 96dpi)
+    const pageCanvasHeight = Math.round(1123 * scale);
+    let sourceY = 0;
+    let pageIndex = 0;
 
-    pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-    heightLeft -= pageHeight;
+    while (sourceY < canvasHeight) {
+      const sliceHeight = Math.min(pageCanvasHeight, canvasHeight - sourceY);
+      
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvasWidth;
+      pageCanvas.height = sliceHeight;
+      const ctx = pageCanvas.getContext('2d');
 
-    while (heightLeft >= 0) {
-      position = heightLeft - pdfHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(
+          masterCanvas,
+          0,
+          sourceY,
+          canvasWidth,
+          sliceHeight,
+          0,
+          0,
+          canvasWidth,
+          sliceHeight
+        );
+
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.9);
+        const slicePdfHeight = (sliceHeight * pdfWidth) / canvasWidth;
+
+        if (pageIndex > 0) {
+          pdf.addPage();
+        }
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, slicePdfHeight);
+
+        // Immediate cleanup of temporary page canvas
+        pageCanvas.width = 0;
+        pageCanvas.height = 0;
+      }
+
+      sourceY += sliceHeight;
+      pageIndex++;
     }
 
     return pdf.output('blob');
   } finally {
+    if (masterCanvas) {
+      masterCanvas.width = 0;
+      masterCanvas.height = 0;
+      masterCanvas = null;
+    }
     if (container.parentNode) {
       container.parentNode.removeChild(container);
     }
@@ -1113,12 +1154,19 @@ export async function printOrShareFinancialReport(
       return;
     }
 
-    // Generate real PDF blob for print or share actions
+    // Generate real PDF blob for print or share actions (fully guarded operation)
     const pdfBlob = await generatePdfBlobFromModel(model);
     const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.pdf`;
     const dialogTitle = preferredAction === 'share' ? 'مشاركة التقرير المالي (PDF)' : 'حفظ وطباعة التقرير المالي (PDF)';
 
     await exportAndSharePdfFile(pdfBlob, fileName, dialogTitle);
+  } catch (err) {
+    const errName = (err as Error)?.name;
+    const errMsg = (err as Error)?.message || '';
+    if (errName === 'AbortError' || errMsg.includes('cancel') || errMsg.includes('abort')) {
+      return; // User cancelled
+    }
+    console.warn('Report export/share error:', err);
   } finally {
     isExportingActive = false;
   }
@@ -1135,6 +1183,7 @@ export async function exportAndSharePdfFile(
 ): Promise<void> {
   const mimeType = 'application/pdf';
 
+  // 1. Native iOS / Android Platform (Capacitor Filesystem + Share Sheet)
   if (Capacitor.isNativePlatform()) {
     try {
       const base64Data = await new Promise<string>((resolve, reject) => {
@@ -1159,18 +1208,18 @@ export async function exportAndSharePdfFile(
         url: result.uri,
         dialogTitle: dialogTitle,
       });
-      return;
+      return; // Success -> stop completely (no fallback)
     } catch (e) {
       const errName = (e as Error).name;
       const errMsg = (e as Error).message || '';
       if (errName === 'AbortError' || errMsg.includes('cancel') || errMsg.includes('abort')) {
-        return; // User cancelled share sheet
+        return; // User cancelled share sheet -> stop
       }
-      console.warn('Native PDF Filesystem/Share failed, attempting fallback download:', e);
+      console.warn('Native PDF Filesystem/Share failed:', e);
     }
   }
 
-  // Web Share API with files (ideal for iPhone Safari & Android Chrome)
+  // 2. Web Share API with files (iPhone Safari / Android Chrome PWA)
   if (navigator.share && navigator.canShare) {
     try {
       const file = new File([pdfBlob], fileName, { type: mimeType });
@@ -1180,18 +1229,18 @@ export async function exportAndSharePdfFile(
           text: dialogTitle,
           files: [file],
         });
-        return;
+        return; // Success -> stop completely
       }
     } catch (err) {
       const errName = (err as Error).name;
-      if (errName === 'AbortError') {
-        return; // User cancelled share dialog
+      if (errName === 'AbortError' || (err as Error).message?.includes('cancel')) {
+        return; // User cancelled share dialog -> stop
       }
-      console.warn('Web Share API PDF failed, using download fallback:', err);
+      console.warn('Web Share API PDF failed, falling back to download:', err);
     }
   }
 
-  // Web Browser / Fallback Download Handler
+  // 3. Web Browser / Fallback Download Handler
   try {
     const url = URL.createObjectURL(pdfBlob);
     const link = document.createElement('a');
@@ -1240,7 +1289,7 @@ export async function exportAndShareNativeFile(
       if (errName === 'AbortError' || errMsg.includes('cancel') || errMsg.includes('abort')) {
         return;
       }
-      console.warn('Native Filesystem/Share failed, attempting fallback download:', e);
+      console.warn('Native Filesystem/Share failed:', e);
     }
   }
 
@@ -1257,7 +1306,7 @@ export async function exportAndShareNativeFile(
         return;
       }
     } catch (err) {
-      if ((err as Error).name === 'AbortError') {
+      if ((err as Error).name === 'AbortError' || (err as Error).message?.includes('cancel')) {
         return;
       }
     }
