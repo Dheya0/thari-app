@@ -90,7 +90,8 @@ export interface ReceiptAttachment {
   fileName: string;
   mimeType: string;
   size: number;
-  dataUrl: string; // Base64 safe image / document
+  dataUrl?: string; // Base64 safe image / document (legacy / optional now)
+  receiptPath?: string; // Filesystem path for mobile-first decoupled storage
   createdAt: string;
 }
 

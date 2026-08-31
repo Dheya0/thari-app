@@ -17,6 +17,9 @@ import { NativeKeyboard, NativeHaptics } from './services/nativeServices';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { Filesystem } from '@capacitor/filesystem';
+import { SplashScreen } from '@capacitor/splash-screen';
+import { migrateStateReceipts } from './services/receiptStorage';
+import { appLifecycleService } from './services/appLifecycleService';
 import BalanceCard from './components/BalanceCard';
 import ElegantDashboard from './components/ElegantDashboard';
 import TransactionForm from './components/TransactionForm';
@@ -160,6 +163,8 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
 
   useEffect(() => {
+    // Hide Capacitor native splash immediately when app loads
+    SplashScreen.hide().catch(() => {});
     let cancelled = false;
 
     const hydrateState = async () => {
@@ -168,7 +173,9 @@ const App: React.FC = () => {
         if (cancelled) return;
 
         if (parsed && typeof parsed === 'object') {
-          setState(normalizeStoredState(parsed));
+          const migrated = await migrateStateReceipts(parsed);
+          if (cancelled) return;
+          setState(normalizeStoredState(migrated));
         }
 
         isHydratedRef.current = true;
@@ -196,50 +203,6 @@ const App: React.FC = () => {
   // Instant Launch: Remove artificial splash delay so UI paints immediately
   useEffect(() => {
     setIsLoadingSplash(false);
-  }, []);
-
-  // Handle Home Screen Quick Actions (PWA Shortcuts for iOS / Android Long-Press)
-  useEffect(() => {
-    const checkHomeScreenAction = () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const hash = window.location.hash;
-        const action = urlParams.get('action') || (hash.includes('quick-add') ? 'quick-add' : null);
-
-        if (action === 'quick-add' || urlParams.has('quick-add') || urlParams.has('quickAdd')) {
-          // Immediately bypass splash and open transaction form
-          setIsLoadingSplash(false);
-          setShowAddForm(true);
-          setEditingTransaction(null);
-          setFormDefaultType('expense');
-
-          // Clean up the URL quietly without triggering page reload
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState(null, '', cleanUrl);
-        }
-      } catch (err) {
-        console.warn('Quick action handler error:', err);
-      }
-    };
-
-    // Check on initial mount
-    checkHomeScreenAction();
-
-    // Also listen when app is reopened/focused or URL changes via PWA deep link
-    window.addEventListener('popstate', checkHomeScreenAction);
-    window.addEventListener('hashchange', checkHomeScreenAction);
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        checkHomeScreenAction();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('popstate', checkHomeScreenAction);
-      window.removeEventListener('hashchange', checkHomeScreenAction);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
   }, []);
 
   useEffect(() => {
@@ -331,41 +294,7 @@ const App: React.FC = () => {
   const backgroundedAtRef = useRef<number | null>(null);
   const justUnlockedRef = useRef<number>(0);
 
-  // Home Screen Action & Quick Add Gesture Detection (iOS / Android Shortcuts & URL parameters)
-  useEffect(() => {
-    const handleQuickAddAction = () => {
-      try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const hash = window.location.hash;
-        if (
-          urlParams.get('action') === 'quick-add' ||
-          urlParams.get('action') === 'quick_add' ||
-          hash === '#quick-add' ||
-          hash === '#quick_add'
-        ) {
-          setShowAddForm(true);
-          // Clean URL without triggering page reload
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-      } catch (e) {
-        console.warn('Quick add parameter check error:', e);
-      }
-    };
 
-    handleQuickAddAction();
-    window.addEventListener('popstate', handleQuickAddAction);
-    window.addEventListener('focus', handleQuickAddAction);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        handleQuickAddAction();
-      }
-    });
-
-    return () => {
-      window.removeEventListener('popstate', handleQuickAddAction);
-      window.removeEventListener('focus', handleQuickAddAction);
-    };
-  }, []);
 
   // Check and process due recurring transactions on initial mount
   useEffect(() => {
@@ -408,15 +337,45 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Android Hardware Back Button Handler for Native Capacitor App
+  // Android Hardware Back Button & Keyboard Hierarchy Handler
+  const isKeyboardOpenRef = useRef(false);
+  useEffect(() => {
+    let showSub: any = null;
+    let hideSub: any = null;
+    if (NativeKeyboard.isAvailable()) {
+      NativeKeyboard.addListener('keyboardWillShow', () => { isKeyboardOpenRef.current = true; }).then(s => { showSub = s; }).catch(() => {});
+      NativeKeyboard.addListener('keyboardWillHide', () => { isKeyboardOpenRef.current = false; }).then(s => { hideSub = s; }).catch(() => {});
+    }
+    return () => {
+      if (showSub?.remove) showSub.remove();
+      if (hideSub?.remove) hideSub.remove();
+    };
+  }, []);
+
   useEffect(() => {
     let backButtonListener: any = null;
     if (isNativeCapacitorEnvironment()) {
-      CapApp.addListener('backButton', ({ canGoBack }) => {
+      CapApp.addListener('backButton', () => {
+        // 1. If Keyboard open -> close keyboard only
+        if (isKeyboardOpenRef.current || (document.activeElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName))) {
+          if (NativeKeyboard.isAvailable()) {
+            NativeKeyboard.hide().catch(() => {});
+          }
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          isKeyboardOpenRef.current = false;
+          return;
+        }
+
+        // 2. If TransactionForm open -> close/back from TransactionForm
         if (showAddForm) {
           setShowAddForm(false);
           setEditingTransaction(null);
-        } else if (showReportModal) {
+          setFormDefaultType(undefined);
+        }
+        // 3. If any other modal open -> close topmost modal only
+        else if (showReportModal) {
           setShowReportModal(false);
         } else if (showTrashModal) {
           setShowTrashModal(false);
@@ -432,9 +391,13 @@ const App: React.FC = () => {
           setShowWalletSelector(false);
         } else if (showPrivacyPolicy) {
           setShowPrivacyPolicy(false);
-        } else if (activeTab !== 'dashboard') {
+        }
+        // 4. If user inside non-Dashboard tab -> return to Dashboard
+        else if (activeTab !== 'dashboard') {
           setActiveTab('dashboard');
-        } else {
+        }
+        // 5. If Dashboard & no overlay -> allow app exit
+        else {
           CapApp.exitApp();
         }
       }).then(l => { backButtonListener = l; });
@@ -485,100 +448,76 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Timed Auto-lock when user leaves or backgrounds the app (Native iOS, Android & Web)
+  // Unified App Lifecycle via appLifecycleService
   useEffect(() => {
-    const isSecurityConfigured = !!state.pin || state.isBiometricEnabled === true;
-    if (!isSecurityConfigured || state.autoLockTime === 'never') return;
+    appLifecycleService.init();
 
-    const onAppBackgrounded = () => {
-      const now = Date.now();
-      backgroundedAtRef.current = now;
-      try {
-        sessionStorage.setItem('thari_bg_ts', now.toString());
-      } catch (e) {}
-
-      if (stateRef.current) {
-        saveSecureStateSync(STORAGE_KEY, stateRef.current);
-        void flushSecureStateSave(STORAGE_KEY);
-      }
-
-      if (!state.autoLockTime || state.autoLockTime === 'instant') {
-        setState(p => ({ ...p, isLocked: true }));
-      }
-    };
-
-    const onAppForegrounded = () => {
-      if (Date.now() < justUnlockedRef.current) {
-        backgroundedAtRef.current = null;
-        try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
-        return;
-      }
-      let bgTime = backgroundedAtRef.current;
-      if (!bgTime) {
+    const unsubscribe = appLifecycleService.addListener((event) => {
+      if (event === 'APP_BACKGROUND' || event === 'APP_HIDDEN') {
+        const now = Date.now();
+        backgroundedAtRef.current = now;
         try {
-          const stored = sessionStorage.getItem('thari_bg_ts');
-          if (stored) bgTime = parseInt(stored, 10);
+          sessionStorage.setItem('thari_bg_ts', now.toString());
         } catch (e) {}
-      }
 
-      if (bgTime && state.autoLockTime && state.autoLockTime !== 'never' && state.autoLockTime !== 'instant') {
-        const elapsedMs = Date.now() - bgTime;
-        const thresholdMs = state.autoLockTime === '1min' ? 60000 : 300000;
-        if (elapsedMs >= thresholdMs) {
+        if (stateRef.current) {
+          saveSecureStateSync(STORAGE_KEY, stateRef.current);
+          void flushSecureStateSave(STORAGE_KEY);
+        }
+
+        const currentState = stateRef.current;
+        const isSecurityConfigured = !!currentState.pin || currentState.isBiometricEnabled === true;
+        if (isSecurityConfigured && (!currentState.autoLockTime || currentState.autoLockTime === 'instant')) {
           setState(p => ({ ...p, isLocked: true }));
         }
-      } else if (!state.autoLockTime || state.autoLockTime === 'instant') {
-        const bgDuration = bgTime ? Date.now() - bgTime : 0;
-        if (bgTime && bgDuration < 1000) {
+      } else if (event === 'APP_FOREGROUND' || event === 'APP_VISIBLE') {
+        if (Date.now() < justUnlockedRef.current) {
           backgroundedAtRef.current = null;
           try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
           return;
         }
-        setState(p => ({ ...p, isLocked: true }));
-      }
-      backgroundedAtRef.current = null;
-      try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
-    };
-
-    // 1. Native Capacitor lifecycle (iOS & Android)
-    let appListenerHandle: any = null;
-    try {
-      CapApp.addListener('appStateChange', (appState) => {
-        if (!appState.isActive) {
-          onAppBackgrounded();
-        } else {
-          onAppForegrounded();
+        let bgTime = backgroundedAtRef.current;
+        if (!bgTime) {
+          try {
+            const stored = sessionStorage.getItem('thari_bg_ts');
+            if (stored) bgTime = parseInt(stored, 10);
+          } catch (e) {}
         }
-      }).then(handle => {
-        appListenerHandle = handle;
-      });
-    } catch (e) {}
 
-    // 2. Web / PWA Document & Window visibility lifecycle
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        onAppBackgrounded();
-      } else if (document.visibilityState === 'visible') {
-        onAppForegrounded();
+        const currentState = stateRef.current;
+        const isSecurityConfigured = !!currentState.pin || currentState.isBiometricEnabled === true;
+        if (isSecurityConfigured && currentState.autoLockTime && currentState.autoLockTime !== 'never') {
+          if (bgTime && currentState.autoLockTime !== 'instant') {
+            const elapsedMs = Date.now() - bgTime;
+            const thresholdMs = currentState.autoLockTime === '1min' ? 60000 : 300000;
+            if (elapsedMs >= thresholdMs) {
+              setState(p => ({ ...p, isLocked: true }));
+            }
+          } else if (!currentState.autoLockTime || currentState.autoLockTime === 'instant') {
+            const bgDuration = bgTime ? Date.now() - bgTime : 0;
+            if (!bgTime || bgDuration >= 1000) {
+              setState(p => ({ ...p, isLocked: true }));
+            }
+          }
+        }
+        backgroundedAtRef.current = null;
+        try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
+      } else if (event === 'QUICK_ACTION') {
+        setIsLoadingSplash(false);
+        setShowAddForm(true);
+        setEditingTransaction(null);
+        setFormDefaultType('expense');
+        try {
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch (e) {}
       }
-    };
-
-    const handlePageHide = () => onAppBackgrounded();
-    const handlePageShow = () => onAppForegrounded();
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pagehide', handlePageHide);
-    window.addEventListener('pageshow', handlePageShow);
+    });
 
     return () => {
-      if (appListenerHandle && typeof appListenerHandle.remove === 'function') {
-        appListenerHandle.remove();
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pagehide', handlePageHide);
-      window.removeEventListener('pageshow', handlePageShow);
+      unsubscribe();
+      appLifecycleService.destroy();
     };
-  }, [state.pin, state.isBiometricEnabled, state.autoLockTime]);
+  }, []);
 
   // Automated Periodic / On-Open Snapshot Backup Runner
   useEffect(() => {

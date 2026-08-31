@@ -18,6 +18,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Transaction, Category, TransactionType, Wallet, Currency } from '../types';
+import { loadReceiptDataUrl } from '../services/receiptStorage';
 import { getIcon, DEFAULT_CURRENCIES, convertCurrency } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
 import { SwipeableRow } from './SwipeableRow';
@@ -352,9 +353,12 @@ const TransactionList: React.FC<TransactionListProps> = ({
                             {tx.receipt && (
                               <button
                                 type="button"
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.stopPropagation();
-                                  setViewingReceipt(tx.receipt?.dataUrl || null);
+                                  if (tx.receipt) {
+                                    const url = await loadReceiptDataUrl(tx.receipt);
+                                    setViewingReceipt(url || null);
+                                  }
                                 }}
                                 className="text-amber-400 hover:text-amber-300 p-0.5"
                                 title="عرض الفاتورة المرفقة"

@@ -22,6 +22,7 @@ import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
 import { getCurrencySymbol, parseArabicNumber, sanitizeNumericInput } from '../utils/formatters';
 import { safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { NativeKeyboard, NativeHaptics } from '../services/nativeServices';
+import { saveReceiptToStorage, loadReceiptDataUrl } from '../services/receiptStorage';
 
 interface TransactionFormProps {
   categories: Category[];
@@ -104,6 +105,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [time, setTime] = useState(initialData?.time || new Date().toTimeString().slice(0, 5));
   const [receipt, setReceipt] = useState<ReceiptAttachment | undefined>(initialData?.receipt);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -473,15 +475,17 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setReceipt({
+      reader.onloadend = async () => {
+        const base64Res = reader.result as string;
+        const newReceipt: ReceiptAttachment = {
           id: 'rcpt-' + Date.now(),
-          dataUrl: reader.result as string,
           fileName: file.name,
           mimeType: file.type,
           size: file.size,
           createdAt: new Date().toISOString()
-        });
+        };
+        const saved = await saveReceiptToStorage(newReceipt, base64Res);
+        setReceipt(saved);
       };
       reader.readAsDataURL(file);
     }
@@ -1947,7 +1951,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setShowReceiptPreview(true)}
+                        onClick={async () => {
+                          if (receipt) {
+                            const url = await loadReceiptDataUrl(receipt);
+                            setPreviewUrl(url);
+                            setShowReceiptPreview(true);
+                          }
+                        }}
                         className="px-2 py-1 bg-[#0A0D10] text-[10px] font-bold text-[#F4F1EA] rounded-lg border border-[#D9B978]/30"
                       >
                         {t.viewAll}
@@ -2074,7 +2084,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 <X size={18} />
               </button>
               <img 
-                src={receipt.dataUrl} 
+                src={previewUrl} 
                 alt="Receipt" 
                 className="w-full max-h-[70vh] object-contain rounded-xl mt-6"
                 referrerPolicy="no-referrer"
