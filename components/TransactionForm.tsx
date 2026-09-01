@@ -88,6 +88,25 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const [selectedEvent, setSelectedEvent] = useState<FinancialEventType | null>(mapInitialEventType);
+  const [navStep, setNavStep] = useState<'what_happened' | 'previous_transactions_list' | 'edit_transaction'>(
+    initialData ? 'edit_transaction' : 'what_happened'
+  );
+  const [cameFromPreviousEditList, setCameFromPreviousEditList] = useState<boolean>(Boolean(initialData));
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const [savedScrollTop, setSavedScrollTop] = useState(0);
+
+  useEffect(() => {
+    if (selectedEvent) {
+      setNavStep('edit_transaction');
+    }
+  }, [selectedEvent]);
+
+  useEffect(() => {
+    if (navStep === 'previous_transactions_list' && listScrollRef.current) {
+      listScrollRef.current.scrollTop = savedScrollTop;
+    }
+  }, [navStep]);
+
   const [isEditingExisting, setIsEditingExisting] = useState<boolean>(Boolean(initialData));
   const [selectedTxForEdit, setSelectedTxForEdit] = useState<string>(initialData?.id || '');
 
@@ -321,8 +340,25 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     const idToDelete = initialData?.id || selectedTxForEdit;
     if (idToDelete && onDelete) {
       onDelete(idToDelete);
-      onClose();
+      if (initialData) {
+        onClose();
+      } else {
+        setSelectedEvent(null);
+        setSelectedTxForEdit('');
+        setCameFromPreviousEditList(true);
+        setNavStep('previous_transactions_list');
+        setShowDeleteConfirm(false);
+      }
     }
+  };
+
+  const handleSelectTransactionItem = (txId: string) => {
+    if (listScrollRef.current) {
+      setSavedScrollTop(listScrollRef.current.scrollTop);
+    }
+    handleSelectTxForEdit(txId);
+    setCameFromPreviousEditList(true);
+    setNavStep('edit_transaction');
   };
   
   const selectedSourceWallet = wallets.find(w => w.id === walletId) || wallets[0];
@@ -723,25 +759,39 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         {/* TOP BAR / NAVIGATION */}
         <div className="p-4 sm:p-5 border-b border-[#D9B978]/10 flex items-center justify-between bg-[#11161C] shrink-0">
           <div className="flex items-center gap-2.5">
-            {selectedEvent && !initialData && (
+            {((selectedEvent && !initialData) || (!initialData && navStep === 'previous_transactions_list')) && (
               <button 
                 type="button"
                 onClick={() => {
-                  setSelectedEvent(null);
+                  if (navStep === 'edit_transaction') {
+                    if (listScrollRef.current) {
+                      setSavedScrollTop(listScrollRef.current.scrollTop);
+                    }
+                    if (cameFromPreviousEditList) {
+                      setSelectedEvent(null);
+                      setSelectedTxForEdit('');
+                      setNavStep('previous_transactions_list');
+                    } else {
+                      setSelectedEvent(null);
+                      setNavStep('what_happened');
+                    }
+                  } else if (navStep === 'previous_transactions_list') {
+                    setNavStep('what_happened');
+                  }
                   setErrorMessage('');
                   dismissKeyboard();
                 }}
                 className="w-11 h-11 rounded-xl bg-[#11161C] hover:bg-[#D9B978]/15 text-[#F4F1EA] flex items-center justify-center transition-all duration-200 active:scale-95 border border-[#D9B978]/20"
-                title="الرجوع لقائمة الأحداث"
+                title={language === 'ar' ? 'الرجوع' : 'Back'}
               >
-                <ChevronRight size={20} />
+                <ChevronRight size={20} className={language === 'ar' ? '' : 'rotate-180'} />
               </button>
             )}
 
             <div>
               <h3 className="font-black text-[#F4F1EA] text-base sm:text-lg">
-                {!selectedEvent 
-                  ? t.whatHappened 
+                {navStep === 'what_happened' ? t.whatHappened 
+                  : navStep === 'previous_transactions_list' ? (language === 'ar' ? 'المعاملات السابقة للتعديل' : 'Previous Transactions')
                   : selectedEvent === 'expense' ? t.recordExpense
                   : selectedEvent === 'income' ? t.recordIncome
                   : selectedEvent === 'transfer' ? t.transferWallet
@@ -752,8 +802,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 }
               </h3>
               <p className="text-[11px] font-medium text-[#F4F1EA]/60">
-                {!selectedEvent 
-                  ? t.selectFinancialEvent
+                {navStep === 'what_happened' ? t.selectFinancialEvent
+                  : navStep === 'previous_transactions_list' ? (language === 'ar' ? 'اختر أي معاملة لتعديلها' : 'Choose any transaction to edit')
                   : t.accountingLedgerRecord
                 }
               </p>
@@ -774,20 +824,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               </button>
             )}
 
-            {!selectedEvent && transactions.length > 0 && !initialData && (
+            {!selectedEvent && navStep === 'what_happened' && transactions.length > 0 && !initialData && (
               <button
                 type="button"
                 onClick={() => {
-                  setIsEditingExisting(!isEditingExisting);
-                  if (!isEditingExisting && transactions[0]) {
-                    handleSelectTxForEdit(transactions[0].id);
-                  }
+                  setCameFromPreviousEditList(true);
+                  setNavStep('previous_transactions_list');
                 }}
-                className={`px-3.5 min-h-[44px] rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 border ${
-                  isEditingExisting 
-                    ? 'bg-[#D9B978]/20 text-[#D9B978] border-[#D9B978]/40' 
-                    : 'bg-[#11161C] text-[#F4F1EA]/80 border-[#D9B978]/20 hover:text-[#F4F1EA]'
-                }`}
+                className="px-3.5 min-h-[44px] rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 border bg-[#11161C] text-[#F4F1EA]/80 border-[#D9B978]/20 hover:text-[#F4F1EA] hover:border-[#D9B978]/40"
               >
                 <Edit3 size={14} />
                 <span>{t.editPrevious}</span>
@@ -813,66 +857,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         )}
 
         {/* SCREEN 1: EVENT SELECTION GRID ("ماذا حدث؟") */}
-        {!selectedEvent && (
+        {!selectedEvent && navStep === 'what_happened' && (
           <div className="p-4 sm:p-6 space-y-4 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar">
-            {isEditingExisting && (
-              <div className="p-3.5 bg-[#11161C] rounded-2xl border border-[#D9B978]/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Edit3 size={15} className="text-[#D9B978]" />
-                    <span className="text-xs font-bold text-[#D9B978]">{t.editPreviousRegistered}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingExisting(false)}
-                    className="text-[11px] text-[#F4F1EA]/70 hover:text-[#F4F1EA] px-2 py-0.5 rounded-lg bg-[#0A0D10] border border-[#D9B978]/20"
-                  >
-                    {t.cancelEdit}
-                  </button>
-                </div>
-
-                {transactions.length === 0 ? (
-                  <p className="text-xs text-[#F4F1EA]/50 py-2 text-center">{t.noTransactionsToEdit}</p>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-[#F4F1EA]/70 block">{t.selectTxFromLog}</label>
-                    <select
-                      value={selectedTxForEdit}
-                      onChange={(e) => handleSelectTxForEdit(e.target.value)}
-                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] focus:outline-none focus:border-[#D9B978] font-bold"
-                    >
-                      {transactions.slice(0, 40).map(tr => {
-                        const cat = categories.find(c => c.id === tr.categoryId);
-                        const typeLabel = tr.type === 'expense' ? t.expenses : tr.type === 'income' ? t.income : tr.type === 'transfer' ? t.transfer : t.adjustment;
-                        const trCurrLoc = getLocalizedCurrency(tr.currency || 'SAR', undefined, undefined, language);
-                        return (
-                          <option key={tr.id} value={tr.id} className="bg-[#0A0D10] text-[#F4F1EA]">
-                            {tr.date} | {typeLabel} ({cat?.name || t.generalSettings}): {tr.amount.toLocaleString()} {trCurrLoc.symbol} ({trCurrLoc.code}) {tr.note ? `- ${tr.note}` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-
-                    {selectedTxForEdit && (
-                      <div className="pt-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const tx = transactions.find(item => item.id === selectedTxForEdit);
-                            if (tx) handleSelectTxForEdit(tx.id);
-                          }}
-                          className="px-3.5 py-1.5 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md"
-                        >
-                          <span>{t.openEditForm}</span>
-                          <ChevronRight size={14} className="rotate-180" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               {/* 1. EXPENSE */}
               <button
@@ -983,16 +969,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setIsEditingExisting(true);
-                  if (transactions.length > 0) {
-                    handleSelectTxForEdit(selectedTxForEdit || transactions[0].id);
+                  setCameFromPreviousEditList(true);
+                  if (transactions.length === 0) {
+                    setNavStep('previous_transactions_list');
+                  } else {
+                    handleSelectTxForEdit(transactions[0].id);
+                    setNavStep('edit_transaction');
                   }
                 }}
-                className={`p-4 rounded-2xl border transition-all text-start group flex flex-col justify-between min-h-[95px] relative overflow-hidden shadow-md ${
-                  isEditingExisting
-                    ? 'bg-[#D9B978]/20 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#11161C] border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10'
-                }`}
+                className="p-4 rounded-2xl border transition-all text-start group flex flex-col justify-between min-h-[95px] relative overflow-hidden shadow-md bg-[#11161C] border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10"
               >
                 <div className="flex items-center justify-between w-full">
                   <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#D9B978] transition-colors">{t.editPrevious}</span>
@@ -1003,6 +988,90 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.editPreviousRegistered}</p>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* SCREEN 1.5: PREVIOUS TRANSACTIONS LIST */}
+        {!selectedEvent && navStep === 'previous_transactions_list' && (
+          <div ref={listScrollRef} className="p-4 sm:p-6 space-y-3 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <span className="text-xs font-bold text-[#D9B978]">
+                {language === 'ar' ? 'اختر معاملة للتعديل من السجل' : 'Select a transaction to edit'}
+              </span>
+              <span className="text-[11px] font-mono text-[#F4F1EA]/50">
+                {transactions.length} {language === 'ar' ? 'معاملة' : 'transactions'}
+              </span>
+            </div>
+
+            {transactions.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-[#11161C] border border-white/10 flex items-center justify-center text-[#F4F1EA]/40">
+                  <Edit3 size={24} />
+                </div>
+                <p className="text-xs font-bold text-[#F4F1EA]/70">
+                  {language === 'ar' ? 'لا توجد معاملات سابقة للتعديل' : 'No previous transactions to edit'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setNavStep('what_happened')}
+                  className="px-4 py-2 rounded-xl bg-[#D9B978] text-[#0A0D10] font-black text-xs"
+                >
+                  {language === 'ar' ? 'العودة' : 'Back'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {transactions.map(tr => {
+                  const cat = categories.find(c => c.id === tr.categoryId);
+                  const typeLabel = tr.type === 'expense' ? t.expenses : tr.type === 'income' ? t.income : tr.type === 'transfer' ? t.transfer : t.adjustment;
+                  const trCurrLoc = getLocalizedCurrency(tr.currency || 'SAR', undefined, undefined, language);
+                  return (
+                    <button
+                      key={tr.id}
+                      type="button"
+                      onClick={() => handleSelectTransactionItem(tr.id)}
+                      className="w-full text-start p-3.5 rounded-2xl bg-[#11161C] hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978]/40 transition-all flex items-center justify-between gap-3 group active:scale-98 shadow-sm"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                          tr.type === 'expense' ? 'bg-[#C98387]/15 text-[#C98387] border-[#C98387]/30' :
+                          tr.type === 'income' ? 'bg-[#8EB9A7]/15 text-[#8EB9A7] border-[#8EB9A7]/30' :
+                          'bg-[#D9B978]/15 text-[#D9B978] border-[#D9B978]/30'
+                        }`}>
+                          {tr.type === 'expense' ? <ArrowDownLeft size={16} /> :
+                           tr.type === 'income' ? <ArrowUpRight size={16} /> :
+                           <ArrowLeftRight size={16} />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-[#F4F1EA] truncate">
+                              {cat?.name || typeLabel}
+                            </span>
+                            <span className="text-[10px] font-mono text-[#F4F1EA]/50">
+                              {tr.date} {tr.time ? `• ${tr.time}` : ''}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#F4F1EA]/60 truncate mt-0.5">
+                            {tr.note || typeLabel}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-end shrink-0">
+                        <span className={`text-xs font-mono font-black ${
+                          tr.type === 'income' ? 'text-[#8EB9A7]' : 'text-[#F4F1EA]'
+                        }`}>
+                          {tr.type === 'income' ? '+' : tr.type === 'expense' ? '-' : ''}{tr.amount.toLocaleString()} {trCurrLoc.symbol}
+                        </span>
+                        <div className="flex items-center justify-end gap-1 text-[10px] text-[#D9B978] mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span>{language === 'ar' ? 'تعديل' : 'Edit'}</span>
+                          <ChevronRight size={12} className={language === 'ar' ? 'rotate-180' : ''} />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

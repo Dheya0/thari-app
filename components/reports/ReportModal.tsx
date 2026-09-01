@@ -154,6 +154,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     endDate,
   ]);
 
+  const [isProcessing, setIsProcessing] = useState(false);
   const isProcessingRef = useRef(false);
 
   // Print / PDF handler
@@ -164,6 +165,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
+    setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'print');
       if (onTriggerPrint) {
@@ -173,6 +175,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       console.warn('Print handler error:', e);
     } finally {
       isProcessingRef.current = false;
+      setIsProcessing(false);
     }
   };
 
@@ -184,12 +187,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
+    setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'share');
     } catch (e) {
       console.warn('Share handler error:', e);
     } finally {
       isProcessingRef.current = false;
+      setIsProcessing(false);
     }
   };
 
@@ -201,12 +206,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
+    setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'excel');
     } catch (e) {
       console.warn('Excel export error:', e);
     } finally {
       isProcessingRef.current = false;
+      setIsProcessing(false);
     }
   };
 
@@ -542,28 +549,31 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           <button
             type="button"
             onClick={handlePrint}
-            className="py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all"
+            disabled={isProcessing}
+            className={`py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <Printer size={16} />
-            <span>طباعة / PDF</span>
+            <Printer size={16} className={isProcessing ? 'animate-spin' : ''} />
+            <span>{isProcessing ? 'جاري المعالجة...' : 'طباعة / PDF'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleShareReport}
-            className="py-3.5 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-98 transition-all"
+            disabled={isProcessing}
+            className={`py-3.5 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <FileText size={16} />
-            <span>مشاركة التقرير</span>
+            <FileText size={16} className={isProcessing ? 'animate-spin' : ''} />
+            <span>{isProcessing ? 'جاري التصدير...' : 'مشاركة التقرير'}</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportExcel}
-            className="py-3.5 px-3 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all"
+            disabled={isProcessing}
+            className={`py-3.5 px-3 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <FileSpreadsheet size={16} className="text-[#8EB9A7]" />
-            <span>تصدير Excel</span>
+            <FileSpreadsheet size={16} className={`text-[#8EB9A7] ${isProcessing ? 'animate-spin' : ''}`} />
+            <span>{isProcessing ? 'جاري التصدير...' : 'تصدير Excel'}</span>
           </button>
         </div>
       </motion.div>

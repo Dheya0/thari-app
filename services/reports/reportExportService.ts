@@ -728,6 +728,14 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       border-collapse: collapse;
       margin-bottom: 12px;
       font-size: 9.5px;
+      page-break-inside: auto;
+    }
+    thead {
+      display: table-header-group;
+    }
+    tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     th {
       background-color: #0f172a;
