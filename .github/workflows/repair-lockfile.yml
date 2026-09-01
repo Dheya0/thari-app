@@ -1,0 +1,52 @@
+name: Repair npm lockfile
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/repair-lockfile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[lock-repair]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Regenerate package-lock.json
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --include=optional --ignore-scripts --no-audit --no-fund
+
+      - name: Verify clean npm ci
+        run: |
+          set -euo pipefail
+          rm -rf node_modules
+          npm ci --include=optional --ignore-scripts --no-audit --no-fund
+
+      - name: Commit regenerated lockfile
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then
+            echo 'package-lock.json is already consistent.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json
+          git commit -m 'build: repair npm lockfile [lock-repair]'
+          git push
