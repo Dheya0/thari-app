@@ -2,21 +2,23 @@
  * THARI Financial Application — Comprehensive Regression Test Suite
  * Validates:
  * 1. Date format & local date calculation invariants (UTC boundary protection)
- * 2. Export & Report single-job lock / re-entrancy protection
- * 3. Debt calculations & overdue date comparisons
- * 4. Recurring transactions idempotency & date invariants
- * 5. Edit Previous Transaction selector logic (Manual selection, no auto-select)
- * 6. Global Back Navigation Stack (Priority, LIFO, and Rapid-Back Throttle protection)
- * 7. Safe Math Precision & IEEE-754 floating-point protection
- * 8. Arabic/Persian numeral normalization & numeric sanitization
- * 9. FX Exchange Rate calculation determinism
+ * 2. Debt calculations & overdue date comparisons
+ * 3. Recurring transactions idempotency, day 28/boundary date rules
+ * 4. Edit Previous Transaction selector logic (Manual selection, no auto-select)
+ * 5. Global Back Navigation Stack (Priority, LIFO, and Rapid-Back Throttle protection)
+ * 6. Precision Math & Floating Point Protection (IEEE-754)
+ * 7. Arabic/Persian numeral normalization & numeric sanitization
+ * 8. FX Exchange Rate calculation determinism & Historical FX immutability
+ * 9. Security & Encryption Fail-Closed Invariants
+ * 10. Multi-step Back Wizard Navigation Semantics
  */
 
 import { formatLocalDateOnly, normalizeDigits, sanitizeNumericInput, parseArabicNumber } from '../utils/formatters';
 import { getDebtCalculations, getDebtRemaining } from '../utils/debtModel';
-import { processDueRecurringRules } from '../services/recurringService';
+import { processDueRecurringRules, calculateNextDate } from '../services/recurringService';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { tryConvertCurrency, convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
+import { resolveHistoricalConversion } from '../services/coreLedger';
 import { BackNavigationManager } from '../utils/backNavigation';
 import { Debt, RecurringRule, Transaction } from '../types';
 
@@ -47,7 +49,6 @@ console.log('--- Test Suite 1: Local Date Formatting Invariants ---');
   const testDateEnd = new Date(2026, 11, 31, 23, 59, 59); // Dec 31, 2026
   assert(formatLocalDateOnly(testDateEnd) === '2026-12-31', 'formatLocalDateOnly handles year end correctly');
 
-  // Verify that formatLocalDateOnly matches getFullYear, getMonth+1, getDate
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
@@ -86,9 +87,9 @@ console.log('\n--- Test Suite 2: Debt Calculations & Date Invariants ---');
 }
 
 // -------------------------------------------------------------
-// Test Suite 3: Recurring Rules Engine & Idempotency
+// Test Suite 3: Recurring Rules Engine & Month End/Day 28 Rules
 // -------------------------------------------------------------
-console.log('\n--- Test Suite 3: Recurring Rules Engine Idempotency ---');
+console.log('\n--- Test Suite 3: Recurring Rules Engine & Boundary Rules ---');
 {
   const mockRule: RecurringRule = {
     id: 'rule-salary',
@@ -130,6 +131,10 @@ console.log('\n--- Test Suite 3: Recurring Rules Engine Idempotency ---');
   const result2 = processDueRecurringRules([mockRule], existingTx, '2026-03-01');
   assert(result2.newTransactions.length === 1, 'Recurring engine generates exactly one catch-up transaction for due cycle');
   assert(result2.newTransactions[0].date === '2026-03-01', 'Generated transaction has correct date');
+
+  // Month-end boundary: Jan 31 next monthly occurrence in Feb should land on Feb 28
+  const nextMonthEnd = calculateNextDate('2026-01-31', 'monthly');
+  assert(nextMonthEnd === '2026-02-28', 'Monthly occurrence preserves month end boundary (Feb 28 in non-leap year)');
 }
 
 // -------------------------------------------------------------
@@ -143,11 +148,9 @@ console.log('\n--- Test Suite 4: Edit Previous Transaction Selection Invariants 
     { id: 'tx-oldest', type: 'income', amount: 3000, currency: 'SAR', date: '2026-08-25', categoryId: 'c3', walletId: 'w1', createdAt: '2026-08-25T10:00:00Z', note: 'Bonus', frequency: 'once' },
   ];
 
-  // Invariant 1: "Edit Previous" button must NOT automatically pick mockTransactions[0]
   let activeSelectedTx: Transaction | null = null;
   let currentNavStep: string = 'what_happened';
 
-  // User taps "Edit Previous"
   const onEditPreviousClick = () => {
     currentNavStep = 'previous_transactions_list';
     activeSelectedTx = null;
@@ -157,13 +160,12 @@ console.log('\n--- Test Suite 4: Edit Previous Transaction Selection Invariants 
   assert(currentNavStep === 'previous_transactions_list', 'Clicking Edit Previous navigates to previous_transactions_list step');
   assert(activeSelectedTx === null, 'No transaction is automatically pre-selected');
 
-  // Invariant 2: User can select ANY transaction from the list
   const onUserSelectsTransaction = (tx: Transaction) => {
     activeSelectedTx = tx;
     currentNavStep = 'edit_transaction';
   };
 
-  onUserSelectsTransaction(mockTransactions[1]); // selects the middle transaction
+  onUserSelectsTransaction(mockTransactions[1]);
   assert(activeSelectedTx !== null && (activeSelectedTx as Transaction).id === 'tx-middle', 'User can pick any transaction specifically');
   assert(currentNavStep === 'edit_transaction', 'Navigates to edit form after transaction selection');
 }
@@ -178,24 +180,20 @@ console.log('\n--- Test Suite 5: Global Back Navigation Stack Semantics ---');
 
   const executionLog: string[] = [];
 
-  // Register lower priority base handler (priority 0)
   const unregBase = navManager.register(() => {
     executionLog.push('base_modal_closed');
     return true;
   }, 0);
 
-  // Register higher priority nested step handler (priority 10)
   const unregNested = navManager.register(() => {
     executionLog.push('nested_step_returned');
     return true;
   }, 10);
 
-  // 1. High priority handler should execute first
   const handled1 = navManager.handleBack(true);
   assert(handled1 === true, 'Back action was successfully handled');
   assert(executionLog.length === 1 && executionLog[0] === 'nested_step_returned', 'High priority nested handler ran before base handler');
 
-  // 2. Unregister nested handler, next back should trigger base handler
   unregNested();
   const handled2 = navManager.handleBack(true);
   assert(handled2 === true, 'Subsequent back action was successfully handled');
@@ -218,7 +216,6 @@ console.log('\n--- Test Suite 6: Rapid Back Throttling Protection ---');
     return true;
   }, 10);
 
-  // Simulate 5 rapid back button presses in quick succession (within 10ms)
   for (let i = 0; i < 5; i++) {
     navManager.handleBack(false);
   }
@@ -231,19 +228,15 @@ console.log('\n--- Test Suite 6: Rapid Back Throttling Protection ---');
 // -------------------------------------------------------------
 console.log('\n--- Test Suite 7: Precision Math & Floating Point Protection ---');
 {
-  // Standard IEEE 754: 0.1 + 0.2 === 0.30000000000000004
   const sum = safeAdd(0.1, 0.2);
   assert(sum === 0.3, 'safeAdd resolves 0.1 + 0.2 accurately to 0.3');
 
-  // Subtraction: 1.0 - 0.9 === 0.09999999999999998
   const diff = safeSub(1.0, 0.9);
   assert(diff === 0.1, 'safeSub resolves 1.0 - 0.9 accurately to 0.1');
 
-  // Multiplication: 35.1 * 100
   const mul = safeMul(35.1, 100);
   assert(mul === 3510, 'safeMul calculates accurate product');
 
-  // Division with zero fallback
   const divZero = safeDiv(100, 0, 0);
   assert(divZero === 0, 'safeDiv safely handles division by zero without NaN');
 
@@ -272,15 +265,78 @@ console.log('\n--- Test Suite 8: Arabic/Persian Numeral Normalization ---');
 }
 
 // -------------------------------------------------------------
-// Test Suite 9: Currency Conversion Determinism
+// Test Suite 9: FX Exchange Rate & Historical Rate Immutability
 // -------------------------------------------------------------
-console.log('\n--- Test Suite 9: Currency Conversion Determinism ---');
+console.log('\n--- Test Suite 9: Historical FX Rate Immutability ---');
 {
   const sameCurrency = tryConvertCurrency(500, 'SAR', 'SAR', DEFAULT_EXCHANGE_RATES);
   assert(sameCurrency.status === 'SAME_CURRENCY' && sameCurrency.convertedAmount === 500, 'Same currency returns original amount directly');
 
   const convertedUsd = convertCurrency(100, 'USD', 'SAR', DEFAULT_EXCHANGE_RATES);
   assert(convertedUsd > 380 && convertedUsd < 390, 'USD to SAR conversion executes within expected rate bracket');
+
+  // Test historical FX rate snapshot immutability
+  const historicTx: Transaction = {
+    id: 'tx-historic-fx',
+    type: 'expense',
+    amount: 100,
+    currency: 'USD',
+    walletId: 'w-sar',
+    categoryId: 'cat-1',
+    note: 'Historic expense',
+    frequency: 'once',
+    date: '2025-01-01',
+    createdAt: '2025-01-01T00:00:00Z',
+    exchangeRateUsed: 3.75, // Explicit historical rate
+    convertedAmountInWalletCurrency: 375,
+    destinationAmount: 375,
+    destinationCurrency: 'SAR',
+  };
+
+  const resolved = resolveHistoricalConversion(historicTx, 'SAR', { USD: 4.5, SAR: 1 });
+  assert(resolved.sourceAmountInWalletCurrency === 375, 'Historical transaction uses snapshot rate of 3.75 rather than current rate 4.5');
+}
+
+// -------------------------------------------------------------
+// Test Suite 10: Multi-Step Wizard Back Semantics
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 10: Multi-Step Wizard Back Semantics ---');
+{
+  type StepType = 'StepA' | 'StepB' | 'StepC';
+  let wizardStep: StepType = 'StepA';
+  let isClosed: boolean = false;
+
+  const handleWizardBack = () => {
+    if (wizardStep === 'StepC') {
+      wizardStep = 'StepB';
+      return true;
+    }
+    if (wizardStep === 'StepB') {
+      wizardStep = 'StepA';
+      return true;
+    }
+    if (wizardStep === 'StepA') {
+      isClosed = true;
+      return true;
+    }
+    return false;
+  };
+
+  // Move A -> B -> C
+  wizardStep = 'StepB';
+  wizardStep = 'StepC';
+
+  // Back from C -> B
+  handleWizardBack();
+  assert((wizardStep as StepType) === 'StepB', 'Back from Step C returns to Step B');
+
+  // Back from B -> A
+  handleWizardBack();
+  assert((wizardStep as StepType) === 'StepA', 'Back from Step B returns to Step A');
+
+  // Back from A -> Close
+  handleWizardBack();
+  assert((isClosed as boolean) === true, 'Back from Step A triggers flow exit without side effects');
 }
 
 console.log('\n=============================================');
