@@ -4,6 +4,7 @@ import { Transaction, Category, Wallet, Currency } from '../types';
 import { convertCurrency, DEFAULT_CURRENCIES } from '../constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { formatLocalDateOnly } from '../utils/formatters';
 
 interface AnalyticsProps {
   transactions: Transaction[];
@@ -177,7 +178,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
       filterCurrency: currencyCode
     });
 
-    const fileName = `Thari_Executive_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = `Thari_Executive_Report_${formatLocalDateOnly(new Date())}.csv`;
     exportAndShareExecutiveCSV(csvContent, fileName);
   };
 

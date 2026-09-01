@@ -44,12 +44,13 @@ workflows:
       - name: Install Node dependencies
         script: |
           set -e
-          npm ci --prefer-offline || npm install
+          npm ci
 
-      - name: Code quality linting and TypeScript validation
+      - name: Code quality linting, regression tests, and TypeScript validation
         script: |
           set -e
           npm run lint
+          npm test
 
       - name: Generate High-Resolution Platform Assets & Bundle Web Assets
         script: |
@@ -188,12 +189,13 @@ workflows:
       - name: Install Node dependencies
         script: |
           set -e
-          npm ci --prefer-offline || npm install
+          npm ci
 
-      - name: Code quality linting and TypeScript validation
+      - name: Code quality linting, regression tests, and TypeScript validation
         script: |
           set -e
           npm run lint
+          npm test
 
       - name: Generate Assets and Build Web Assets for Capacitor
         script: |
@@ -276,8 +278,9 @@ workflows:
               --scheme "$XCODE_SCHEME" \
               --export-options-plist /Users/builder/export_options.plist
           else
-            echo "⚠️ Skipping IPA signing because code signing credentials are not configured in Codemagic."
-            echo "To build signed IPAs for TestFlight / App Store, please configure your App Store Connect API key and iOS signing certificates in Codemagic."
+            echo "ERROR: Code signing credentials (APP_STORE_CONNECT_KEY_IDENTIFIER or CERTIFICATE_PRIVATE_KEY) are missing in ios-workflow."
+            echo "For unsigned builds, use the dedicated 'ios-unsigned-workflow' instead."
+            exit 1
           fi
     artifacts:
       - "build/ios/ipa/*.ipa"
@@ -307,7 +310,7 @@ workflows:
       - name: Install Node dependencies
         script: |
           set -e
-          npm ci --prefer-offline || npm install
+          npm ci
 
       - name: Generate Assets and Build Web Assets for Capacitor
         script: |

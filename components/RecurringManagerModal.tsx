@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Repeat, Play, Pause, Trash2, Plus, Calendar, 
-  ArrowUpRight, ArrowDownLeft, ArrowLeftRight, Clock
+  ArrowUpRight, ArrowDownLeft, ArrowLeftRight, Clock, ArrowRight
 } from 'lucide-react';
 import { RecurringRule, Wallet, Category, Currency } from '../types';
+import { formatLocalDateOnly } from '../utils/formatters';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface RecurringManagerModalProps {
   isOpen: boolean;
@@ -117,12 +119,21 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
   const [destinationWalletId, setDestinationWalletId] = useState(wallets[1]?.id || '');
   const [categoryId, setCategoryId] = useState(categories[0]?.id || '');
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(formatLocalDateOnly(new Date()));
 
   if (!isOpen) return null;
 
   const isRTL = language === 'ar';
   const t = STRINGS[language] || STRINGS.ar;
+
+  useBackNavigation(() => {
+    if (isAdding) {
+      setIsAdding(false);
+      return true;
+    }
+    onClose();
+    return true;
+  }, isOpen, 15);
 
   const handleSubmitNew = (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,17 +176,35 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
           <div className="flex items-center gap-3">
+            {isAdding && (
+              <button
+                type="button"
+                onClick={() => setIsAdding(false)}
+                className="p-2.5 rounded-2xl bg-slate-800 text-amber-400 hover:bg-slate-700 active:scale-90 transition-all border border-amber-500/20 flex items-center justify-center"
+                aria-label={language === 'ar' ? 'الرجوع للقائمة' : 'Back to list'}
+                title={language === 'ar' ? 'الرجوع للقائمة' : 'Back to list'}
+              >
+                {isRTL ? <ArrowRight size={18} /> : <ArrowUpRight size={18} className="rotate-180" />}
+              </button>
+            )}
             <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Repeat size={22} />
             </div>
             <div>
-              <h2 className="text-lg font-black text-white">{t.title}</h2>
-              <p className="text-xs text-slate-400">{t.subtitle}</p>
+              <h2 className="text-lg font-black text-white">{isAdding ? t.newRuleHeader : t.title}</h2>
+              <p className="text-xs text-slate-400">{isAdding ? (language === 'ar' ? 'اضغط رجوع للعودة إلى قائمة القواعد' : 'Press back to return to rules list') : t.subtitle}</p>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (isAdding) {
+                setIsAdding(false);
+              } else {
+                onClose();
+              }
+            }}
             className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/60 transition-colors"
+            aria-label={t.cancel || 'إغلاق'}
           >
             <X size={20} />
           </button>

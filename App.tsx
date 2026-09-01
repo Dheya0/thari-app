@@ -5,6 +5,7 @@ import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, Ha
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
+import { formatLocalDateOnly } from './utils/formatters';
 import { generateFinancialReportSync } from './services/reports/reportService';
 import { printOrShareFinancialReport } from './services/reports/reportExportService';
 import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave } from './utils/secureStorage';
@@ -20,6 +21,7 @@ import { Filesystem } from '@capacitor/filesystem';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { migrateStateReceipts, deleteReceiptFile } from './services/receiptStorage';
 import { appLifecycleService } from './services/appLifecycleService';
+import { backNavigationManager, useBackNavigation } from './utils/backNavigation';
 import BalanceCard from './components/BalanceCard';
 import ElegantDashboard from './components/ElegantDashboard';
 import TransactionForm from './components/TransactionForm';
@@ -402,6 +404,59 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Register top-level modals in centralized back navigation stack with priority 5
+  useBackNavigation(() => {
+    if (showPrivacyPolicy) {
+      setShowPrivacyPolicy(false);
+      return true;
+    }
+    if (showDiagnosticsModal) {
+      setShowDiagnosticsModal(false);
+      return true;
+    }
+    if (showTrashModal) {
+      setShowTrashModal(false);
+      return true;
+    }
+    if (showToolsHub) {
+      setShowToolsHub(false);
+      return true;
+    }
+    if (showCurrencySelector) {
+      setShowCurrencySelector(false);
+      return true;
+    }
+    if (showWalletSelector) {
+      setShowWalletSelector(false);
+      return true;
+    }
+    if (showReportModal) {
+      setShowReportModal(false);
+      return true;
+    }
+    if (showRecurringModal) {
+      setShowRecurringModal(false);
+      return true;
+    }
+    if (showAddForm) {
+      setShowAddForm(false);
+      setEditingTransaction(null);
+      setFormDefaultType(undefined);
+      return true;
+    }
+    return false;
+  }, Boolean(
+    showPrivacyPolicy ||
+    showDiagnosticsModal ||
+    showTrashModal ||
+    showToolsHub ||
+    showCurrencySelector ||
+    showWalletSelector ||
+    showReportModal ||
+    showRecurringModal ||
+    showAddForm
+  ), 5);
+
   useEffect(() => {
     let backButtonListener: any = null;
     if (isNativeCapacitorEnvironment()) {
@@ -418,38 +473,20 @@ const App: React.FC = () => {
           return;
         }
 
-        // 2. If TransactionForm open -> close/back from TransactionForm
-        if (showAddForm) {
-          setShowAddForm(false);
-          setEditingTransaction(null);
-          setFormDefaultType(undefined);
+        // 2. Delegate to prioritized Back Navigation Manager
+        const wasHandled = backNavigationManager.handleBack();
+        if (wasHandled) {
+          return;
         }
-        // 3. If any other modal open -> close topmost modal only
-        else if (showReportModal) {
-          setShowReportModal(false);
-        } else if (showTrashModal) {
-          setShowTrashModal(false);
-        } else if (showRecurringModal) {
-          setShowRecurringModal(false);
-        } else if (showDiagnosticsModal) {
-          setShowDiagnosticsModal(false);
-        } else if (showToolsHub) {
-          setShowToolsHub(false);
-        } else if (showCurrencySelector) {
-          setShowCurrencySelector(false);
-        } else if (showWalletSelector) {
-          setShowWalletSelector(false);
-        } else if (showPrivacyPolicy) {
-          setShowPrivacyPolicy(false);
-        }
-        // 4. If user inside non-Dashboard tab -> return to Dashboard
-        else if (activeTab !== 'dashboard') {
+
+        // 3. If user inside non-Dashboard tab -> return to Dashboard
+        if (activeTab !== 'dashboard') {
           setActiveTab('dashboard');
+          return;
         }
-        // 5. If Dashboard & no overlay -> allow app exit
-        else {
-          CapApp.exitApp();
-        }
+
+        // 4. If Dashboard & no overlay -> allow app exit
+        CapApp.exitApp();
       }).then(l => { backButtonListener = l; });
     }
     return () => {
@@ -457,18 +494,7 @@ const App: React.FC = () => {
         backButtonListener.remove();
       }
     };
-  }, [
-    showAddForm,
-    showReportModal,
-    showTrashModal,
-    showRecurringModal,
-    showDiagnosticsModal,
-    showToolsHub,
-    showCurrencySelector,
-    showWalletSelector,
-    showPrivacyPolicy,
-    activeTab,
-  ]);
+  }, [activeTab]);
 
   const stateRef = useRef(state);
   useEffect(() => {
@@ -625,13 +651,13 @@ const App: React.FC = () => {
           list = list.filter(t => t.walletId === selectedWalletId || t.destinationWalletId === selectedWalletId);
       }
       if (timePeriodFilter !== 'all') {
-          const todayStr = new Date().toISOString().split('T')[0];
+          const todayStr = formatLocalDateOnly(new Date());
           if (timePeriodFilter === 'today') {
               list = list.filter(t => t.date === todayStr);
           } else if (timePeriodFilter === 'week') {
               const sevenDaysAgo = new Date();
               sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-              const limitStr = sevenDaysAgo.toISOString().split('T')[0];
+              const limitStr = formatLocalDateOnly(sevenDaysAgo);
               list = list.filter(t => t.date >= limitStr);
           } else if (timePeriodFilter === 'month') {
               const monthStr = todayStr.substring(0, 7);
@@ -737,6 +763,8 @@ const App: React.FC = () => {
       }
   };
 
+  const isExportingInAppRef = useRef(false);
+
   const handlePrint = async (
     type: 'summary' | 'detailed',
     walletId?: string | null,
@@ -744,6 +772,9 @@ const App: React.FC = () => {
     startDate?: string | null,
     endDate?: string | null
   ) => {
+    if (isExportingInAppRef.current) return;
+    isExportingInAppRef.current = true;
+
     const targetWalletId = walletId !== undefined ? walletId : selectedWalletId;
     setPrintType(type);
     setPrintWalletFilter(targetWalletId);
@@ -779,6 +810,8 @@ const App: React.FC = () => {
       setTimeout(() => {
         window.print();
       }, 500);
+    } finally {
+      isExportingInAppRef.current = false;
     }
   };
 
@@ -789,6 +822,9 @@ const App: React.FC = () => {
     startDate?: string | null,
     endDate?: string | null
   ) => {
+    if (isExportingInAppRef.current) return;
+    isExportingInAppRef.current = true;
+
     const targetWalletId = walletId !== undefined ? walletId : selectedWalletId;
     setPrintType(type);
     setPrintWalletFilter(targetWalletId);
@@ -821,6 +857,8 @@ const App: React.FC = () => {
     } catch (e) {
       console.warn('Share error:', e);
       setShowReportModal(true);
+    } finally {
+      isExportingInAppRef.current = false;
     }
   };
 
@@ -830,6 +868,9 @@ const App: React.FC = () => {
     startDate?: string | null,
     endDate?: string | null
   ) => {
+    if (isExportingInAppRef.current) return;
+    isExportingInAppRef.current = true;
+
     try {
       const model = generateFinancialReportSync({
         transactions: state.transactions,
@@ -867,8 +908,10 @@ const App: React.FC = () => {
         startDate: startDate || null,
         endDate: endDate || null,
       });
-      const fileName = `Thari_Executive_Report_${type}_${new Date().toISOString().split('T')[0]}.csv`;
+      const fileName = `Thari_Executive_Report_${type}_${formatLocalDateOnly(new Date())}.csv`;
       exportAndShareExecutiveCSV(csvContent, fileName);
+    } finally {
+      isExportingInAppRef.current = false;
     }
   };
 
@@ -1071,7 +1114,7 @@ const App: React.FC = () => {
     if (!debt || amount <= 0) return;
     
     const targetWallet = walletId ? state.wallets.find(w => w.id === walletId) : undefined;
-    const dateToUse = paymentDate || new Date().toISOString().split('T')[0];
+    const dateToUse = paymentDate || formatLocalDateOnly(new Date());
     const paymentId = 'pay-' + Date.now();
     const transactionId = 'tx-' + Date.now();
 

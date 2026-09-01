@@ -19,10 +19,11 @@ import {
 } from '../types';
 import { getIcon, DEFAULT_CURRENCIES, convertCurrency, tryConvertCurrency } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
-import { getCurrencySymbol, parseArabicNumber, sanitizeNumericInput } from '../utils/formatters';
+import { getCurrencySymbol, parseArabicNumber, sanitizeNumericInput, formatLocalDateOnly } from '../utils/formatters';
 import { safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { NativeKeyboard, NativeHaptics } from '../services/nativeServices';
 import { saveReceiptToStorage, loadReceiptDataUrl } from '../services/receiptStorage';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface TransactionFormProps {
   categories: Category[];
@@ -120,7 +121,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     initialData?.destinationAmount ? initialData.destinationAmount.toString() : ''
   );
   const [note, setNote] = useState(initialData?.note || '');
-  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(initialData?.date || formatLocalDateOnly(new Date()));
   const [time, setTime] = useState(initialData?.time || new Date().toTimeString().slice(0, 5));
   const [receipt, setReceipt] = useState<ReceiptAttachment | undefined>(initialData?.receipt);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
@@ -360,6 +361,43 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     setCameFromPreviousEditList(true);
     setNavStep('edit_transaction');
   };
+
+  const handleStepBack = (): boolean => {
+    if (showDeleteConfirm) {
+      setShowDeleteConfirm(false);
+      return true;
+    }
+    if (navStep === 'edit_transaction') {
+      if (listScrollRef.current) {
+        setSavedScrollTop(listScrollRef.current.scrollTop);
+      }
+      if (cameFromPreviousEditList) {
+        setSelectedEvent(null);
+        setSelectedTxForEdit('');
+        setNavStep('previous_transactions_list');
+      } else {
+        setSelectedEvent(null);
+        setNavStep('what_happened');
+      }
+      setErrorMessage('');
+      dismissKeyboard();
+      return true;
+    }
+    if (navStep === 'previous_transactions_list') {
+      setNavStep('what_happened');
+      setErrorMessage('');
+      dismissKeyboard();
+      return true;
+    }
+    if (navStep === 'what_happened' || initialData) {
+      onClose();
+      return true;
+    }
+    return false;
+  };
+
+  // Register in centralized back navigation stack with high priority (20)
+  useBackNavigation(handleStepBack, true, 20);
   
   const selectedSourceWallet = wallets.find(w => w.id === walletId) || wallets[0];
   const selectedDestWallet = wallets.find(w => w.id === destinationWalletId) || (wallets.length > 1 ? wallets[1] : undefined);
@@ -762,26 +800,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             {((selectedEvent && !initialData) || (!initialData && navStep === 'previous_transactions_list')) && (
               <button 
                 type="button"
-                onClick={() => {
-                  if (navStep === 'edit_transaction') {
-                    if (listScrollRef.current) {
-                      setSavedScrollTop(listScrollRef.current.scrollTop);
-                    }
-                    if (cameFromPreviousEditList) {
-                      setSelectedEvent(null);
-                      setSelectedTxForEdit('');
-                      setNavStep('previous_transactions_list');
-                    } else {
-                      setSelectedEvent(null);
-                      setNavStep('what_happened');
-                    }
-                  } else if (navStep === 'previous_transactions_list') {
-                    setNavStep('what_happened');
-                  }
-                  setErrorMessage('');
-                  dismissKeyboard();
-                }}
+                onClick={handleStepBack}
                 className="w-11 h-11 rounded-xl bg-[#11161C] hover:bg-[#D9B978]/15 text-[#F4F1EA] flex items-center justify-center transition-all duration-200 active:scale-95 border border-[#D9B978]/20"
+                aria-label={language === 'ar' ? 'الرجوع' : 'Back'}
                 title={language === 'ar' ? 'الرجوع' : 'Back'}
               >
                 <ChevronRight size={20} className={language === 'ar' ? '' : 'rotate-180'} />

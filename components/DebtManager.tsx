@@ -53,8 +53,9 @@ import {
   DebtCalculation 
 } from '../utils/debtModel';
 import { getTranslation, getLocalizedCurrency, LanguageKey } from '../utils/translations';
-import { parseArabicNumber } from '../utils/formatters';
+import { parseArabicNumber, formatLocalDateOnly } from '../utils/formatters';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface DebtManagerProps {
   debts: Debt[];
@@ -135,6 +136,46 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   const [reminderRecipientPhone, setReminderRecipientPhone] = useState('');
   const [copiedSuccess, setCopiedSuccess] = useState(false);
 
+  const handleDebtBack = (): boolean => {
+    if (reminderModalData) {
+      setReminderModalData(null);
+      return true;
+    }
+    if (historyModalDebt) {
+      setHistoryModalDebt(null);
+      return true;
+    }
+    if (paymentModalData) {
+      setPaymentModalData(null);
+      return true;
+    }
+    if (showAddForm) {
+      setShowAddForm(false);
+      setEditingDebt(null);
+      return true;
+    }
+    if (expandedPersonName) {
+      setExpandedPersonName(null);
+      return true;
+    }
+    if (expandedDebtId) {
+      setExpandedDebtId(null);
+      return true;
+    }
+    return false;
+  };
+
+  const hasDebtSubViewOpen = Boolean(
+    reminderModalData ||
+    historyModalDebt ||
+    paymentModalData ||
+    showAddForm ||
+    expandedPersonName ||
+    expandedDebtId
+  );
+
+  useBackNavigation(handleDebtBack, hasDebtSubViewOpen, 15);
+
   // Form State (New / Edit Debt)
   const [personName, setPersonName] = useState('');
   const [personPhone, setPersonPhone] = useState('');
@@ -142,7 +183,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'to_me' | 'on_me'>('on_me');
   const [note, setNote] = useState('');
-  const [createdAt, setCreatedAt] = useState(new Date().toISOString().split('T')[0]);
+  const [createdAt, setCreatedAt] = useState(formatLocalDateOnly(new Date()));
   const [dueDate, setDueDate] = useState('');
   
   // Installments in Form
@@ -163,7 +204,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   // Payment Modal Input State
   const [payAmountInput, setPayAmountInput] = useState('');
   const [payWalletId, setPayWalletId] = useState<string>(wallets[0]?.id || '');
-  const [payDateInput, setPayDateInput] = useState(new Date().toISOString().split('T')[0]);
+  const [payDateInput, setPayDateInput] = useState(formatLocalDateOnly(new Date()));
   const [payNoteInput, setPayNoteInput] = useState('');
   const [payExternalOnly, setPayExternalOnly] = useState(false);
   const [payHasAgreedRate, setPayHasAgreedRate] = useState(false);
@@ -410,7 +451,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setAmount('');
     setNote('');
     setDueDate(''); 
-    setCreatedAt(new Date().toISOString().split('T')[0]);
+    setCreatedAt(formatLocalDateOnly(new Date()));
     setIncludeWalletTransaction(true);
     setEnableInstallments(false);
     setInstallmentCount(3);
@@ -430,7 +471,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setAmount((d.originalAmount || d.amount).toString());
     setType(d.type);
     setNote(d.note || '');
-    setCreatedAt(d.createdAt || new Date().toISOString().split('T')[0]);
+    setCreatedAt(d.createdAt || formatLocalDateOnly(new Date()));
     setDueDate(d.dueDate || '');
     setEnableInstallments(!!d.installments && d.installments.length > 0);
     setInstallmentCount(d.installments?.length || 3);
@@ -457,7 +498,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     const amountToPay = prefillAmount !== undefined ? prefillAmount : remaining;
     setPaymentModalData({ debt, prefillAmount: amountToPay, installmentId });
     setPayAmountInput(amountToPay.toString());
-    setPayDateInput(new Date().toISOString().split('T')[0]);
+    setPayDateInput(formatLocalDateOnly(new Date()));
     setPayNoteInput(installmentId ? (isRtl ? 'سداد قسط محدد' : 'Specific installment payment') : (amountToPay >= remaining ? (isRtl ? 'سداد كامل المبلغ المتبقي' : 'Full remaining payment') : (isRtl ? 'دفعة سداد جزئية' : 'Partial payment')));
     setPayExternalOnly(false);
     setPayWalletId(wallets[0]?.id || '');
@@ -493,7 +534,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
         installments.push({
             id: `inst-${Date.now()}-${i}`,
             amount: roundToCurrency(cents / 100),
-            dueDate: date.toISOString().split('T')[0],
+            dueDate: formatLocalDateOnly(date),
             isPaid: false
         });
     }

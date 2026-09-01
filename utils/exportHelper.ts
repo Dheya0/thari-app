@@ -1,6 +1,7 @@
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { generateFinancialReportSync } from '../services/reports/reportService';
 import { buildExcelReportHTML, exportAndShareNativeFile, printOrShareFinancialReport } from '../services/reports/reportExportService';
+import { formatLocalDateOnly } from './formatters';
 
 export const generateAndSharePDF = async (
   transactionsOrElementId: any,
@@ -79,7 +80,7 @@ export const exportAndShareExecutiveCSV = async (
   content: string,
   fileName?: string
 ) => {
-  const actualName = fileName ? fileName.replace(/\.csv$/, '.xls') : `THARI_Report_${new Date().toISOString().split('T')[0]}.xls`;
+  const actualName = fileName ? fileName.replace(/\.csv$/, '.xls') : `THARI_Report_${formatLocalDateOnly(new Date())}.xls`;
   await exportAndShareNativeFile(content, actualName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
 };
 
@@ -106,6 +107,6 @@ export const generateAndShareCSV = async (
   });
 
   const htmlContent = buildExcelReportHTML(model);
-  const fileName = `Thari_Transactions_${new Date().toISOString().split('T')[0]}.xls`;
+  const fileName = `Thari_Transactions_${formatLocalDateOnly(new Date())}.xls`;
   await exportAndShareNativeFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
 };

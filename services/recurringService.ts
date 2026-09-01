@@ -5,6 +5,7 @@
  */
 
 import { RecurringRule, Transaction } from '../types';
+import { formatLocalDateOnly } from '../utils/formatters';
 
 export function parseDateOnly(dateStr: string): { year: number; month: number; day: number } {
   const parts = (dateStr || '').split('-').map(Number);
@@ -98,7 +99,7 @@ export function processDueRecurringRules(
   newTransactions: Transaction[];
   updatedRules: RecurringRule[];
 } {
-  const todayStr = asOfDateStr || new Date().toISOString().split('T')[0];
+  const todayStr = asOfDateStr || formatLocalDateOnly(new Date());
   const newTransactions: Transaction[] = [];
   const updatedRules: RecurringRule[] = [];
 

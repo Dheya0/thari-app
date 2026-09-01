@@ -27,6 +27,7 @@ import {
 import { Wallet, Transaction, Debt, Currency, ZakatProfile, ZakatPaymentRecord } from '../types';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { getTranslation } from '../utils/translations';
+import { formatLocalDateOnly } from '../utils/formatters';
 import { formatFinancialNumber } from './ElegantDashboard';
 import { StatsGrid } from './StatsGrid';
 import { AssetItemRow } from './AssetItemRow';
@@ -193,7 +194,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       investmentFundsValue: 0,
       realEstateTradeValue: 0,
       rentalIncomeValue: 0,
-      hawlStartDate: new Date(Date.now() - 336 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      hawlStartDate: formatLocalDateOnly(new Date(Date.now() - 336 * 24 * 60 * 60 * 1000)),
       hawlDurationDays: 354,
       customDeductions: 0,
       isScopeConfirmed: true,
@@ -269,7 +270,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       investmentFundsValue: 0,
       realEstateTradeValue: 0,
       rentalIncomeValue: 0,
-      hawlStartDate: new Date().toISOString().split('T')[0],
+      hawlStartDate: formatLocalDateOnly(new Date()),
       hawlDurationDays: 354,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -425,7 +426,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       investmentFundsValue: 0,
       realEstateTradeValue: 0,
       rentalIncomeValue: 0,
-      hawlStartDate: new Date().toISOString().split('T')[0],
+      hawlStartDate: formatLocalDateOnly(new Date()),
       hawlDurationDays: 354,
       customDeductions: 0,
       isScopeConfirmed: true,
@@ -449,7 +450,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
 
   const handleStartNewCycle = () => {
     updateActiveProfile({
-      hawlStartDate: new Date().toISOString().split('T')[0],
+      hawlStartDate: formatLocalDateOnly(new Date()),
       lastCalculatedAt: new Date().toISOString()
     });
     setShowHawlResetConfirm(false);
@@ -465,7 +466,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       profileName: activeProfile.name,
       amount: amt,
       currency: baseCurrencyCode,
-      date: new Date().toISOString().split('T')[0],
+      date: formatLocalDateOnly(new Date()),
       recipient: paymentRecipient.trim() || (language === 'ar' ? 'مستحق زكاة' : 'Zakat Beneficiary'),
       walletId: paymentWalletId || undefined,
       note: paymentNote.trim(),

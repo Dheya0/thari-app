@@ -4,6 +4,7 @@ import { Share } from '@capacitor/share';
 import { ReportModel, ReportType } from './reportTypes';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { formatLocalDateOnly } from '../../utils/formatters';
 
 function escapeCSV(val: any): string {
   const str = String(val ?? '');
@@ -1147,7 +1148,7 @@ export async function printOrShareFinancialReport(
   isExportingActive = true;
 
   try {
-    const dateStr = new Date().toISOString().split('T')[0];
+    const dateStr = formatLocalDateOnly(new Date());
     const typeKey = model.reportType || 'summary';
 
     if (preferredAction === 'excel') {

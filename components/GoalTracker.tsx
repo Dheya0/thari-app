@@ -5,6 +5,7 @@ import { getGoalAdvice } from '../services/geminiService';
 import { parseArabicNumber } from '../utils/formatters';
 import { getTranslation, LanguageKey } from '../utils/translations';
 import { safeDiv, safeMul, roundToCurrency } from '../utils/mathPrecision';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface GoalTrackerProps {
   goals: Goal[];
@@ -33,6 +34,14 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
   const [target, setTarget] = useState('');
   const [selectedWallet, setSelectedWallet] = useState(wallets[0]?.id || '');
   
+  useBackNavigation(() => {
+    if (showAdd) {
+      setShowAdd(false);
+      return true;
+    }
+    return false;
+  }, showAdd, 15);
+
   const [goalAdvices, setGoalAdvices] = useState<Record<string, {text: string, loading: boolean}>>({});
 
   const fetchAdvice = async (goal: Goal) => {

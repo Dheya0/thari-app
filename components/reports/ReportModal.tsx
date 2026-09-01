@@ -22,6 +22,7 @@ import {
 import { Category, Currency, Transaction, Wallet, Budget, Debt, SavingsGoal } from '../../types';
 import { ReportModel, ReportType } from '../../services/reports/reportTypes';
 import { generateFinancialReportSync } from '../../services/reports/reportService';
+import { formatLocalDateOnly } from '../../utils/formatters';
 import {
   buildExcelReportCSV,
   buildExcelReportHTML,
@@ -30,6 +31,7 @@ import {
   printOrShareFinancialReport,
 } from '../../services/reports/reportExportService';
 import { FinancialReportDocument } from './FinancialReportDocument';
+import { useBackNavigation } from '../../utils/backNavigation';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -84,27 +86,27 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showPreview, setShowPreview] = useState<boolean>(false);
 
-  // Calculate actual startDate and endDate based on preset
+  // Calculate actual startDate and endDate based on preset using strictly local dates
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
 
     if (datePreset === 'this_month') {
-      const start = new Date(y, m, 1).toISOString().split('T')[0];
-      const end = new Date(y, m + 1, 0).toISOString().split('T')[0];
+      const start = formatLocalDateOnly(new Date(y, m, 1));
+      const end = formatLocalDateOnly(new Date(y, m + 1, 0));
       return { startDate: start, endDate: end };
     }
     if (datePreset === 'last_month') {
-      const start = new Date(y, m - 1, 1).toISOString().split('T')[0];
-      const end = new Date(y, m, 0).toISOString().split('T')[0];
+      const start = formatLocalDateOnly(new Date(y, m - 1, 1));
+      const end = formatLocalDateOnly(new Date(y, m, 0));
       return { startDate: start, endDate: end };
     }
     if (datePreset === 'last_90_days') {
-      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const ninetyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90);
       return {
-        startDate: ninetyDaysAgo.toISOString().split('T')[0],
-        endDate: now.toISOString().split('T')[0],
+        startDate: formatLocalDateOnly(ninetyDaysAgo),
+        endDate: formatLocalDateOnly(now),
       };
     }
     if (datePreset === 'custom') {
@@ -157,7 +159,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const isProcessingRef = useRef(false);
 
-  // Print / PDF handler
+  // Print / PDF handler (guaranteed ONE print job per user action)
   const handlePrint = async (e?: React.MouseEvent | React.TouchEvent) => {
     if (e) {
       e.preventDefault();
@@ -168,9 +170,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'print');
-      if (onTriggerPrint) {
-        onTriggerPrint(reportType, selectedWalletId, selectedCurrencyCode, startDate, endDate);
-      }
     } catch (e) {
       console.warn('Print handler error:', e);
     } finally {
@@ -178,6 +177,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       setIsProcessing(false);
     }
   };
+
+  // Register in unified back navigation stack
+  useBackNavigation(() => {
+    if (showPreview) {
+      setShowPreview(false);
+      return true;
+    }
+    onClose();
+    return true;
+  }, isOpen, 15);
 
   // Dedicated share handler for mobile/iPhone & Android
   const handleShareReport = async (e?: React.MouseEvent | React.TouchEvent) => {
@@ -282,17 +291,40 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-white/10 flex justify-between items-center bg-[#0A0D10]/80 shrink-0">
           <div className="flex items-center gap-3">
+            {showPreview && (
+              <button
+                type="button"
+                onClick={() => setShowPreview(false)}
+                className="w-10 h-10 rounded-2xl bg-white/5 hover:bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] active:scale-90 transition-all"
+                aria-label="الرجوع للخيارات"
+                title="الرجوع للخيارات"
+              >
+                <ArrowRight size={18} />
+              </button>
+            )}
             <div className="w-10 h-10 rounded-2xl bg-[#D9B978]/10 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
               <FileText size={20} />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#F4F1EA]">إصدار التقارير المالية وكشوف الحساب</h3>
-              <p className="text-[11px] text-slate-400 font-medium">تطبيق ثـري • وثائق مالية تفصيلية وموجزة</p>
+              <h3 className="text-base font-bold text-[#F4F1EA]">
+                {showPreview ? 'معاينة التقرير المالي المباشرة' : 'إصدار التقارير المالية وكشوف الحساب'}
+              </h3>
+              <p className="text-[11px] text-slate-400 font-medium">
+                {showPreview ? 'اضغط رجوع للعودة إلى خيارات التقرير' : 'تطبيق ثـري • وثائق مالية تفصيلية وموجزة'}
+              </p>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (showPreview) {
+                setShowPreview(false);
+              } else {
+                onClose();
+              }
+            }}
             className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white active:scale-90 transition-all"
+            aria-label="إغلاق"
+            title="إغلاق"
           >
             <X size={18} />
           </button>

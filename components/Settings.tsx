@@ -13,6 +13,7 @@ import { getIcon, DEFAULT_EXCHANGE_RATES, convertCurrency } from '../constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
 import { exportAndShareNativeFile } from '../services/reports/reportExportService';
 import { ReportModal } from './reports/ReportModal';
+import { useBackNavigation } from '../utils/backNavigation';
 
 const COLORS = ['#D9B978', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f43f5e', '#64748b'];
 const ICONS = ['Utensils', 'Car', 'Home', 'Receipt', 'Film', 'HeartPulse', 'GraduationCap', 'Briefcase', 'Wallet', 'CreditCard', 'ShoppingBag', 'Gift', 'PiggyBank', 'Coffee', 'Zap', 'Bus', 'Plane', 'Smartphone', 'ShieldCheck'];
@@ -518,6 +519,77 @@ export default function Settings({
   const triggerConfirm = (message: string, action: () => void, title?: string, type: 'danger' | 'info' = 'info') => {
     setConfirmData({ message, action, title, type });
   };
+
+  const handleSettingsBack = (): boolean => {
+    if (confirmData) {
+      setConfirmData(null);
+      return true;
+    }
+    if (showReportModal) {
+      setShowReportModal(false);
+      return true;
+    }
+    if (showWalletForm) {
+      setShowWalletForm(false);
+      setEditingWallet(null);
+      return true;
+    }
+    if (showCategoryForm) {
+      setShowCategoryForm(false);
+      setEditingCategory(null);
+      return true;
+    }
+    if (showCurrencyModal) {
+      setShowCurrencyModal(false);
+      return true;
+    }
+    if (editingRateCurrency) {
+      setEditingRateCurrency(null);
+      return true;
+    }
+    if (showEmailBackupModal) {
+      setShowEmailBackupModal(false);
+      return true;
+    }
+    if (showBackupModal) {
+      setShowBackupModal(false);
+      return true;
+    }
+    if (showRestoreModal) {
+      setShowRestoreModal(false);
+      return true;
+    }
+    if (showDataModal) {
+      setShowDataModal(false);
+      return true;
+    }
+    if (showAutoBackupHistoryModal) {
+      setShowAutoBackupHistoryModal(false);
+      return true;
+    }
+    if (activeSection !== 'main') {
+      setActiveSection('main');
+      return true;
+    }
+    return false;
+  };
+
+  const hasSettingsSubViewOpen = Boolean(
+    confirmData ||
+    showReportModal ||
+    showWalletForm ||
+    showCategoryForm ||
+    showCurrencyModal ||
+    editingRateCurrency ||
+    showEmailBackupModal ||
+    showBackupModal ||
+    showRestoreModal ||
+    showDataModal ||
+    showAutoBackupHistoryModal ||
+    activeSection !== 'main'
+  );
+
+  useBackNavigation(handleSettingsBack, hasSettingsSubViewOpen, 10);
 
   const handleSaveProfile = () => {
     onUpdateSettings({ 

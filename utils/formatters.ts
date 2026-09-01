@@ -127,6 +127,26 @@ export function formatCompactNumber(amount: number | string, locale = 'en-US'): 
 }
 
 /**
+ * Formats a Date object or timestamp as YYYY-MM-DD using strictly local timezone boundaries.
+ * Prevents UTC rollover bugs (e.g. 2026-09-01 local turning into 2026-08-31 due to toISOString()).
+ */
+export function formatLocalDateOnly(input?: Date | string | number | null): string {
+  if (input === null || input === undefined) {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  const d = input instanceof Date ? input : new Date(input);
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Format standard date according to Arabic / Islamic locale
  */
 export function formatAppDate(dateString: string, includeTime = false): string {

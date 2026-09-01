@@ -1,5 +1,6 @@
 import { Debt, DebtPayment, DebtStatus } from '../types';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from './mathPrecision';
+import { formatLocalDateOnly } from './formatters';
 
 export interface DebtCalculation {
   originalAmount: number;
@@ -84,7 +85,7 @@ export const getDebtCalculations = (debt: Debt, language: 'ar' | 'en' = 'ar'): D
   }
 
   // Check overdue
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDateOnly(new Date());
   const isOverdue = !!(debt.dueDate && debt.dueDate < today);
 
   if (isOverdue && debt.dueDate) {
