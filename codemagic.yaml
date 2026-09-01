@@ -16,7 +16,7 @@ workflows:
       java: 21
       groups:
         - android
-        - google_play_credentials
+        
       vars:
         PACKAGE_NAME: "com.thari.finance.app"
     triggering:
