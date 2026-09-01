@@ -11,15 +11,24 @@ interface RegisteredHandler {
   createdAt: number;
 }
 
-class BackNavigationManager {
+export class BackNavigationManager {
   private handlers: RegisteredHandler[] = [];
   private isNativeListenerAttached = false;
   private isWebListenerAttached = false;
   private fallbackHandler: (() => void) | null = null;
   private idCounter = 0;
+  private lastBackTriggerTime = 0;
+  public static readonly MIN_BACK_INTERVAL_MS = 180;
 
   constructor() {
     this.initListeners();
+  }
+
+  public resetForTesting() {
+    this.handlers = [];
+    this.fallbackHandler = null;
+    this.lastBackTriggerTime = 0;
+    this.idCounter = 0;
   }
 
   public initListeners() {
@@ -84,7 +93,14 @@ class BackNavigationManager {
    * Triggers the top-most back handler in the navigation stack.
    * Returns true if handled, false otherwise.
    */
-  public handleBack(): boolean {
+  public handleBack(ignoreThrottle: boolean = false): boolean {
+    const now = Date.now();
+    if (!ignoreThrottle && now - this.lastBackTriggerTime < BackNavigationManager.MIN_BACK_INTERVAL_MS) {
+      // Rapid back throttle: avoid double pop / skipping screens
+      return true;
+    }
+    this.lastBackTriggerTime = now;
+
     // 1. If an input or textarea is active, blur it first to hide keyboard cleanly
     if (typeof document !== 'undefined') {
       const activeEl = document.activeElement;

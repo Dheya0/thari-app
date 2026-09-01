@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Trash2, RotateCcw, X, ArrowLeftRight } from 'lucide-react';
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { getIcon } from '../constants';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface TrashModalProps {
   isOpen: boolean;
@@ -60,6 +61,11 @@ export const TrashModal: React.FC<TrashModalProps> = ({
   onEmptyTrash,
   language = 'ar',
 }) => {
+  useBackNavigation(() => {
+    onClose();
+    return true;
+  }, isOpen, 15);
+
   if (!isOpen) return null;
 
   const isRTL = language === 'ar';

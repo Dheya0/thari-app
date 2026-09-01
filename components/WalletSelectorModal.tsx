@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Check, X, Wallet as WalletIcon, Layers, Plus } from 'lucide-react';
 import { Wallet } from '../types';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface WalletSelectorModalProps {
   isOpen: boolean;
@@ -25,6 +26,11 @@ export const WalletSelectorModal: React.FC<WalletSelectorModalProps> = ({
   language = 'ar',
   t
 }) => {
+  useBackNavigation(() => {
+    onClose();
+    return true;
+  }, isOpen, 15);
+
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape

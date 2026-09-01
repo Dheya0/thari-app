@@ -197,8 +197,17 @@ export function sanitizeNumericInput(raw: string, allowNegative = true): string 
   let str = normalizeDigits(String(raw)).trim();
   if (!str) return '';
 
-  // Normalize decimal separators and thousands separators used by Arabic keyboards
-  str = str.replace(/٫/g, '.').replace(/٬/g, '').replace(/,/g, '.');
+  // Remove Arabic thousands separator
+  str = str.replace(/٬/g, '');
+  str = str.replace(/٫/g, '.');
+
+  // If string contains a decimal point, commas are thousands separators and should be removed.
+  // Otherwise, comma acts as decimal point.
+  if (str.includes('.')) {
+    str = str.replace(/,/g, '');
+  } else {
+    str = str.replace(/,/g, '.');
+  }
 
   // Allow only digits, one leading minus, and single dot.
   let cleaned = str.replace(/[^0-9.\-]/g, '');

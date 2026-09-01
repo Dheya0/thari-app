@@ -795,7 +795,15 @@ export default function Settings({
       <div className="space-y-6 pb-24 animate-fade text-start">
         <div className="flex justify-between items-center bg-[#11161C] p-5 rounded-[2.5rem] border border-white/10 shadow-xl">
           <div className="flex items-center gap-3">
-            <button onClick={() => setActiveSection('main')} className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
+            <button 
+              type="button"
+              onClick={() => setActiveSection('main')} 
+              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all min-h-[44px] min-w-[44px] flex items-center justify-center border border-white/5 active:scale-95"
+              aria-label={localLanguage === 'ar' ? 'الرجوع' : 'Back'}
+              title={localLanguage === 'ar' ? 'الرجوع' : 'Back'}
+            >
+              {localLanguage === 'ar' ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            </button>
             <h3 className="font-black text-[#F4F1EA] text-lg">{t.walletsManagement}</h3>
           </div>
           <button onClick={() => { setEditingWallet(null); setWalletData({ name: '', currencyCode: currency?.code || 'SAR', color: COLORS[0], type: 'cash' }); setShowWalletForm(true); }} className="bg-[#D9B978] text-[#0A0D10] px-5 py-2.5 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 flex items-center gap-1.5">
@@ -857,7 +865,15 @@ export default function Settings({
       <div className="space-y-6 pb-24 animate-fade text-start">
         <div className="flex justify-between items-center bg-[#11161C] p-5 rounded-[2.5rem] border border-white/10 shadow-xl">
           <div className="flex items-center gap-3">
-            <button onClick={() => setActiveSection('main')} className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all"><ChevronLeft size={20} /></button>
+            <button 
+              type="button"
+              onClick={() => setActiveSection('main')} 
+              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all min-h-[44px] min-w-[44px] flex items-center justify-center border border-white/5 active:scale-95"
+              aria-label={localLanguage === 'ar' ? 'الرجوع' : 'Back'}
+              title={localLanguage === 'ar' ? 'الرجوع' : 'Back'}
+            >
+              {localLanguage === 'ar' ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            </button>
             <h3 className="font-black text-[#F4F1EA] text-lg">{t.categoriesManagement}</h3>
           </div>
           <button onClick={() => { setEditingCategory(null); setCategoryData({ name: '', icon: ICONS[0], color: COLORS[0], type: 'expense' }); setShowCategoryForm(true); }} className="bg-[#D9B978] text-[#0A0D10] px-5 py-2.5 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 flex items-center gap-1.5">
@@ -927,10 +943,13 @@ export default function Settings({
         <div className="flex justify-between items-center bg-[#11161C] p-5 rounded-[2.5rem] border border-white/10 shadow-xl">
           <div className="flex items-center gap-3">
             <button 
+              type="button"
               onClick={() => setActiveSection('main')} 
-              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all"
+              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-all min-h-[44px] min-w-[44px] flex items-center justify-center border border-white/5 active:scale-95"
+              aria-label={isArabic ? 'الرجوع' : 'Back'}
+              title={isArabic ? 'الرجوع' : 'Back'}
             >
-              <ChevronLeft size={20} />
+              {isArabic ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
             </button>
             <div>
               <h3 className="font-black text-[#F4F1EA] text-lg">{t.currenciesAndRates}</h3>

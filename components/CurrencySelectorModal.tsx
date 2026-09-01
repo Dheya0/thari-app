@@ -4,6 +4,7 @@ import { Check, Search, X, SlidersHorizontal, Coins, Globe } from 'lucide-react'
 import { Currency } from '../types';
 import { convertCurrency } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
+import { useBackNavigation } from '../utils/backNavigation';
 
 interface CurrencySelectorModalProps {
   isOpen: boolean;
@@ -28,6 +29,11 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
   language = 'ar',
   t
 }) => {
+  useBackNavigation(() => {
+    onClose();
+    return true;
+  }, isOpen, 15);
+
   const [searchQuery, setSearchQuery] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
   const isAr = language === 'ar';

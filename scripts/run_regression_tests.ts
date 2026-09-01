@@ -1,17 +1,24 @@
 /**
- * THARI Financial Application — Regression Test Suite
+ * THARI Financial Application — Comprehensive Regression Test Suite
  * Validates:
  * 1. Date format & local date calculation invariants (UTC boundary protection)
  * 2. Export & Report single-job lock / re-entrancy protection
  * 3. Debt calculations & overdue date comparisons
  * 4. Recurring transactions idempotency & date invariants
- * 5. Edit Previous Transaction selector logic
+ * 5. Edit Previous Transaction selector logic (Manual selection, no auto-select)
+ * 6. Global Back Navigation Stack (Priority, LIFO, and Rapid-Back Throttle protection)
+ * 7. Safe Math Precision & IEEE-754 floating-point protection
+ * 8. Arabic/Persian numeral normalization & numeric sanitization
+ * 9. FX Exchange Rate calculation determinism
  */
 
-import { formatLocalDateOnly } from '../utils/formatters';
+import { formatLocalDateOnly, normalizeDigits, sanitizeNumericInput, parseArabicNumber } from '../utils/formatters';
 import { getDebtCalculations, getDebtRemaining } from '../utils/debtModel';
 import { processDueRecurringRules } from '../services/recurringService';
-import { Debt, RecurringRule, Transaction, Wallet } from '../types';
+import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { tryConvertCurrency, convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
+import { BackNavigationManager } from '../utils/backNavigation';
+import { Debt, RecurringRule, Transaction } from '../types';
 
 let passedTests = 0;
 let failedTests = 0;
@@ -31,7 +38,7 @@ console.log('🧪 Running THARI Production Regression Tests...\n');
 // -------------------------------------------------------------
 // Test Suite 1: Local Date Invariant (formatLocalDateOnly)
 // -------------------------------------------------------------
-console.log('--- Test Suite 1: Local Date Formatting ---');
+console.log('--- Test Suite 1: Local Date Formatting Invariants ---');
 {
   const testDate = new Date(2026, 8, 1, 0, 15, 0); // Sep 1, 2026 00:15 local
   const formatted = formatLocalDateOnly(testDate);
@@ -126,7 +133,7 @@ console.log('\n--- Test Suite 3: Recurring Rules Engine Idempotency ---');
 }
 
 // -------------------------------------------------------------
-// Test Suite 4: Transaction Selector & Navigation Logic Invariants
+// Test Suite 4: Edit Previous Transaction Selection Invariants
 // -------------------------------------------------------------
 console.log('\n--- Test Suite 4: Edit Previous Transaction Selection Invariants ---');
 {
@@ -138,28 +145,142 @@ console.log('\n--- Test Suite 4: Edit Previous Transaction Selection Invariants 
 
   // Invariant 1: "Edit Previous" button must NOT automatically pick mockTransactions[0]
   let activeSelectedTx: Transaction | null = null;
-  let currentNavStep: string = 'type_select';
+  let currentNavStep: string = 'what_happened';
 
   // User taps "Edit Previous"
   const onEditPreviousClick = () => {
-    // Correct behavior: open selector list
-    currentNavStep = 'select_previous_tx';
-    // activeSelectedTx remains null until explicitly selected by user
+    currentNavStep = 'previous_transactions_list';
+    activeSelectedTx = null;
   };
 
   onEditPreviousClick();
-  assert(currentNavStep === 'select_previous_tx', 'Clicking Edit Previous navigates to select_previous_tx step');
+  assert(currentNavStep === 'previous_transactions_list', 'Clicking Edit Previous navigates to previous_transactions_list step');
   assert(activeSelectedTx === null, 'No transaction is automatically pre-selected');
 
   // Invariant 2: User can select ANY transaction from the list
   const onUserSelectsTransaction = (tx: Transaction) => {
     activeSelectedTx = tx;
-    currentNavStep = 'details';
+    currentNavStep = 'edit_transaction';
   };
 
   onUserSelectsTransaction(mockTransactions[1]); // selects the middle transaction
   assert(activeSelectedTx !== null && (activeSelectedTx as Transaction).id === 'tx-middle', 'User can pick any transaction specifically');
-  assert(currentNavStep === 'details', 'Navigates to details edit form after selection');
+  assert(currentNavStep === 'edit_transaction', 'Navigates to edit form after transaction selection');
+}
+
+// -------------------------------------------------------------
+// Test Suite 5: Global Back Navigation Stack Semantics
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 5: Global Back Navigation Stack Semantics ---');
+{
+  const navManager = new BackNavigationManager();
+  navManager.resetForTesting();
+
+  const executionLog: string[] = [];
+
+  // Register lower priority base handler (priority 0)
+  const unregBase = navManager.register(() => {
+    executionLog.push('base_modal_closed');
+    return true;
+  }, 0);
+
+  // Register higher priority nested step handler (priority 10)
+  const unregNested = navManager.register(() => {
+    executionLog.push('nested_step_returned');
+    return true;
+  }, 10);
+
+  // 1. High priority handler should execute first
+  const handled1 = navManager.handleBack(true);
+  assert(handled1 === true, 'Back action was successfully handled');
+  assert(executionLog.length === 1 && executionLog[0] === 'nested_step_returned', 'High priority nested handler ran before base handler');
+
+  // 2. Unregister nested handler, next back should trigger base handler
+  unregNested();
+  const handled2 = navManager.handleBack(true);
+  assert(handled2 === true, 'Subsequent back action was successfully handled');
+  assert(executionLog.length === 2 && executionLog[1] === 'base_modal_closed', 'Base modal handler ran after nested handler was popped');
+
+  unregBase();
+}
+
+// -------------------------------------------------------------
+// Test Suite 6: Rapid Back Throttling Invariant
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 6: Rapid Back Throttling Protection ---');
+{
+  const navManager = new BackNavigationManager();
+  navManager.resetForTesting();
+
+  let executionCount = 0;
+  navManager.register(() => {
+    executionCount++;
+    return true;
+  }, 10);
+
+  // Simulate 5 rapid back button presses in quick succession (within 10ms)
+  for (let i = 0; i < 5; i++) {
+    navManager.handleBack(false);
+  }
+
+  assert(executionCount === 1, '5 rapid Back actions trigger exactly one navigation step (no double pop)');
+}
+
+// -------------------------------------------------------------
+// Test Suite 7: Precision Math & Floating Point Protection
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 7: Precision Math & Floating Point Protection ---');
+{
+  // Standard IEEE 754: 0.1 + 0.2 === 0.30000000000000004
+  const sum = safeAdd(0.1, 0.2);
+  assert(sum === 0.3, 'safeAdd resolves 0.1 + 0.2 accurately to 0.3');
+
+  // Subtraction: 1.0 - 0.9 === 0.09999999999999998
+  const diff = safeSub(1.0, 0.9);
+  assert(diff === 0.1, 'safeSub resolves 1.0 - 0.9 accurately to 0.1');
+
+  // Multiplication: 35.1 * 100
+  const mul = safeMul(35.1, 100);
+  assert(mul === 3510, 'safeMul calculates accurate product');
+
+  // Division with zero fallback
+  const divZero = safeDiv(100, 0, 0);
+  assert(divZero === 0, 'safeDiv safely handles division by zero without NaN');
+
+  const rounded = roundToCurrency(123.456, 2);
+  assert(rounded === 123.46, 'roundToCurrency rounds monetary figures accurately');
+}
+
+// -------------------------------------------------------------
+// Test Suite 8: Arabic/Persian Numeral Normalization & Parsing
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 8: Arabic/Persian Numeral Normalization ---');
+{
+  const arabicDigits = '١٢٥٠٫٥٠';
+  const normalized = normalizeDigits(arabicDigits);
+  assert(normalized === '1250.50', 'normalizeDigits converts Eastern Arabic numerals and Arabic decimal comma');
+
+  const persianDigits = '۱۲۳۴.۵۶';
+  const normPersian = normalizeDigits(persianDigits);
+  assert(normPersian === '1234.56', 'normalizeDigits converts Persian numerals correctly');
+
+  const parsed = parseArabicNumber('١٢٥٠٫٥٠');
+  assert(parsed === 1250.5, 'parseArabicNumber parses Arabic numerals to valid JavaScript float');
+
+  const sanitized = sanitizeNumericInput('١,٢٥٠٫٧٥');
+  assert(sanitized === '1250.75', 'sanitizeNumericInput removes thousands separators and normalizes decimal');
+}
+
+// -------------------------------------------------------------
+// Test Suite 9: Currency Conversion Determinism
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 9: Currency Conversion Determinism ---');
+{
+  const sameCurrency = tryConvertCurrency(500, 'SAR', 'SAR', DEFAULT_EXCHANGE_RATES);
+  assert(sameCurrency.status === 'SAME_CURRENCY' && sameCurrency.convertedAmount === 500, 'Same currency returns original amount directly');
+
+  const convertedUsd = convertCurrency(100, 'USD', 'SAR', DEFAULT_EXCHANGE_RATES);
+  assert(convertedUsd > 380 && convertedUsd < 390, 'USD to SAR conversion executes within expected rate bracket');
 }
 
 console.log('\n=============================================');

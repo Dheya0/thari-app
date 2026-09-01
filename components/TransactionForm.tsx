@@ -991,12 +991,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 type="button"
                 onClick={() => {
                   setCameFromPreviousEditList(true);
-                  if (transactions.length === 0) {
-                    setNavStep('previous_transactions_list');
-                  } else {
-                    handleSelectTxForEdit(transactions[0].id);
-                    setNavStep('edit_transaction');
-                  }
+                  setSelectedTxForEdit('');
+                  setSelectedEvent(null);
+                  setNavStep('previous_transactions_list');
                 }}
                 className="p-4 rounded-2xl border transition-all text-start group flex flex-col justify-between min-h-[95px] relative overflow-hidden shadow-md bg-[#11161C] border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10"
               >
