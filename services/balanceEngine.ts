@@ -262,7 +262,8 @@ export function calculateConsolidatedPosition(
 
   let availableLiquidityInBase = 0;
   if (isSingleCurrency && filterCurrencyCode) {
-    availableLiquidityInBase = currencyBalances[filterCurrencyCode] || 0;
+    const raw = currencyBalances[filterCurrencyCode] || 0;
+    availableLiquidityInBase = convertCurrency(raw, filterCurrencyCode, baseCurrencyCode, exchangeRates);
   } else {
     availableLiquidityInBase = Object.entries(currencyBalances).reduce((sum, [code, amount]) => {
       const normalizedAmount = isTravelCurrencyMode && amount === 0 && code !== baseCurrencyCode ? 0 : amount;
@@ -914,7 +915,8 @@ export function diagnoseWalletBalanceDiscrepancies(
   transactions: Transaction[],
   exchangeRates: Record<string, number> = DEFAULT_EXCHANGE_RATES,
   tolerance: number = 0.005,
-  logAllChecks: boolean = false
+  logAllChecks: boolean = false,
+  baseCurrencyCode: string = 'SAR'
 ): BalanceReconciliationDiagnosticResult {
   const activeTxs = getActiveTransactions(transactions);
   const activeWallets = wallets || [];
@@ -1039,7 +1041,7 @@ export function diagnoseWalletBalanceDiscrepancies(
     }
 
     if (hasDiscrepancy) {
-      const inBaseDiscrepancy = convertCurrency(discrepancy, walletCurrency, 'SAR', exchangeRates);
+      const inBaseDiscrepancy = convertCurrency(discrepancy, walletCurrency, baseCurrencyCode, exchangeRates);
       totalDiscrepancyBase = safeAdd(totalDiscrepancyBase, inBaseDiscrepancy);
     }
 
@@ -1123,7 +1125,7 @@ export function diagnoseWalletBalanceDiscrepancies(
 
   const summaryMessage = isOverallConsistent
     ? `تم فحص جميع المحافظ (${activeWallets.length}): الأرصدة المحسوبة مطابقة تماماً لسجل المعاملات الفعلي بدون أي فروقات تراكمية.`
-    : `تم رصد عدم تطابق في ${discrepantCount} محفظة بإجمالي فروقات تقديرية تعادل ${roundToCurrency(totalDiscrepancyBase)} SAR. تم تسجيل التفاصيل في AuditLogs.`;
+    : `تم رصد عدم تطابق في ${discrepantCount} محفظة بإجمالي فروقات تقديرية تعادل ${roundToCurrency(totalDiscrepancyBase)} ${baseCurrencyCode}. تم تسجيل التفاصيل في AuditLogs.`;
 
   return {
     timestamp: new Date().toISOString(),

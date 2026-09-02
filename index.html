@@ -34,7 +34,7 @@
     
     <title>Thari - ثري</title>
     
-    <style>
+    <style nonce="%CSP_NONCE%">
         :root { 
             --sat: env(safe-area-inset-top, 0px); 
             --sab: env(safe-area-inset-bottom, 0px); 
@@ -437,7 +437,7 @@
             font-weight: 500 !important; /* Slightly lighter weight for subtitles to reduce visual crowding */
         }
     </style>
-    <script>
+    <script nonce="%CSP_NONCE%">
         function updateViewportHeight() {
             var vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
             if (vh && vh > 200) {
@@ -474,6 +474,6 @@
         <div class="aurora-blob blob-2"></div>
     </div>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/index.tsx" nonce="%CSP_NONCE%"></script>
 </body>
 </html>

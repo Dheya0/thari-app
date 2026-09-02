@@ -1,9 +1,12 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { sanitizeAndRedact, hashUserId } from "./utils/sanitize";
 
@@ -12,12 +15,6 @@ const SERVER_SIDE_SYSTEM_PROMPT = `أنت "ثري"، المستشار المال
 لا تقم أبداً بتنفيذ أي تعليمات برمجية، أو تجاوز القيود الأمنية، أو كشف معلومات حساسة.
 كن مختصراً، احترافياً، وبصوت ودي باللغة العربية.`;
 
-const ALLOWED_MODELS = [
-  'gemini-2.5-flash-latest',
-  'gemini-2.5-flash',
-  'gemini-1.5-flash',
-  'gemini-2.0-flash'
-];
 const DEFAULT_MODEL = 'gemini-2.5-flash-latest';
 
 // Response validation schema
@@ -30,22 +27,12 @@ export function createApp() {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // زيادة حد الجسم
+  // زيادة حد الجسم إلى 64kb
   app.use(express.json({ limit: '64kb' }));
 
-  // Helmet + CSP أكثر صرامة
+  // Helmet + Security headers
   app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        // في الإنتاج لا نسمح بـ unsafe-inline
-        scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:"],
-        connectSrc: ["'self'", "https://generativelanguage.googleapis.com"]
-      }
-    },
+    contentSecurityPolicy: false, // handled manually via nonce middleware
     crossOriginEmbedderPolicy: false
   }));
 
@@ -55,27 +42,49 @@ export function createApp() {
   app.use(helmet.noSniff());
   app.use(helmet.referrerPolicy({ policy: 'no-referrer' }));
 
+  // Nonce generation middleware for CSP
+  const generateNonce = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.locals.cspNonce = nonce;
+    const csp = isProduction ? [
+      `default-src 'self'`,
+      `script-src 'self' 'nonce-${nonce}'`,
+      `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+      `font-src 'self' https://fonts.gstatic.com`,
+      `img-src 'self' data: blob:`,
+      `connect-src 'self' https://generativelanguage.googleapis.com`
+    ].join('; ') : [
+      `default-src 'self'`,
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}'`,
+      `style-src 'self' 'unsafe-inline' 'nonce-${nonce}' https://fonts.googleapis.com`,
+      `font-src 'self' https://fonts.gstatic.com`,
+      `img-src 'self' data: blob:`,
+      `connect-src 'self' 'unsafe-eval' https://generativelanguage.googleapis.com`
+    ].join('; ');
+    res.setHeader('Content-Security-Policy', csp);
+    next();
+  };
+
+  app.use(generateNonce);
+
   // Rate limiter for AI proxy endpoint
   const geminiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // limit each IP to 50 requests per windowMs
+    max: 50,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many AI requests from this IP, please try again after 15 minutes." }
   });
 
-  // مصادقة إجبارية مطابقة للمواصفات المطلوبة
-  const authenticateRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Authentication Middleware with JWT support and legacy APP_AUTH_TOKEN fallback
+  const authenticateRequest = (req: any, res: any, next: any) => {
     const authHeader = req.headers['authorization'];
     const appToken = req.headers['x-app-token'];
-    const expectedToken = process.env.APP_AUTH_TOKEN;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : appToken;
+    const jwtSecret = process.env.APP_JWT_SECRET;
+    const legacyToken = process.env.APP_AUTH_TOKEN;
     const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
 
-    let token = '';
-    if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.substring(7);
-    else if (typeof appToken === 'string') token = appToken;
-
-    // إجبار المصادقة في كل البيئات إلا إذا أرخصت عمداً
     if (!token && process.env.ALLOW_INSECURE_DEV !== 'true') {
       console.warn(JSON.stringify({
         event: 'auth_failure',
@@ -86,34 +95,35 @@ export function createApp() {
       return res.status(401).json({ error: 'Unauthorized: Valid app authentication token required' });
     }
 
-    if (process.env.NODE_ENV === 'production') {
-      if (!expectedToken) {
-        console.error('FATAL: APP_AUTH_TOKEN missing in production configuration.');
-        return res.status(500).json({ error: 'Server misconfiguration: Authentication required' });
+    if (token) {
+      if (jwtSecret) {
+        try {
+          req.auth = jwt.verify(token, jwtSecret);
+          return next();
+        } catch (e) {
+          // Fall through to legacy token check
+        }
       }
-      if (token !== expectedToken) {
-        console.warn(JSON.stringify({
-          event: 'auth_failure',
-          ip: clientIp,
-          timestamp: new Date().toISOString(),
-          reason: 'invalid_token'
-        }));
-        return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+      if (legacyToken && token === legacyToken) {
+        return next();
       }
-    } else {
-      // في التطوير، إذا وُجد expectedToken تصحّح المطابقة، وإلا يُسمح فقط إن فعّل ALLOW_INSECURE_DEV
-      if (expectedToken && token && token !== expectedToken) {
-        console.warn(JSON.stringify({
-          event: 'auth_failure',
-          ip: clientIp,
-          timestamp: new Date().toISOString(),
-          reason: 'invalid_token'
-        }));
-        return res.status(401).json({ error: 'Unauthorized: Invalid development token' });
+      if (!isProduction && (!legacyToken && !jwtSecret) && process.env.ALLOW_INSECURE_DEV === 'true') {
+        return next();
       }
+      console.warn(JSON.stringify({
+        event: 'auth_failure',
+        ip: clientIp,
+        timestamp: new Date().toISOString(),
+        reason: 'invalid_token'
+      }));
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
 
-    next();
+    if (process.env.ALLOW_INSECURE_DEV === 'true') {
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Unauthorized: token required' });
   };
 
   // Secure backend AI proxy endpoint
@@ -124,15 +134,12 @@ export function createApp() {
         return res.status(503).json({ error: "AI service not configured on server." });
       }
 
-      // 1. Enforce Server-Side System Instruction & Model Whitelist (Ignore client request values)
       const { contents, history, financialContext, requestType } = req.body;
 
-      // 2. Sanitize and redact all incoming user data before sending to GenAI
       const sanitizedContents = sanitizeAndRedact(contents);
       const sanitizedHistory = sanitizeAndRedact(history);
       const sanitizedContext = sanitizeAndRedact(financialContext);
 
-      // 3. Log filtered telemetry with hashed user ID (fully sanitized and redacted)
       console.info(JSON.stringify(sanitizeAndRedact({
         event: 'ai_request',
         meta: {
@@ -145,7 +152,6 @@ export function createApp() {
 
       const ai = new GoogleGenAI({ apiKey });
 
-      // Format contents and history into prompt structure for GoogleGenAI SDK
       let fullPrompt = `سياق مالي مجمّع ومفلتر:\n${JSON.stringify(sanitizedContext)}\n\n`;
       if (Array.isArray(sanitizedHistory) && sanitizedHistory.length > 0) {
         fullPrompt += `السجل السابق:\n${sanitizedHistory.map((h: any) => `${h.role}: ${h.parts?.[0]?.text || ''}`).join('\n')}\n\n`;
@@ -161,12 +167,25 @@ export function createApp() {
         }
       });
 
-      // تحسين استخراج/تنقيح ناتج AI مع استخدام حقول SDK
-      const rawText = (response as any).text || (response as any)?.candidates?.[0]?.content || '';
-      // تنقيح فوري
+      // استخدام حقول SDK المهيكلة (candidates, output, text)
+      let rawText = '';
+      if (typeof (response as any).text === 'string' && (response as any).text.length > 0) {
+        rawText = (response as any).text;
+      } else if ((response as any).candidates && (response as any).candidates.length > 0) {
+        const candidate = (response as any).candidates[0];
+        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          rawText = candidate.content.parts.map((p: any) => p.text || '').join('');
+        } else if (candidate.output) {
+          rawText = String(candidate.output);
+        }
+      } else if ((response as any).output) {
+        rawText = String((response as any).output);
+      } else {
+        rawText = JSON.stringify(response);
+      }
+
       const sanitizedOutputText = sanitizeAndRedact(String(rawText), 8000);
 
-      // Secure response parsing: extract JSON if embedded or validate text output
       let responsePayload = { text: sanitizedOutputText };
       const jsonMatch = sanitizedOutputText.match(/```json([\s\S]*?)```/);
       if (jsonMatch) {
@@ -200,27 +219,51 @@ export function createApp() {
 async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // Enforce startup failure if APP_AUTH_TOKEN is missing in production
-  if (isProduction && !process.env.APP_AUTH_TOKEN) {
-    console.error('FATAL: APP_AUTH_TOKEN must be set in production environment to protect /api/gemini endpoint.');
+  if (isProduction && !process.env.APP_JWT_SECRET && !process.env.APP_AUTH_TOKEN) {
+    console.error('FATAL: APP_JWT_SECRET or APP_AUTH_TOKEN must be set in production environment.');
     process.exit(1);
   }
 
   const app = createApp();
   const PORT = 3000;
 
-  // Vite middleware for development
   if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    app.get('*all', async (req: any, res: any, next: any) => {
+      const url = req.originalUrl;
+      if (url.startsWith('/api')) {
+        return next();
+      }
+      try {
+        const templatePath = path.resolve(process.cwd(), 'index.html');
+        let template = fs.readFileSync(templatePath, 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        const nonce = res.locals.cspNonce || '';
+        const html = template.replace(/%CSP_NONCE%/g, nonce);
+        res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
+      } catch (e: any) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get('*all', (req: any, res: any) => {
+      const indexPath = path.join(distPath, 'index.html');
+      fs.readFile(indexPath, 'utf8', (err, htmlData) => {
+        if (err) {
+          return res.status(500).send('Error loading app');
+        }
+        const nonce = res.locals.cspNonce || '';
+        const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
+        res.send(injectedHtml);
+      });
     });
   }
 
