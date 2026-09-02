@@ -1,7 +1,6 @@
 /**
  * Server-side Sanitization and PII Redaction Utility
- * Cleans user inputs, prompts, history, and financial context before forwarding to GenAI,
- * and redacts AI output prior to client delivery.
+ * Cleans user inputs and financial data, redacting PII and sensitive credentials.
  * Uses libphonenumber-js for precise phone parsing and E.164 normalization/masking.
  */
 
