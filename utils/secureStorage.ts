@@ -1,7 +1,19 @@
 /**
- * Secure Storage Engine for Thari Financial App
- * Uses hardware-backed Keystore/Keychain on native mobile platforms (iOS/Android)
- * and WebCrypto AES-256-GCM encryption on Web/PWA with automated migration for legacy stores.
+ * ============================================================================
+ * SECURE STORAGE ENGINE & PWA SECURITY WARNING
+ * ============================================================================
+ * WARNING: In Web/PWA mode, localStorage and IndexedDB are accessible to any script
+ * running in the same origin (XSS vulnerability). 
+ * 
+ * Best Security Practice:
+ * 1. Do NOT store sensitive unencrypted seeds or keys in localStorage by default.
+ * 2. On Web/PWA, state is encrypted using AES-256-GCM ONLY when the user provides 
+ *    a passphrase via `setWebPassphrase(passphrase)`.
+ * 3. If no passphrase is set, storage falls back to obfuscated-only mode with a 
+ *    security warning (not safe against arbitrary XSS).
+ * 4. On native mobile platforms (iOS/Android), hardware-backed Keystore/Keychain 
+ *    is used via Capacitor secure storage plugins.
+ * ============================================================================
  */
 
 import { Capacitor } from '@capacitor/core';
@@ -17,10 +29,36 @@ let cachedWebPassphrase: string | null = null;
 
 export function setWebPassphrase(passphrase: string) {
   cachedWebPassphrase = passphrase;
+  cachedDeviceSecret = passphrase;
 }
 
 export function clearWebPassphrase() {
   cachedWebPassphrase = null;
+  cachedDeviceSecret = null;
+}
+
+/**
+ * Explicit Secure Wipe: Clears all vault data, snapshots, and sensitive keys from localStorage.
+ */
+export function secureWipeLocalStorageAndSnapshots(): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const keysToRemove = [
+        WEB_SEED_STORAGE_KEY,
+        'thari_app_v4',
+        'thari_backup_snapshot',
+        'thari_app_state',
+        ...SNAPSHOT_KEYS
+      ];
+      for (const k of keysToRemove) {
+        localStorage.removeItem(k);
+        localStorage.removeItem(`${k}_sync_guard`);
+      }
+      console.warn('[Security] Secure wipe executed: All local snapshots and vault stores cleared.');
+    }
+  } catch (err) {
+    console.error('SecureStorage: Error during secure wipe', err);
+  }
 }
 
 function isNativePlatformSafe(): boolean {
@@ -42,25 +80,11 @@ function getCrypto(): Crypto | null {
 }
 
 function getOrCreateWebDeviceSeed(): string {
-  try {
-    if (typeof localStorage !== 'undefined') {
-      let seed = localStorage.getItem(WEB_SEED_STORAGE_KEY);
-      if (!seed) {
-        const bytes = new Uint8Array(32);
-        if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-          window.crypto.getRandomValues(bytes);
-        } else {
-          for (let i = 0; i < 32; i++) bytes[i] = Math.floor(Math.random() * 256);
-        }
-        seed = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem(WEB_SEED_STORAGE_KEY, seed);
-      }
-      return seed;
-    }
-  } catch {
-    // Fallback if localStorage is restricted
+  if (!cachedWebPassphrase) {
+    console.warn('[SECURITY WARNING] Running in Web/PWA mode without a user passphrase (setWebPassphrase). Storage is obfuscated but NOT AES-encrypted. Vulnerable to XSS.');
+    return STORAGE_SECRET_SALT + '_unencrypted_obfuscated_fallback';
   }
-  return STORAGE_SECRET_SALT + '_device_bound_entropy';
+  return cachedWebPassphrase;
 }
 
 async function tryLoadNativeSecureSecret(): Promise<string | null> {
@@ -88,27 +112,27 @@ async function tryLoadNativeSecureSecret(): Promise<string | null> {
           }
         }
       } catch {
-        // Plugin is not installed or absent
+        // Plugin is not installed or absent - handle gracefully
       }
     }
 
     const plugins = (Capacitor as any).Plugins || Capacitor;
     for (const pluginName of ['SecureStorage', 'Keychain', 'Preferences']) {
-      const plugin: any = plugins && plugins[pluginName];
-      if (plugin && typeof plugin.get === 'function') {
-        try {
+      try {
+        const plugin: any = plugins && plugins[pluginName];
+        if (plugin && typeof plugin.get === 'function') {
           const result = await plugin.get({ key: 'thari_device_secret' });
           const value = result && (result.value ?? result.secret ?? result.data ?? result);
           if (typeof value === 'string' && value.length > 0) {
             return value;
           }
-        } catch {
-          // Keep searching
         }
+      } catch {
+        // Keep searching gracefully
       }
     }
   } catch {
-    // Ignore error in native discovery
+    // Ignore native discovery errors robustly
   }
 
   return null;
@@ -118,18 +142,23 @@ async function getMasterDeviceKey(): Promise<string> {
   if (cachedDeviceSecret) return cachedDeviceSecret;
 
   if (cachedWebPassphrase) {
-    return cachedWebPassphrase;
+    cachedDeviceSecret = cachedWebPassphrase;
+    return cachedDeviceSecret;
   }
 
   if (isNativePlatformSafe()) {
-    const nativeSecret = await tryLoadNativeSecureSecret();
-    if (nativeSecret) {
-      cachedDeviceSecret = nativeSecret;
-      return cachedDeviceSecret;
+    try {
+      const nativeSecret = await tryLoadNativeSecureSecret();
+      if (nativeSecret) {
+        cachedDeviceSecret = nativeSecret;
+        return cachedDeviceSecret;
+      }
+    } catch {
+      // Fallback
     }
   }
 
-  // Web / PWA runtime master entropy
+  // Web / PWA runtime master entropy (requires passphrase for true encryption)
   const webSeed = getOrCreateWebDeviceSeed();
   cachedDeviceSecret = `${STORAGE_SECRET_SALT}:${webSeed}`;
   return cachedDeviceSecret;

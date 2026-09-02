@@ -9,7 +9,7 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "test": "tsx scripts/run_regression_tests.ts",
+    "test": "tsx scripts/run_regression_tests.ts && npx tsx scripts/run_security_tests.ts",
     "build:all": "vite build && cap sync",
     "build:android": "vite build && cap sync android",
     "build:ios": "vite build && cap sync ios",
@@ -25,7 +25,10 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/express": "^5.0.6",
     "@types/qrcode": "^1.5.6",
+    "@types/supertest": "^7.2.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.463.0",
@@ -34,7 +37,9 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "recharts": "^2.13.3",
-    "tailwindcss": "^4.3.3"
+    "supertest": "^7.2.2",
+    "tailwindcss": "^4.3.3",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@capacitor/android": "^8.4.2",

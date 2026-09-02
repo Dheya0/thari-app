@@ -166,10 +166,14 @@ const getAiApiBaseUrl = (): string => {
 
 /**
  * Secure backend proxy caller with strict error taxonomy, offline isolation, timeout (25s), and AbortController race protection.
+ * NOTE: Client-side filtering and minimisation are UI best-effort helpers ONLY. 
+ * CRITICAL SECURITY NOTICE: Client-side filtering is NEVER sufficient on its own. 
+ * All rigorous PII redaction, token removal, system instruction overrides, and prompt hardening MUST happen server-side in server.ts.
  */
 const callServerAI = async (
   payload: AIRequestPayload,
-  systemInstruction: string
+  systemInstruction: string,
+  apiKey?: string // Explicitly unused for security hardening; GEMINI_API_KEY is restricted strictly to server environment variables
 ): Promise<string | null> => {
   // 1. Offline check
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
