@@ -94,7 +94,7 @@ const INITIAL_STATE: AppState = {
   autoLockTime: 'instant',
   autoBackupFrequency: 'daily',
   lastAutoBackupTime: '',
-  syncStatus: 'SYNCED',
+  syncStatus: 'LOCAL_ONLY',
   language: 'ar',
 };
 

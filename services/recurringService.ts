@@ -145,7 +145,7 @@ export function processDueRecurringRules(
           recurrenceId: rule.id,
           occurrenceDate: currentNext,
           createdAt: new Date().toISOString(),
-          syncStatus: 'PENDING',
+          syncStatus: 'LOCAL_ONLY',
         };
 
         newTransactions.push(newTx);

@@ -48,7 +48,7 @@ export interface JournalEntry {
   metadata?: Record<string, any>;
 }
 
-export type SyncState = 'LOCAL_ONLY' | 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED' | 'CONFLICT';
+export type SyncState = 'LOCAL_ONLY' | 'PENDING_LOCAL_SAVE' | 'SAVE_FAILED' | 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED' | 'CONFLICT';
 
 export interface Account {
   id: string;
