@@ -154,6 +154,7 @@ async function runSecurityTests() {
   } else {
     throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasNonceInCsp: ${hasNonceInCsp})`);
   }
+
   process.env.NODE_ENV = 'test';
 
   console.log('\n=============================================');
