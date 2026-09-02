@@ -12,10 +12,9 @@ export default defineConfig(({ mode }) => {
       // detection issues when other transforms or custom middleware modify the output.
       // This prevents the runtime error: "@vitejs/plugin-react can't detect preamble."
       react({
-        fastRefresh: false,
         // Keep automatic runtime unless your project explicitly requires the classic runtime
         jsxRuntime: 'automatic',
-      }),
+      } as any),
       tailwindcss(),
     ],
     resolve: {
