@@ -21,10 +21,11 @@ import { tryConvertCurrency, convertCurrency, DEFAULT_EXCHANGE_RATES } from '../
 import { resolveHistoricalConversion, generateCoreLedger, calculateLedgerBalances } from '../services/coreLedger';
 import { BackNavigationManager } from '../utils/backNavigation';
 import { Debt, RecurringRule, Transaction, AppState } from '../types';
-import { validateAndInspectBackup, mergeRestoredState } from '../services/backupService';
+import { validateAndInspectBackup, mergeRestoredState, runBackupServiceTests } from '../services/backupService';
 import { recordAuditLog, getAuditLogs, clearAuditLogs } from '../services/balanceEngine';
 import { buildExcelReportCSV } from '../services/reports/reportExportService';
 import { generateFinancialReportSync } from '../services/reports/reportService';
+import { saveSecureStateSync, loadSecureState } from '../utils/secureStorage';
 
 let passedTests = 0;
 let failedTests = 0;
@@ -631,13 +632,140 @@ console.log('\n--- Test Suite 11: Real Offline Financial Core Verification (Zero
   assert(csvData.includes('الراتب الأساسي'), 'Offline CSV report includes individual transaction strings');
 }
 
-console.log('\n=============================================');
-console.log(`Results: ${passedTests} passed, ${failedTests} failed`);
-console.log('=============================================\n');
+// -------------------------------------------------------------
+// Test Suite 12: Real Production Secure Persistence Path Invariant
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 12: Real Production Secure Persistence Path ---');
+{
+  // 1. Setup local storage shim if not exists
+  let store: Record<string, string> = {};
+  if (typeof global.localStorage === 'undefined') {
+    (global as any).localStorage = {
+      getItem: (key: string) => store[key] || null,
+      setItem: (key: string, value: string) => { store[key] = String(value); },
+      removeItem: (key: string) => { delete store[key]; },
+      clear: () => { store = {}; },
+      length: 0,
+      key: (index: number) => Object.keys(store)[index] || null
+    };
+  } else {
+    localStorage.clear();
+  }
 
-if (failedTests > 0) {
-  process.exit(1);
-} else {
-  console.log('✨ All regression tests passed successfully!');
-  process.exit(0);
+  // 2. Initial state
+  const testState: AppState = {
+    accounts: [],
+    activeAccountId: 'acc-test',
+    userName: 'اختبار المحاذاة',
+    wallets: [
+      { id: 'w-cash', name: 'نقدي', currencyCode: 'SAR', color: '#10b981' }
+    ],
+    transactions: [],
+    categories: [],
+    budgets: [],
+    goals: [],
+    recurringRules: [],
+    subscriptions: [],
+    debts: [],
+    auditLogs: [],
+    trashTransactions: [],
+    currency: { code: 'SAR', symbol: 'ر.س', name: 'ريال سعودي' },
+    currencies: [],
+    exchangeRates: {},
+    isDarkMode: true,
+    pin: null,
+    isLocked: false,
+    isTravelMode: false,
+    hasAcceptedTerms: true,
+    showSeparateCurrencies: false,
+    autoLockTime: 'instant',
+    autoBackupFrequency: 'daily',
+    lastAutoBackupTime: '',
+    language: 'ar'
+  };
+
+  // 3. UI/Service Mutation: User adds an income and an expense transaction
+  const mutationTx1: Transaction = {
+    id: 'tx-inc-1',
+    type: 'income',
+    amount: 5000,
+    currency: 'SAR',
+    date: '2026-09-02',
+    categoryId: 'cat-inc',
+    walletId: 'w-cash',
+    description: 'الراتب التجريبي',
+    note: '',
+    frequency: 'once',
+    createdAt: '2026-09-02T05:00:00Z'
+  };
+
+  const mutationTx2: Transaction = {
+    id: 'tx-exp-1',
+    type: 'expense',
+    amount: 1500,
+    currency: 'SAR',
+    date: '2026-09-02',
+    categoryId: 'cat-exp',
+    walletId: 'w-cash',
+    description: 'مصروف إيجار',
+    note: '',
+    frequency: 'once',
+    createdAt: '2026-09-02T05:15:00Z'
+  };
+
+  const mutatedState: AppState = {
+    ...testState,
+    transactions: [mutationTx1, mutationTx2]
+  };
+
+  // 4. Secure Persistence: Save state using production secure storage function
+  const STORAGE_KEY = 'thari_app_state';
+  saveSecureStateSync(STORAGE_KEY, mutatedState);
+
+  // 5. Read Persisted State: Retrieve state from persistence layer using real load function
+  const retrievedState = loadSecureState(STORAGE_KEY);
+  assert(retrievedState !== null, 'Successfully read persisted state from local storage using real loadSecureState');
+
+  // 6. Normalize/Migrate & Reload-equivalent State
+  const reloadedState: AppState = {
+    ...testState,
+    ...retrievedState,
+    wallets: retrievedState.wallets || [],
+    transactions: retrievedState.transactions || []
+  };
+  assert(reloadedState.transactions.length === 2, 'Reloaded state correctly contains exactly the mutated transactions');
+
+  // 7. Financial Calculation Verification: Run the core ledger and balance engine on reloaded state
+  const reloadedJournal = generateCoreLedger(reloadedState.wallets, reloadedState.transactions, reloadedState.debts);
+  const reloadedBalances = calculateLedgerBalances(reloadedJournal, reloadedState.wallets, reloadedState.debts);
+  const cashBalance = reloadedBalances.walletBalances['w-cash']?.currentBalance;
+  
+  assert(cashBalance === 3500, 'Real persistence load-and-recompute cycle yields exact net cash position (3500 SAR)');
 }
+
+(async () => {
+  // -------------------------------------------------------------
+  // Test Suite 13: Cryptographically Secure Backup & Restore Invariants
+  // -------------------------------------------------------------
+  console.log('\n--- Test Suite 13: Cryptographically Secure Backup & Restore Invariants ---');
+  try {
+    const backupResults = await runBackupServiceTests();
+    for (const r of backupResults.testResults) {
+      assert(r.passed, `Backup Integrity: ${r.testName} (${r.details})`);
+    }
+  } catch (err: any) {
+    console.error('Backup Service Verification Failed with error:', err);
+    failedTests++;
+  }
+
+  console.log('\n=============================================');
+  console.log(`Results: ${passedTests} passed, ${failedTests} failed`);
+  console.log('=============================================\n');
+
+  if (failedTests > 0) {
+    process.exit(1);
+  } else {
+    console.log('✨ All regression tests passed successfully!');
+    process.exit(0);
+  }
+})();

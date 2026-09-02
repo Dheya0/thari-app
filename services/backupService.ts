@@ -231,6 +231,7 @@ export async function createBackupPackage(state: AppState): Promise<BackupPackag
     appVersion: '1.2.0',
     createdAt: new Date().toISOString(),
     backupId,
+    checksum: calculateChecksum(payloadString),
     dataChecksum,
     stateChecksum,
     receiptManifest,
@@ -504,7 +505,7 @@ export function mergeRestoredState(currentState: AppState, restoredPayload: Part
 /**
  * Comprehensive Test Suite for Atomic Backup, Integrity Check, and Rollback
  */
-export function runBackupServiceTests(): { allPassed: boolean; testResults: Array<{ testName: string; passed: boolean; details: string }> } {
+export async function runBackupServiceTests(): Promise<{ allPassed: boolean; testResults: Array<{ testName: string; passed: boolean; details: string }> }> {
   const testResults: Array<{ testName: string; passed: boolean; details: string }> = [];
 
   const mockState: AppState = {
@@ -540,7 +541,7 @@ export function runBackupServiceTests(): { allPassed: boolean; testResults: Arra
   };
 
   // Test 1: Backup success & validation
-  const backupPkg = createBackupPackage(mockState);
+  const backupPkg = await createBackupPackage(mockState);
   const backupJson = JSON.stringify(backupPkg);
   const preview = validateAndInspectBackup(backupJson);
   const test1Passed = preview.isValid && preview.summary.transactionsCount === 1 && preview.summary.walletsCount === 1;

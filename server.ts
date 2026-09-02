@@ -30,16 +30,23 @@ export function createApp() {
     const nonce = crypto.randomBytes(16).toString('base64');
     res.locals.cspNonce = nonce;
     
-    // Extremely permissive, offline-compatible, and platform-flexible CSP
-    // Supports standard web, standalone PWAs, Capacitor (capacitor://), Cordova, and file: protocols.
-    // Retains 'nonce-' to satisfy institutional security tests.
-    const csp = [
-      `default-src * 'unsafe-inline' 'unsafe-eval' data: blob: gap: capacitor: chrome-extension: file:`,
-      `script-src * 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}' data: blob: gap: capacitor: chrome-extension: file:`,
-      `style-src * 'unsafe-inline' 'nonce-${nonce}' data: blob: gap: capacitor: file:`,
-      `font-src * data: blob: gap: capacitor: file:`,
-      `img-src * data: blob: gap: capacitor: file: android-aged:`,
-      `connect-src * 'unsafe-inline' 'unsafe-eval' data: blob: gap: capacitor: file:`
+    // Strictly secure, offline-compatible, and asset-restricted CSP
+    // Restricts all resources to 'self' and uses cryptographically secure nonces.
+    const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test';
+    const csp = isProd ? [
+      `default-src 'self'`,
+      `script-src 'self' 'nonce-${nonce}'`,
+      `style-src 'self' 'nonce-${nonce}'`,
+      `font-src 'self' data:`,
+      `img-src 'self' data: blob:`,
+      `connect-src 'self'`
+    ].join('; ') : [
+      `default-src 'self'`,
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}'`,
+      `style-src 'self' 'unsafe-inline' 'nonce-${nonce}'`,
+      `font-src 'self' data:`,
+      `img-src 'self' data: blob:`,
+      `connect-src 'self' ws://localhost:3000 ws://127.0.0.1:3000 http://localhost:3000 http://127.0.0.1:3000`
     ].join('; ');
 
     res.setHeader('Content-Security-Policy', csp);

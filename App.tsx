@@ -331,10 +331,6 @@ const App: React.FC = () => {
     });
   }, [state.currencies, activeLanguage]);
 
-  // 100% Offline-First Sovereignty: Ignore network state changes and connection warnings
-  const isOnline = true;
-  const showNetworkToast = false;
-
   // PWA states
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
