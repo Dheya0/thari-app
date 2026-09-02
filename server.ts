@@ -57,7 +57,7 @@ export function createApp() {
     message: { error: "Too many AI requests from this IP, please try again after 15 minutes." }
   });
 
-  // Pluggable Authentication Middleware with strict production enforcement
+  // Pluggable Authentication Middleware with strict development & production enforcement
   const authenticateRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers['authorization'];
     const appToken = req.headers['x-app-token'];
@@ -79,9 +79,17 @@ export function createApp() {
         return res.status(401).json({ error: 'Unauthorized: Valid app authentication token required' });
       }
     } else {
-      // Development mode fallback token check if token is provided
+      // Development mode strict enforcement: reject if token missing unless ALLOW_INSECURE_DEV=true is explicitly set
+      const allowInsecureDev = process.env.ALLOW_INSECURE_DEV === 'true';
       const devExpected = expectedToken || 'thari-secure-dev-token';
-      if (token && token !== devExpected) {
+
+      if (!token) {
+        if (!allowInsecureDev) {
+          return res.status(401).json({ 
+            error: 'Unauthorized: Missing authentication token in development. Set ALLOW_INSECURE_DEV=true or provide x-app-token / Authorization header.' 
+          });
+        }
+      } else if (token !== devExpected) {
         return res.status(401).json({ error: 'Unauthorized: Invalid development token' });
       }
     }
@@ -105,8 +113,8 @@ export function createApp() {
       const sanitizedHistory = sanitizeAndRedact(history);
       const sanitizedContext = sanitizeAndRedact(financialContext);
 
-      // 3. Log filtered telemetry with hashed user ID (no raw prompt content, no PII, no apiKey)
-      console.info(JSON.stringify({
+      // 3. Log filtered telemetry with hashed user ID (fully sanitized and redacted)
+      console.info(JSON.stringify(sanitizeAndRedact({
         event: 'ai_request',
         meta: {
           userHash: hashUserId(req.headers['x-user-id'] as string),
@@ -114,7 +122,7 @@ export function createApp() {
           requestType: requestType || 'chat',
           timestamp: new Date().toISOString()
         }
-      }));
+      })));
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -134,7 +142,16 @@ export function createApp() {
         }
       });
 
-      const rawText = response.text || '';
+      // Robust SDK response text extraction with candidate fallbacks
+      let rawText = '';
+      if (typeof response.text === 'string' && response.text.length > 0) {
+        rawText = response.text;
+      } else if (response.candidates && response.candidates.length > 0) {
+        const candidate = response.candidates[0];
+        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+          rawText = candidate.content.parts.map((p: any) => p.text || '').join('');
+        }
+      }
 
       // 4. Secure AI Output Sanitization: sanitize and redact rawText to prevent hallucinations or leaked keys
       const sanitizedOutputText = sanitizeAndRedact(rawText, 8000);
@@ -158,7 +175,7 @@ export function createApp() {
 
       res.json(validationResult.data);
     } catch (error: any) {
-      console.error("Server AI proxy error:", error);
+      console.error("Server AI proxy error:", sanitizeAndRedact(error?.message || String(error)));
       res.status(500).json({ error: "Failed to generate AI content" });
     }
   });

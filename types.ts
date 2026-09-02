@@ -79,6 +79,7 @@ export interface Wallet {
   type?: 'cash' | 'bank' | 'savings' | 'ewallet';
   openingBalance?: number;
   currentBalance?: number;
+  balance?: number;
   status?: 'active' | 'archived';
   createdAt?: string;
   updatedAt?: string;

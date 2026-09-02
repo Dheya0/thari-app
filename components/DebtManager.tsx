@@ -1723,7 +1723,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       >
                         {wallets.map(w => (
                           <option key={w.id} value={w.id}>
-                            {w.name} ({w.balance.toLocaleString()} {w.currencyCode})
+                            {w.name} ({(w.currentBalance ?? w.openingBalance ?? 0).toLocaleString()} {w.currencyCode})
                           </option>
                         ))}
                       </select>
