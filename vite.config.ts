@@ -7,7 +7,17 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: '/',
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      // Ensure plugin-react runs first. Disable Fast Refresh here to avoid preamble
+      // detection issues when other transforms or custom middleware modify the output.
+      // This prevents the runtime error: "@vitejs/plugin-react can't detect preamble."
+      react({
+        fastRefresh: false,
+        // Keep automatic runtime unless your project explicitly requires the classic runtime
+        jsxRuntime: 'automatic',
+      }),
+      tailwindcss(),
+    ],
     resolve: {
       dedupe: ['react', 'react-dom']
     },
