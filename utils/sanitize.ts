@@ -1,7 +1,10 @@
 /**
  * Server-side Sanitization and PII Redaction Utility
- * Cleans user inputs, prompts, history, and financial context before forwarding to GenAI.
+ * Cleans user inputs, prompts, history, and financial context before forwarding to GenAI,
+ * and redacts AI output prior to client delivery.
  */
+
+import crypto from 'crypto';
 
 export const REDACTED_EMAIL = '[REDACTED_EMAIL]';
 export const REDACTED_PHONE = '[REDACTED_PHONE]';
@@ -10,7 +13,7 @@ export const REDACTED_IBAN = '[REDACTED_IBAN]';
 export const REDACTED_SECRET = '[REDACTED_SECRET]';
 export const TRUNCATED_MARKER = ' [TRUNCATED]';
 
-// Regex patterns
+// Advanced robust PII and token regex patterns
 const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 const PHONE_REGEX = /(?:\+?\d{1,4}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,6}/g;
 const CC_REGEX = /\b(?:\d{4}[-\s]?){3}\d{4}\b/g;
@@ -32,10 +35,10 @@ export function sanitizeAndRedact(input: any, maxLength: number = 2000): any {
   if (typeof input === 'string') {
     let sanitized = input;
 
-    // 1. Redact API keys / long tokens
+    // 1. Redact API keys / long base64 / token secrets
     sanitized = sanitized.replace(API_KEY_OR_BASE64_REGEX, REDACTED_SECRET);
 
-    // 2. Redact PII
+    // 2. Redact PII (Emails, Phones, Credit Cards, IBANs)
     sanitized = sanitized.replace(EMAIL_REGEX, REDACTED_EMAIL);
     sanitized = sanitized.replace(PHONE_REGEX, (match) => {
       if (match.includes('-') && match.length === 10 && match.startsWith('20')) return match;
@@ -59,7 +62,7 @@ export function sanitizeAndRedact(input: any, maxLength: number = 2000): any {
   if (typeof input === 'object') {
     const sanitizedObj: Record<string, any> = {};
     for (const key of Object.keys(input)) {
-      if (key.toLowerCase().includes('apikey') || key.toLowerCase().includes('secret')) {
+      if (key.toLowerCase().includes('apikey') || key.toLowerCase().includes('secret') || key.toLowerCase().includes('token')) {
         sanitizedObj[key] = REDACTED_SECRET;
         continue;
       }
@@ -69,4 +72,16 @@ export function sanitizeAndRedact(input: any, maxLength: number = 2000): any {
   }
 
   return String(input);
+}
+
+/**
+ * Hashes user identifier for telemetry to prevent logging raw PII.
+ */
+export function hashUserId(id?: string | number): string {
+  if (!id) return 'anonymous';
+  try {
+    return crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 8);
+  } catch {
+    return 'hashed_user';
+  }
 }

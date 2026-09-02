@@ -5,7 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-import { sanitizeAndRedact } from "./utils/sanitize";
+import { sanitizeAndRedact, hashUserId } from "./utils/sanitize";
 
 const SERVER_SIDE_SYSTEM_PROMPT = `أنت "ثري"، المستشار المالي الذكي. 
 قدم تحليلات وتوصيات دقيقة بناءً على السياق المالي المزوّد حصراً.
@@ -28,12 +28,14 @@ const AIResponseSchema = z.object({
 export function createApp() {
   const app = express();
 
+  const isProduction = process.env.NODE_ENV === 'production';
+
   // Security headers via helmet with CSP configured for app & AI proxy
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        scriptSrc: isProduction ? ["'self'", "'unsafe-inline'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'", "https://generativelanguage.googleapis.com"]
@@ -54,11 +56,11 @@ export function createApp() {
     message: { error: "Too many AI requests from this IP, please try again after 15 minutes." }
   });
 
-  // Pluggable Authentication Middleware
+  // Pluggable Authentication Middleware with strict production enforcement
   const authenticateRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers['authorization'];
     const appToken = req.headers['x-app-token'];
-    const expectedToken = process.env.APP_AUTH_TOKEN || 'thari-secure-dev-token';
+    const expectedToken = process.env.APP_AUTH_TOKEN;
 
     let token = '';
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -67,13 +69,20 @@ export function createApp() {
       token = appToken;
     }
 
-    // In production mode, if APP_AUTH_TOKEN is enforced, validate token
-    if (process.env.NODE_ENV === 'production' && process.env.APP_AUTH_TOKEN && !token) {
-      return res.status(401).json({ error: 'Unauthorized: Missing required app token' });
-    }
-
-    if (token && process.env.APP_AUTH_TOKEN && token !== expectedToken && process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Unauthorized: Invalid app token' });
+    if (isProduction) {
+      if (!expectedToken) {
+        console.error('FATAL: APP_AUTH_TOKEN missing in production configuration.');
+        return res.status(500).json({ error: 'Server misconfiguration: Authentication required' });
+      }
+      if (!token || token !== expectedToken) {
+        return res.status(401).json({ error: 'Unauthorized: Valid app authentication token required' });
+      }
+    } else {
+      // Development mode fallback token check if token is provided
+      const devExpected = expectedToken || 'thari-secure-dev-token';
+      if (token && token !== devExpected) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid development token' });
+      }
     }
 
     next();
@@ -95,11 +104,11 @@ export function createApp() {
       const sanitizedHistory = sanitizeAndRedact(history);
       const sanitizedContext = sanitizeAndRedact(financialContext);
 
-      // 3. Log filtered telemetry (no full prompt content, no apiKey, no user PII)
+      // 3. Log filtered telemetry with hashed user ID (no raw prompt content, no PII, no apiKey)
       console.info(JSON.stringify({
         event: 'ai_request',
         meta: {
-          userId: req.headers['x-user-id'] || 'anonymous',
+          userHash: hashUserId(req.headers['x-user-id'] as string),
           model: DEFAULT_MODEL,
           requestType: requestType || 'chat',
           timestamp: new Date().toISOString()
@@ -126,15 +135,18 @@ export function createApp() {
 
       const rawText = response.text || '';
 
-      // 4. Secure response parsing: extract JSON if embedded or validate text output
-      let responsePayload = { text: rawText };
-      const jsonMatch = rawText.match(/```json([\s\S]*?)```/);
+      // 4. Secure AI Output Sanitization: sanitize and redact rawText to prevent hallucinations or leaked keys
+      const sanitizedOutputText = sanitizeAndRedact(rawText, 8000);
+
+      // 5. Secure response parsing: extract JSON if embedded or validate text output
+      let responsePayload = { text: sanitizedOutputText };
+      const jsonMatch = sanitizedOutputText.match(/```json([\s\S]*?)```/);
       if (jsonMatch) {
         try {
           const parsedJson = JSON.parse(jsonMatch[1].trim());
-          responsePayload.text = JSON.stringify(parsedJson);
+          responsePayload.text = JSON.stringify(sanitizeAndRedact(parsedJson, 8000));
         } catch {
-          // Keep raw text if JSON parse fails
+          // Keep sanitized text if JSON parse fails
         }
       }
 
@@ -158,11 +170,19 @@ export function createApp() {
 }
 
 async function startServer() {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Enforce startup failure if APP_AUTH_TOKEN is missing in production
+  if (isProduction && !process.env.APP_AUTH_TOKEN) {
+    console.error('FATAL: APP_AUTH_TOKEN must be set in production environment to protect /api/gemini endpoint.');
+    process.exit(1);
+  }
+
   const app = createApp();
   const PORT = 3000;
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -177,7 +197,7 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT} [Production mode: ${isProduction}]`);
   });
 }
 
