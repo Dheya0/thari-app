@@ -534,7 +534,6 @@ export function runBackupServiceTests(): { allPassed: boolean; testResults: Arra
     autoLockTime: 'instant',
     autoBackupFrequency: 'daily',
     hasAcceptedTerms: true,
-    chatHistory: [],
     auditLogs: [],
     pin: '',
     isLocked: false,

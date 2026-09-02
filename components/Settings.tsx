@@ -154,7 +154,6 @@ interface SettingsProps {
   currencies: Currency[];
   wallets: Wallet[];
   categories: Category[];
-  apiKey?: string;
   exchangeRates?: Record<string, number>;
   appState: any; 
   onUpdateSettings: (updates: any) => void;
@@ -178,7 +177,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ 
-  userName = '', pin = '', currency, currencies, wallets, categories, apiKey = '', exchangeRates = {}, appState = {}, onUpdateSettings, 
+  userName = '', pin = '', currency, currencies, wallets, categories, exchangeRates = {}, appState = {}, onUpdateSettings, 
   onAddCurrency, onRemoveCurrency, onAddWallet, onUpdateWallet, onRemoveWallet,
   onAddCategory, onUpdateCategory, onRemoveCategory,
   onRestore, onClearData, onShowPrivacyPolicy, onPrint, onShare, onExportExcel,
@@ -197,7 +196,6 @@ export default function Settings({
   const [localUserName, setLocalUserName] = useState(userName || '');
   const [localUserEmail, setLocalUserEmail] = useState(appState?.userEmail || '');
   const [localPin, setLocalPin] = useState(pin || '');
-  const [localApiKey, setLocalApiKey] = useState(apiKey || '');
   const [localAutoLockTime, setLocalAutoLockTime] = useState<'instant' | '1min' | '5min' | 'never'>(appState?.autoLockTime || 'instant');
   const [localRequireBiometricOnOpen, setLocalRequireBiometricOnOpen] = useState<boolean>(appState?.requireBiometricOnOpen !== false);
   const [localAutoBackupFreq, setLocalAutoBackupFreq] = useState<'on_open' | 'daily' | 'weekly' | 'disabled'>(appState?.autoBackupFrequency || 'daily');
@@ -581,7 +579,6 @@ export default function Settings({
     onUpdateSettings({ 
       userName: localUserName, 
       userEmail: localUserEmail,
-      apiKey: localApiKey,
       language: localLanguage 
     });
     showToast(t.saveProfileSuccess);
@@ -1409,18 +1406,6 @@ export default function Settings({
                         <span>{t.emailBackup}</span>
                       </button>
                     </div>
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block">{t.consultationKeyOptional}</label>
-                    <input 
-                      type="password" 
-                      value={localApiKey} 
-                      onChange={e => setLocalApiKey(e.target.value)} 
-                      onBlur={() => onUpdateSettings({ apiKey: localApiKey })}
-                      placeholder={t.apiKeyOptionalPlaceholder} 
-                      className="text-center w-full p-4 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-bold border border-white/10 outline-none focus:border-[#D9B978] shadow-inner text-sm" 
-                    />
                 </div>
 
                 <div className="pt-2">

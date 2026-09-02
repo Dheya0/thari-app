@@ -71,7 +71,6 @@ const INITIAL_STATE: AppState = {
   trashTransactions: [],
   recurringRules: [],
   subscriptions: [],
-  chatHistory: [],
   categories: INITIAL_CATEGORIES,
   wallets: [
     { id: 'w-yer-1', name: 'الراتب', currencyCode: 'YER_SANAA', color: '#f59e0b' },
@@ -92,7 +91,6 @@ const INITIAL_STATE: AppState = {
   isTravelMode: false,
   showSeparateCurrencies: false,
   hasAcceptedTerms: false,
-  apiKey: '', // Initialize empty
   autoLockTime: 'instant',
   autoBackupFrequency: 'daily',
   lastAutoBackupTime: '',
@@ -1542,7 +1540,7 @@ const App: React.FC = () => {
                         onUpdateCategory={(id, updates) => setState(p => ({ ...p, categories: p.categories.map(c => c.id === id ? { ...c, ...updates } : c) }))}
                         onRemoveCategory={(id) => setState(p => ({ ...p, categories: p.categories.filter(c => c.id !== id) }))}
                         onRestore={handleRestoreState} 
-                        onClearData={() => setState(p => ({...p, transactions: [], debts: [], budgets: [], subscriptions: [], chatHistory: [], goals: []}))} 
+                        onClearData={() => setState(p => ({...p, transactions: [], debts: [], budgets: [], subscriptions: [], goals: []}))} 
                         onShowPrivacyPolicy={() => setShowPrivacyPolicy(true)} 
                         onPrint={handlePrint}
                         onShare={handleShare}

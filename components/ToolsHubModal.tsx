@@ -40,10 +40,6 @@ const STRINGS = {
       diagnostics: {
         title: 'فحص تكامل البيانات والتدقيق',
         desc: 'مطابقة ميزان المحافظ والتحقق من العمليات المعزولة والنزاهة'
-      },
-      advisor: {
-        title: 'المساعد المالي والتحليل',
-        desc: 'تحليل التدفقات النقدية وتقديم التوصيات والخطط المخصصة'
       }
     }
   },
@@ -69,10 +65,6 @@ const STRINGS = {
       diagnostics: {
         title: 'System Diagnostics & Audit',
         desc: 'Reconcile wallet balances, verify invariants & inspect ledger integrity'
-      },
-      advisor: {
-        title: 'Financial Assistant & Analytics',
-        desc: 'Analyze cash flows, recommendations & personalized financial plans'
       }
     }
   }

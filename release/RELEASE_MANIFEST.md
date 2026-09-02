@@ -83,7 +83,7 @@ To produce identical, bit-for-bit reproducible release builds on your workstatio
 ## 5. Known Limitations & Environment Constraints
 
 1. **Native Binaries Generation**: The container environment does not host native SDK binaries (Java JDK/Android SDK for Gradle and macOS/Xcode for CocoaPods). Native compilation must be performed via `npx cap open android` and `npx cap open ios` on physical developer machines.
-2. **AI API Key Zero-Knowledge Boundary**: If the user inputs an optional Gemini API Key, it is stored locally encrypted using AES-256-GCM. In line with client-side threat modeling, users on rooted/jailbroken devices are informed that client-side secrets are vulnerable to physical memory inspection.
+2. **Client-Side Zero-Knowledge Boundary**: Local application state and sensitive user credentials are stored locally with zero-knowledge cryptographic boundaries. In line with client-side threat modeling, users on rooted/jailbroken devices are informed that client-side secrets are vulnerable to physical memory inspection.
 3. **Forgotten Passwords/PINs**: Due to zero-knowledge cryptographic design without backdoors, forgotten master passwords for encrypted backups cannot be recovered by anyone.
 
 ---

@@ -247,12 +247,6 @@ export type Currency = {
   isActive?: boolean;
 };
 
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  timestamp: number;
-}
-
 export interface AuditLog {
   id: string;
   action: 'transaction_created' | 'transaction_updated' | 'transaction_deleted' | 'transaction_restored' | 'wallet_created' | 'wallet_updated' | 'transfer_executed' | 'backup_created' | 'backup_restored';
@@ -319,7 +313,6 @@ export interface AppState {
   trashTransactions: Transaction[];
   recurringRules: RecurringRule[];
   subscriptions: Subscription[];
-  chatHistory: ChatMessage[];
   categories: Category[];
   wallets: Wallet[];
   goals: Goal[];
@@ -339,7 +332,6 @@ export interface AppState {
   isTravelMode: boolean;
   hasAcceptedTerms: boolean;
   showSeparateCurrencies: boolean; // Toggle for Travel Mode
-  apiKey?: string; // User provided API Key for better security
   lastBackupDate?: string; // ISO date string of last backup taken
   autoLockTime?: 'instant' | '1min' | '5min' | 'never'; // Auto-lock timeout
   requireBiometricOnOpen?: boolean; // Require biometric / PIN on every app launch or background resume
