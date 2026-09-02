@@ -189,6 +189,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   // Installments in Form
   const [enableInstallments, setEnableInstallments] = useState(false);
   const [installmentCount, setInstallmentCount] = useState<number>(3);
+  const [installmentFrequency, setInstallmentFrequency] = useState<'monthly' | 'weekly' | 'biweekly'>('monthly');
 
   // Agreed Exchange Rate & Currency Lock State (تثبيت سعر الصرف وتوثيق العملة الأجنبية لمنع النزاع)
   const [hasAgreedRate, setHasAgreedRate] = useState(false);
@@ -455,6 +456,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setIncludeWalletTransaction(true);
     setEnableInstallments(false);
     setInstallmentCount(3);
+    setInstallmentFrequency('monthly');
     setHasAgreedRate(false);
     setForeignAmountInput('');
     setForeignCurrencyInput('USD');
@@ -475,6 +477,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     setDueDate(d.dueDate || '');
     setEnableInstallments(!!d.installments && d.installments.length > 0);
     setInstallmentCount(d.installments?.length || 3);
+    setInstallmentFrequency('monthly');
     
     // Agreed Currency Lock & Foreign Amount prefill
     if (d.foreignAmount || d.exchangeRate || d.conversionNote) {
@@ -520,7 +523,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     }
   };
 
-  const generateInstallments = (total: number, count: number, start: string): DebtInstallment[] => {
+  const generateInstallments = (total: number, count: number, start: string, freq: 'monthly' | 'weekly' | 'biweekly'): DebtInstallment[] => {
     const installments: DebtInstallment[] = [];
     const totalCents = Math.round(total * 100);
     const baseCents = Math.floor(totalCents / count);
@@ -529,7 +532,13 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     
     for (let i = 0; i < count; i++) {
         const date = new Date(startDate);
-        date.setMonth(date.getMonth() + i + 1);
+        if (freq === 'weekly') {
+          date.setDate(date.getDate() + (i + 1) * 7);
+        } else if (freq === 'biweekly') {
+          date.setDate(date.getDate() + (i + 1) * 14);
+        } else {
+          date.setMonth(date.getMonth() + i + 1);
+        }
         const cents = i === count - 1 ? baseCents + remainderCents : baseCents;
         installments.push({
             id: `inst-${Date.now()}-${i}`,
@@ -550,7 +559,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     
     let installmentsData = editingDebt?.installments;
     if (!editingDebt && enableInstallments && installmentCount > 1) {
-       installmentsData = generateInstallments(totalAmount, installmentCount, createdAt);
+       installmentsData = generateInstallments(totalAmount, installmentCount, createdAt, installmentFrequency);
     }
 
     const fAmt = hasAgreedRate && foreignAmountInput ? parseArabicNumber(foreignAmountInput) : undefined;
@@ -1687,10 +1696,52 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </div>
 
               {!editingDebt && (
-                <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/10 space-y-2">
+                <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <GripHorizontal size={14} /> {isRtl ? 'تفعيل جدول الأقساط الشهرية' : 'Enable Monthly Installments'}
+                      <WalletIcon size={14} className="text-[#D9B978]" /> 
+                      {type === 'to_me' 
+                        ? (isRtl ? 'إضافة المبلغ المسلف إلى المحفظة (خصم رصيد)' : 'Deduct lent amount from wallet') 
+                        : (isRtl ? 'إضافة المبلغ المستدان إلى المحفظة (زيادة رصيد)' : 'Add borrowed amount to wallet')}
+                    </span>
+                    <div 
+                      className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-all ${includeWalletTransaction ? 'bg-[#D9B978]' : 'bg-slate-800'}`} 
+                      onClick={() => setIncludeWalletTransaction(!includeWalletTransaction)}
+                    >
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${includeWalletTransaction ? (isRtl ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                  {includeWalletTransaction && (
+                    <div className="pt-2 border-t border-white/5 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {isRtl ? 'اختر المحفظة المستهدفة' : 'Select Wallet'}
+                      </label>
+                      <select
+                        value={selectedWalletId}
+                        onChange={e => setSelectedWalletId(e.target.value)}
+                        className="w-full p-2.5 rounded-xl bg-[#11161C] text-white text-xs font-black outline-none border border-white/10 cursor-pointer"
+                      >
+                        {wallets.map(w => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} ({w.balance.toLocaleString()} {w.currencyCode})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 font-bold pt-1">
+                        {type === 'to_me' 
+                          ? (isRtl ? '💡 سيتم خصم المبلغ من المحفظة المختارة كعملية إقراض.' : '💡 Amount will be deducted as an outflow.') 
+                          : (isRtl ? '💡 سيتم إضافة المبلغ إلى المحفظة المختارة كتمويل أو استلاف.' : '💡 Amount will be added as an inflow.')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!editingDebt && (
+                <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <GripHorizontal size={14} /> {isRtl ? 'تفعيل جدول الأقساط (مجدولة)' : 'Enable Installments Schedule'}
                     </span>
                     <div 
                       className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-all ${enableInstallments ? 'bg-[#D9B978]' : 'bg-slate-800'}`} 
@@ -1700,20 +1751,46 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     </div>
                   </div>
                   {enableInstallments && (
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex gap-2 items-center">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">{isRtl ? 'عدد الأقساط:' : 'Count:'}</label>
+                    <div className="space-y-3 pt-2 border-t border-white/5">
+                      {/* Period Frequency Selector */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'دورية سداد الأقساط:' : 'Installment Period:'}</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { id: 'monthly', label: isRtl ? 'شهرياً' : 'Monthly' },
+                            { id: 'weekly', label: isRtl ? 'أسبوعياً' : 'Weekly' },
+                            { id: 'biweekly', label: isRtl ? 'كل أسبوعين' : 'Bi-weekly' },
+                          ].map(f => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setInstallmentFrequency(f.id as any)}
+                              className={`py-2 rounded-xl text-xs font-bold transition-all ${
+                                installmentFrequency === f.id ? 'bg-[#D9B978] text-slate-950 font-black shadow' : 'bg-slate-800 text-slate-300 hover:text-white'
+                              }`}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Count Slider */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'عدد الأقساط:' : 'Number of Installments:'}</label>
+                          <span className="bg-[#D9B978]/20 text-[#D9B978] font-black px-2.5 py-0.5 rounded-lg text-xs">
+                            {installmentCount} {isRtl ? 'قسط' : 'Installments'}
+                          </span>
+                        </div>
                         <input 
                           type="range" 
                           min="2" 
                           max="36" 
                           value={installmentCount} 
                           onChange={e => setInstallmentCount(parseInt(e.target.value))} 
-                          className="flex-1 accent-[#D9B978] h-1.5" 
+                          className="w-full accent-[#D9B978] h-1.5 cursor-pointer" 
                         />
-                        <span className="bg-slate-800 text-white font-bold px-2 py-0.5 rounded-lg text-xs min-w-[2rem] text-center">
-                          {installmentCount}
-                        </span>
                       </div>
                     </div>
                   )}
@@ -1865,6 +1942,45 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         />
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <WalletIcon size={14} className="text-emerald-400" />
+                    {isRtl ? 'تسجيل الحركة في المحفظة (تأثير على الرصيد)' : 'Link to Wallet Account'}
+                  </span>
+                  <div 
+                    className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-all ${!payExternalOnly ? 'bg-emerald-500' : 'bg-slate-800'}`} 
+                    onClick={() => setPayExternalOnly(!payExternalOnly)}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${!payExternalOnly ? (isRtl ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'}`} />
+                  </div>
+                </div>
+
+                {!payExternalOnly && (
+                  <div className="pt-2 border-t border-white/5 space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      {isRtl ? 'المحفظة المستهدفة للدفع/الاستلام' : 'Target Wallet'}
+                    </label>
+                    <select
+                      value={payWalletId}
+                      onChange={e => setPayWalletId(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-[#11161C] text-white text-xs font-black outline-none border border-white/10 cursor-pointer"
+                    >
+                      {wallets.map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.name} ({w.balance.toLocaleString()} {w.currencyCode})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400 font-bold pt-1">
+                      {paymentModalData.debt.type === 'to_me' 
+                        ? (isRtl ? '💡 سيتم إضافة المبلغ المستلم إلى رصيد المحفظة.' : '💡 Amount will be added to wallet balance.') 
+                        : (isRtl ? '💡 سيتم خصم المبلغ المسدد من رصيد المحفظة.' : '💡 Amount will be deducted from wallet balance.')}
+                    </p>
                   </div>
                 )}
               </div>

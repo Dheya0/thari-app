@@ -68,11 +68,11 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       }
     }
 
-    // Determine snap state from closed initial position (light, highly responsive thresholds)
-    if (x < -20 || velocity < -50) {
+    // Determine snap state from closed initial position (hyper-sensitive & responsive thresholds)
+    if (x < -10 || velocity < -30) {
       // Swiped Left (reveal right actions)
       setSwipeOffset(-96);
-    } else if (x > 20 || velocity > 50) {
+    } else if (x > 10 || velocity > 30) {
       // Swiped Right (reveal left actions)
       setSwipeOffset(96);
     } else {
@@ -191,7 +191,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         animate={{ x: swipeOffset }}
-        transition={{ type: 'spring', stiffness: 520, damping: 30, mass: 0.5 }}
+        transition={{ type: 'spring', stiffness: 800, damping: 22, mass: 0.2 }}
         onClick={handleRowClick}
         className="relative z-10 w-full cursor-grab active:cursor-grabbing touch-pan-y will-change-transform"
       >

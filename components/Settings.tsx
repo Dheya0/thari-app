@@ -230,8 +230,6 @@ export default function Settings({
   const [editingRateCurrency, setEditingRateCurrency] = useState<Currency | null>(null);
   const [rateInputVal, setRateInputVal] = useState('');
   const [rateInputSubVal, setRateInputSubVal] = useState('');
-  const [calcTestAmount, setCalcTestAmount] = useState<number>(100);
-  const [calcTestFrom, setCalcTestFrom] = useState<string>('SAR');
   const [newCurrencyData, setNewCurrencyData] = useState({ code: '', name: '', symbol: '', rate: '1.0' });
 
   const currentRates: Record<string, number> = {
@@ -312,18 +310,6 @@ export default function Settings({
 
     onUpdateSettings({ exchangeRates: updated });
     showToast(localLanguage === 'en' ? 'Custom exchange rates saved to AppState successfully' : 'تم حفظ وتحديث أسعار الصرف اليدوية في النظام بنجاح');
-  };
-
-  const handleApplyYemenPreset = () => {
-    const updated = {
-      ...currentRates,
-      YER_SANAA: 100.0 / 14000.0, // 100 SAR = 14,000 YER Sana'a
-      YER_ADEN: 100.0 / 41000.0,  // 100 SAR = 41,000 YER Aden
-      YER: 100.0 / 41000.0,
-      USD: 1576.0 / 410.0,        // 100 USD = 157,600 YER Aden
-    };
-    onUpdateSettings({ exchangeRates: updated });
-    showToast(localLanguage === 'en' ? 'Yemen rates applied: 100 SAR = 14k/41k YER, 100$ = 157.6k YER' : 'تم تطبيق أسعار اليمن: 100 سعودي = 14 ألف صنعاء / 41 ألف عدن، و 100 دولار = 157,600 عدن');
   };
 
   const handleResetDefaultRates = () => {
@@ -954,7 +940,7 @@ export default function Settings({
             <div>
               <h3 className="font-black text-[#F4F1EA] text-lg">{t.currenciesAndRates}</h3>
               <p className="text-[11px] text-slate-400 font-bold">
-                {isArabic ? 'الريال السعودي (SAR) هو العملة المرجعية للنظام مع إمكانية تعديل كافة الأسعار محلياً' : 'SAR is base currency with full customizable rates'}
+                {isArabic ? 'محرك التحويل المباشر: تحويل دقيق وفوري بين أي عملتين بناءً على الأسعار المخصصة (حسب عملة المحفظة أو الحساب مثل الريال اليمني عدن أو الدولار)' : 'Direct cross-rate engine: precise & instant conversion between any currency pair'}
               </p>
             </div>
           </div>
@@ -967,120 +953,6 @@ export default function Settings({
           >
              <Plus size={16} /> {t.addCurrency}
           </button>
-        </div>
-
-        {/* Quick Presets & Instant Setup */}
-        <div className="bg-[#11161C] p-5 sm:p-6 rounded-[2.5rem] border border-white/10 shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-black text-xs">
-                ⚡
-              </div>
-              <h4 className="text-sm font-black text-[#F4F1EA]">
-                {isArabic ? 'الضبط السريع لأسعار الصرف في اليمن والدول' : 'Quick Rate Presets'}
-              </h4>
-            </div>
-            <button
-              onClick={handleResetDefaultRates}
-              className="text-[11px] text-slate-400 hover:text-white font-bold underline px-2 py-1 transition-colors"
-            >
-              {isArabic ? 'استعادة الافتراضيات' : 'Reset Defaults'}
-            </button>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-[#0A0D10] border border-white/5 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-400 font-black text-[10px]">
-                    🇾🇪 {isArabic ? 'أسعار اليمن المعتمدة' : 'Yemen Market Rates'}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-300 font-bold leading-relaxed">
-                  {isArabic 
-                    ? '100 سعودي = 14,000 ريال (صنعاء) | 100 سعودي = 41,000 ريال (عدن) | 100 دولار = 157,600 ريال (عدن)'
-                    : '100 SAR = 14k YER (Sanaa) | 100 SAR = 41k YER (Aden) | 100 USD = 157.6k YER (Aden)'}
-                </p>
-              </div>
-              <button
-                onClick={handleApplyYemenPreset}
-                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/20 active:scale-95 transition-all shrink-0 flex items-center justify-center gap-1.5"
-              >
-                <Check size={14} />
-                {isArabic ? 'تطبيق أسعار اليمن فوراً' : 'Apply Yemen Rates'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Live Currency Converter Sandbox */}
-        <div className="bg-[#11161C] p-5 sm:p-6 rounded-[2.5rem] border border-white/10 shadow-xl space-y-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-black text-xs">
-              🔄
-            </div>
-            <div>
-              <h4 className="text-sm font-black text-[#F4F1EA]">
-                {isArabic ? 'حاسبة التحويل التجريبية الحية' : 'Live FX Converter & Tester'}
-              </h4>
-              <p className="text-[10px] text-slate-400 font-bold">
-                {isArabic ? 'جرّب أي مبلغ للتأكد من دقة الصرف ومطابقته للواقع' : 'Test any amount across all active currencies'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                {isArabic ? 'المبلغ للتجربة' : 'Amount'}
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={calcTestAmount}
-                onChange={e => setCalcTestAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                className="w-full p-3 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
-              />
-            </div>
-            <div className="w-full sm:w-48 space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                {isArabic ? 'من عملة' : 'From Currency'}
-              </label>
-              <select
-                value={calcTestFrom}
-                onChange={e => setCalcTestFrom(e.target.value)}
-                className="w-full p-3 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-black border border-white/10 focus:border-[#D9B978] outline-none"
-              >
-                {safeCurrencies.map(c => {
-                  const loc = getLocalizedCurrency(c.code, c.name, c.symbol, localLanguage || 'ar');
-                  return (
-                    <option key={c.code} value={c.code}>
-                      {loc.name} ({c.code})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-          </div>
-
-          {/* Results Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-2">
-            {safeCurrencies.map(c => {
-              const convertedVal = convertCurrency(calcTestAmount, calcTestFrom, c.code, currentRates);
-              const loc = getLocalizedCurrency(c.code, c.name, c.symbol, localLanguage || 'ar');
-              return (
-                <div key={c.code} className="p-3 rounded-2xl bg-[#0A0D10] border border-white/5 flex flex-col justify-between">
-                  <span className="text-[10px] text-slate-400 font-bold truncate">{loc.name}</span>
-                  <div className="flex items-baseline justify-between gap-1 mt-1">
-                    <span className="text-sm font-black text-white truncate">
-                      {convertedVal.toLocaleString(undefined, { maximumFractionDigits: c.code.includes('YER') ? 0 : 2 })}
-                    </span>
-                    <span className="text-[10px] font-black text-[#D9B978] shrink-0">{loc.symbol}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* Currency Cards List */}
@@ -1713,22 +1585,13 @@ export default function Settings({
                   <span>{localLanguage === 'en' ? 'Save & Apply Exchange Rates to App' : 'حفظ وتطبيق أسعار الصرف في كافة الحسابات'}</span>
                 </button>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleApplyYemenPreset}
-                    className="py-2.5 px-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl font-black text-[11px] active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <span>🇾🇪 {localLanguage === 'en' ? 'Apply Yemen Preset' : 'تطبيق أسعار اليمن'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetDefaultRates}
-                    className="py-2.5 px-3 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-xl font-bold text-[11px] active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <span>{localLanguage === 'en' ? 'Reset Defaults' : 'استعادة الافتراضيات'}</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleResetDefaultRates}
+                  className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <span>{localLanguage === 'en' ? 'Reset Defaults' : 'استعادة الافتراضيات'}</span>
+                </button>
 
                 <button
                   type="button"
@@ -1736,7 +1599,7 @@ export default function Settings({
                   className="w-full py-2.5 bg-[#0A0D10] hover:bg-white/5 text-[#D9B978] border border-[#D9B978]/30 rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center justify-center gap-1.5"
                 >
                   <Coins size={14} />
-                  <span>{localLanguage === 'en' ? 'Open Full FX Manager & Live Converter' : 'فتح الإدارة الكاملة للعملات والحاسبة التجريبية'}</span>
+                  <span>{localLanguage === 'en' ? 'Open Full FX & Exchange Rates Manager' : 'فتح الإدارة الكاملة للعملات وأسعار الصرف'}</span>
                 </button>
               </div>
             </div>

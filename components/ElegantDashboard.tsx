@@ -497,8 +497,8 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                         </span>
                       </div>
 
-                      {/* Desktop quick action icons */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex" onClick={(e) => e.stopPropagation()}>
+                      {/* Quick action icons (always visible for smooth 1-tap access) */}
+                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={(e) => {
