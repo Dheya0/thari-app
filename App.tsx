@@ -31,7 +31,6 @@ import DebtManager from './components/DebtManager';
 import SubscriptionManager from './components/SubscriptionManager';
 import BudgetManager from './components/BudgetManager';
 import GoalTracker from './components/GoalTracker';
-import AIChat from './components/AIChat';
 import Settings from './components/Settings';
 import { AboutAndPrivacy } from './components/AboutAndPrivacy';
 import WelcomeScreen from './components/WelcomeScreen';
@@ -1473,9 +1472,8 @@ const App: React.FC = () => {
                   />
                 )}
                 
-                {activeTab === 'goals' && <GoalTracker goals={state.goals} wallets={state.wallets} transactions={state.transactions} onAddGoal={(g) => setState(p => ({ ...p, goals: [...p.goals, { ...g, id: 'g-'+Date.now() }] }))} onUpdateGoalAmount={(id, amt) => setState(p => ({ ...p, goals: p.goals.map(g => g.id === id ? { ...g, currentAmount: g.currentAmount + amt } : g) }))} currencySymbol={localizedCurrency.symbol} apiKey={state.apiKey} language={activeLanguage} />}
+                {activeTab === 'goals' && <GoalTracker goals={state.goals} wallets={state.wallets} transactions={state.transactions} onAddGoal={(g) => setState(p => ({ ...p, goals: [...p.goals, { ...g, id: 'g-'+Date.now() }] }))} onUpdateGoalAmount={(id, amt) => setState(p => ({ ...p, goals: p.goals.map(g => g.id === id ? { ...g, currentAmount: g.currentAmount + amt } : g) }))} currencySymbol={localizedCurrency.symbol} language={activeLanguage} />}
                 {activeTab === 'budgets' && <BudgetManager budgets={state.budgets} categories={state.categories} transactions={filteredTransactions} onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} exchangeRates={state.exchangeRates} language={activeLanguage} />}
-                {activeTab === 'chat' && <AIChat history={state.chatHistory} transactions={filteredTransactions} categories={state.categories} currency={localizedCurrency.symbol} onSendMessage={(msg) => setState(p => ({ ...p, chatHistory: [...p.chatHistory, msg].slice(-30) }))} apiKey={state.apiKey} language={activeLanguage} />}
                 {activeTab === 'debts' && <DebtManager debts={state.debts} wallets={state.wallets} onAddDebt={handleAddDebt} onUpdateDebt={handleUpdateDebt} onSettleDebt={handleSettleDebt} onPayDebt={handlePayDebt} onDeleteDebt={(id) => setState(p => ({ ...p, debts: p.debts.filter(d => d.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
                 {activeTab === 'subscriptions' && <SubscriptionManager subscriptions={state.subscriptions} categories={state.categories} onAdd={(sub) => setState(p => ({ ...p, subscriptions: [{...sub, id: 's-'+Date.now()}, ...p.subscriptions] }))} onRemove={(id) => setState(p => ({ ...p, subscriptions: p.subscriptions.filter(s => s.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
                 {activeTab === 'zakat' && (
@@ -1619,7 +1617,6 @@ const App: React.FC = () => {
               onOpenRecurring={() => setShowRecurringModal(true)}
               onOpenTrash={() => setShowTrashModal(true)}
               onOpenDiagnostics={() => setShowDiagnosticsModal(true)}
-              onOpenAIAdvisor={() => setActiveTab('chat')}
               language={state.language || 'ar'}
             />
           )}

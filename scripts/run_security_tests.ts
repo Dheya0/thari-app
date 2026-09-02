@@ -6,7 +6,6 @@ import { createApp } from '../server';
 import path from 'path';
 import express from 'express';
 import fs from 'fs';
-import jwt from 'jsonwebtoken';
 
 async function runSecurityTests() {
   console.log('🔒 Running Thari Advanced Security & Hardening Tests...\n');
@@ -32,7 +31,7 @@ async function runSecurityTests() {
     undefinedVal: undefined,
     numberVal: 12345,
     boolVal: true,
-    text: 'This is a very long descriptive text that should be truncated when it exceeds the specified maximum length limit allowed for safe AI prompt processing. '.repeat(20)
+    text: 'This is a very long descriptive text that should be truncated when it exceeds the specified maximum length limit allowed for safe data processing. '.repeat(20)
   };
 
   const sanitized = sanitizeAndRedact(testInput);
@@ -52,7 +51,7 @@ async function runSecurityTests() {
   }
 
   if (sanitized.token === REDACTED_SECRET && sanitized.bearerToken === REDACTED_SECRET && sanitized.secretProp === REDACTED_SECRET && sanitized.nested.apiKey === REDACTED_SECRET) {
-    console.log('  ✅ PASS: API keys, bearer tokens, and nested secret keys successfully redacted');
+    console.log('  ✅ PASS: Secrets and nested keys successfully redacted');
   } else {
     throw new Error('FAIL: Token or property redaction failed');
   }
@@ -75,32 +74,11 @@ async function runSecurityTests() {
     throw new Error('FAIL: Text truncation failed');
   }
 
-  // 2. Server Integration & Authentication Hardening Tests
-  console.log('\n--- Test Suite S2: Server Hardening & Authentication Security ---');
-  
-  // Test 2a: Without ALLOW_INSECURE_DEV in non-production, missing token should return 401
-  delete process.env.ALLOW_INSECURE_DEV;
-  delete process.env.APP_AUTH_TOKEN;
+  // 2. Server Integration & Security Headers
+  console.log('\n--- Test Suite S2: Server Hardening & Security Headers ---');
   let app = createApp();
 
-  let unauthRes = await request(app).post('/api/gemini').send({ contents: 'test' });
-  if (unauthRes.status === 401) {
-    console.log('  ✅ PASS: Missing token correctly rejected with 401 in dev by default');
-  } else {
-    throw new Error(`FAIL: Expected 401 for missing token in dev, got ${unauthRes.status}`);
-  }
-
-  // Test 2b: With ALLOW_INSECURE_DEV=true in non-production, missing token is allowed through
-  process.env.ALLOW_INSECURE_DEV = 'true';
-  app = createApp();
-  let insecureRes = await request(app).post('/api/gemini').send({ contents: 'test' });
-  if (insecureRes.status !== 401) {
-    console.log(`  ✅ PASS: ALLOW_INSECURE_DEV=true allows request past authentication (status: ${insecureRes.status})`);
-  } else {
-    throw new Error('FAIL: ALLOW_INSECURE_DEV=true failed to bypass auth check');
-  }
-
-  // Test 2c: Health check endpoint
+  // Test 2a: Health check endpoint
   const healthRes = await request(app).get('/api/health');
   if (healthRes.status === 200 && healthRes.body.status === 'ok') {
     console.log('  ✅ PASS: /api/health endpoint responsive');
@@ -108,18 +86,14 @@ async function runSecurityTests() {
     throw new Error('FAIL: Health endpoint check failed');
   }
 
-  // Test 2e: Production fail-closed when secrets are missing
-  process.env.NODE_ENV = 'production';
-  delete process.env.APP_AUTH_TOKEN;
-  delete process.env.APP_JWT_SECRET;
-  const prodSecApp = createApp();
-  const prodSecRes = await request(prodSecApp).post('/api/gemini').send({ contents: 'test' });
-  if (prodSecRes.status === 501) {
-    console.log('  ✅ PASS: Production fail-closed correctly rejects requests with 501 when secrets are missing');
+  // Test 2b: Helmet Security Headers Present
+  const frameOptions = healthRes.headers['x-frame-options'];
+  const contentTypeOptions = healthRes.headers['x-content-type-options'];
+  if (frameOptions === 'DENY' && contentTypeOptions === 'nosniff') {
+    console.log('  ✅ PASS: Helmet security headers (X-Frame-Options: DENY, X-Content-Type-Options: nosniff) present');
   } else {
-    throw new Error(`FAIL: Expected 501 fail-closed in production without secrets, got ${prodSecRes.status}`);
+    throw new Error(`FAIL: Helmet security headers missing or incorrect (x-frame-options: ${frameOptions}, x-content-type-options: ${contentTypeOptions})`);
   }
-  process.env.NODE_ENV = 'test';
 
   // 3. Architectural Production HTML & CSP Nonce Invariant Tests
   console.log('\n--- Test Suite S3: Production HTML Transform & CSP Nonce Invariants ---');
@@ -134,10 +108,7 @@ async function runSecurityTests() {
         return res.status(500).send('Error loading app');
       }
       const nonce = res.locals.cspNonce || '';
-      const jwtSecret = process.env.APP_JWT_SECRET;
-      const legacyToken = process.env.APP_AUTH_TOKEN;
-      const appToken = legacyToken || (jwtSecret ? jwt.sign({ client: 'web' }, jwtSecret, { expiresIn: '24h' }) : nonce);
-      const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce).replace(/%APP_TOKEN%/g, appToken);
+      const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
       res.send(injectedHtml);
     });
   });
@@ -151,29 +122,13 @@ async function runSecurityTests() {
 
   const prodHtml = prodRootRes.text;
   const hasUnreplacedProdNonce = prodHtml.includes('%CSP_NONCE%');
-  const hasUnreplacedAppToken = prodHtml.includes('%APP_TOKEN%');
   const cspHeader = prodRootRes.headers['content-security-policy'] || '';
   const hasNonceInCsp = cspHeader.includes('nonce-');
 
-  if (!hasUnreplacedProdNonce && !hasUnreplacedAppToken && hasNonceInCsp) {
-    console.log('  ✅ PASS: Production HTML successfully replaced %CSP_NONCE% and %APP_TOKEN% with active values and CSP header is valid');
+  if (!hasUnreplacedProdNonce && hasNonceInCsp) {
+    console.log('  ✅ PASS: Production HTML successfully replaced %CSP_NONCE% with active values and CSP header is valid');
   } else {
-    throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasUnreplacedAppToken: ${hasUnreplacedAppToken}, hasNonceInCsp: ${hasNonceInCsp})`);
-  }
-
-  // Test valid token authentication on /api/gemini
-  process.env.APP_JWT_SECRET = 'test-secret-key-12345';
-  const authApp = createApp();
-  const token = jwt.sign({ client: 'web' }, process.env.APP_JWT_SECRET);
-  const validAuthRes = await request(authApp)
-    .post('/api/gemini')
-    .set('x-app-token', token)
-    .send({ contents: 'test' });
-  
-  if (validAuthRes.status !== 401) {
-    console.log(`  ✅ PASS: Valid app token successfully passed authentication (status: ${validAuthRes.status})`);
-  } else {
-    throw new Error(`FAIL: Valid app token was rejected with 401`);
+    throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasNonceInCsp: ${hasNonceInCsp})`);
   }
 
   process.env.NODE_ENV = 'test';

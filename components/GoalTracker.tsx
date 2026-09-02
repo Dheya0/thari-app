@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { Target, Plus, Star, Compass, Loader2, X } from 'lucide-react';
+import { Target, Plus, Star, Compass, X } from 'lucide-react';
 import { Goal, Wallet, Transaction } from '../types';
-import { getGoalAdvice } from '../services/geminiService';
 import { parseArabicNumber } from '../utils/formatters';
 import { getTranslation, LanguageKey } from '../utils/translations';
-import { safeDiv, safeMul, roundToCurrency } from '../utils/mathPrecision';
+import { safeDiv, safeMul } from '../utils/mathPrecision';
 import { useBackNavigation } from '../utils/backNavigation';
 
 interface GoalTrackerProps {
@@ -14,7 +13,6 @@ interface GoalTrackerProps {
   onAddGoal: (goal: Omit<Goal, 'id'>) => void;
   onUpdateGoalAmount: (id: string, amount: number) => void;
   currencySymbol: string;
-  apiKey?: string;
   language?: LanguageKey;
 }
 
@@ -24,7 +22,6 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
   transactions, 
   onAddGoal, 
   currencySymbol, 
-  apiKey,
   language = 'ar' 
 }) => {
   const t = getTranslation(language);
@@ -41,14 +38,6 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
     }
     return false;
   }, showAdd, 15);
-
-  const [goalAdvices, setGoalAdvices] = useState<Record<string, {text: string, loading: boolean}>>({});
-
-  const fetchAdvice = async (goal: Goal) => {
-    setGoalAdvices(prev => ({ ...prev, [goal.id]: { text: '', loading: true } }));
-    const advice = await getGoalAdvice(goal, transactions, currencySymbol, apiKey);
-    setGoalAdvices(prev => ({ ...prev, [goal.id]: { text: advice || '', loading: false } }));
-  };
 
   return (
     <div className="space-y-6 pb-24 animate-fade text-start" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -77,7 +66,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
           const progress = targetAmt > 0 ? Math.min(100, Math.max(0, safeMul(safeDiv(currentAmt, targetAmt), 100))) : 0;
           const isCompleted = progress >= 100;
           const linkedWallet = wallets.find(w => w.id === goal.walletId);
-          const advice = goalAdvices[goal.id];
+          const remainingAmt = Math.max(0, targetAmt - currentAmt);
+          const localAdviceText = isRtl
+            ? `متبقي ${remainingAmt.toLocaleString('ar-SA')} ${currencySymbol} لتحقيق هدفك بالكامل.`
+            : `${remainingAmt.toLocaleString()} ${currencySymbol} remaining to achieve your goal.`;
 
           return (
             <div key={goal.id} className={`bg-slate-900/60 backdrop-blur-3xl p-6 rounded-[2.5rem] border border-white/5 space-y-5 transition-all hover:bg-slate-900/80 ${isCompleted ? 'border-emerald-500/30' : ''}`}>
@@ -115,16 +107,9 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
                      <span className="text-[9px] font-black text-[#D9B978] uppercase tracking-widest flex items-center gap-1.5">
                         <Compass size={13} /> {t.goalAdviceTitle}
                      </span>
-                     <button 
-                        onClick={() => fetchAdvice(goal)} 
-                        className="text-[8px] font-black text-slate-500 hover:text-[#D9B978] transition-colors"
-                        disabled={advice?.loading}
-                    >
-                        {advice?.loading ? <Loader2 size={10} className="animate-spin" /> : t.updateAdvice}
-                     </button>
                   </div>
                   <p className="text-[11px] font-medium text-slate-300 leading-relaxed min-h-[1.5em]">
-                    {advice?.text || t.goalAdvisorDefault}
+                    {localAdviceText}
                   </p>
                 </div>
               )}
