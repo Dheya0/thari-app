@@ -30,22 +30,23 @@ export function createApp() {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // Security headers via helmet with CSP configured for app & AI proxy
+  // Security headers via helmet with strict CSP configured for app, Google Fonts, & AI proxy
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: isProduction ? ["'self'", "'unsafe-inline'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: isProduction ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "blob:"],
-        connectSrc: ["'self'", "https://generativelanguage.googleapis.com"]
+        connectSrc: ["'self'", "https://generativelanguage.googleapis.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com"]
       }
     },
     crossOriginEmbedderPolicy: false
   }));
 
-  // Limit body size to prevent memory/DoS attacks (16kb max for AI requests)
-  app.use(express.json({ limit: '16kb' }));
+  // Limit body size to prevent memory/DoS attacks (64kb max for AI requests and financial data)
+  app.use(express.json({ limit: '64kb' }));
 
   // Rate limiter for AI proxy endpoint
   const geminiLimiter = rateLimit({

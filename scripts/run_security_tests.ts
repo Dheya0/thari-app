@@ -1,11 +1,11 @@
 process.env.NODE_ENV = 'test';
 
-import { sanitizeAndRedact, REDACTED_EMAIL, REDACTED_PHONE, REDACTED_SECRET } from '../utils/sanitize';
+import { sanitizeAndRedact, REDACTED_EMAIL, REDACTED_PHONE, REDACTED_SECRET, REDACTED_IBAN } from '../utils/sanitize';
 import request from 'supertest';
 import { createApp } from '../server';
 
 async function runSecurityTests() {
-  console.log('🔒 Running Thari Security & Hardening Tests...\n');
+  console.log('🔒 Running Thari Advanced Security & Hardening Tests...\n');
 
   // 1. Sanitize tests
   console.log('--- Test Suite S1: PII Redaction & Sanitization ---');
@@ -13,10 +13,13 @@ async function runSecurityTests() {
     email: 'test@example.com',
     phone: '+966501234567',
     token: 'AIzaSyD-1234567890abcdefghijklmnopqrstuvwxyz',
+    iban: 'SA2900000012345678901234', // uppercase IBAN to test standard format
+    secretProp: 'my-sensitive-secret-value',
     text: 'This is a very long descriptive text that should be truncated when it exceeds the specified maximum length limit allowed for safe AI prompt processing. '.repeat(20)
   };
 
   const sanitized = sanitizeAndRedact(testInput);
+  console.log('Sanitized IBAN result:', sanitized.iban);
   const truncatedText = sanitizeAndRedact(testInput.text, 100);
   
   if (sanitized.email === REDACTED_EMAIL) {
@@ -26,15 +29,21 @@ async function runSecurityTests() {
   }
 
   if (sanitized.phone === REDACTED_PHONE) {
-    console.log('  ✅ PASS: Phone successfully redacted');
+    console.log('  ✅ PASS: Phone successfully redacted without leak');
   } else {
     throw new Error('FAIL: Phone redaction failed');
   }
 
-  if (sanitized.token === REDACTED_SECRET) {
-    console.log('  ✅ PASS: API key / token successfully redacted');
+  if (sanitized.token === REDACTED_SECRET && sanitized.secretProp === REDACTED_SECRET) {
+    console.log('  ✅ PASS: API key and sensitive object properties successfully redacted');
   } else {
-    throw new Error('FAIL: Token redaction failed');
+    throw new Error('FAIL: Token or property redaction failed');
+  }
+
+  if (sanitized.iban === REDACTED_IBAN) {
+    console.log('  ✅ PASS: IBAN successfully redacted');
+  } else {
+    throw new Error('FAIL: IBAN redaction failed');
   }
 
   if (truncatedText.includes('TRUNCATED')) {
@@ -54,12 +63,13 @@ async function runSecurityTests() {
     throw new Error('FAIL: Health endpoint check failed');
   }
 
+  // Test oversized body (>64kb)
   const payloadRes = await request(app)
     .post('/api/gemini')
-    .send({ contents: 'A'.repeat(20000) });
+    .send({ contents: 'A'.repeat(70000) });
 
   if (payloadRes.status === 413) {
-    console.log('  ✅ PASS: Oversized body (>16kb) successfully rejected with 413');
+    console.log('  ✅ PASS: Oversized body (>64kb) successfully rejected with 413');
   } else {
     console.log(`  ℹ️ Body size limit status received: ${payloadRes.status}`);
   }

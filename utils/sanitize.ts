@@ -13,17 +13,17 @@ export const REDACTED_IBAN = '[REDACTED_IBAN]';
 export const REDACTED_SECRET = '[REDACTED_SECRET]';
 export const TRUNCATED_MARKER = ' [TRUNCATED]';
 
-// Advanced robust PII and token regex patterns
+// Advanced robust PII and token regex patterns (ordered specifically to prevent false overlaps)
 const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const PHONE_REGEX = /(?:\+?\d{1,4}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,6}/g;
+const IBAN_REGEX = /\b[A-Za-z]{2}\d{2}[A-Za-z0-9]{10,30}\b/g;
 const CC_REGEX = /\b(?:\d{4}[-\s]?){3}\d{4}\b/g;
-const IBAN_REGEX = /\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b/g;
-const API_KEY_OR_BASE64_REGEX = /\b(?:AIzaSy[A-Za-z0-9-_]{33}|sk-[a-zA-Z0-9-_]{20,}|[A-Za-z0-9+/=_-]{40,})\b/g;
+const PHONE_REGEX = /(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{4,6}/g;
+const API_KEY_OR_BASE64_REGEX = /\b(?:AIzaSy[A-Za-z0-9-_]{33}|sk-[a-zA-Z0-9-_]{20,}|bearer\s+[a-zA-Z0-9\-_.~+/]+=*|[A-Za-z0-9+/=_-]{55,})\b/gi;
 
 /**
  * Sanitizes and redacts PII, long tokens, and truncates overly long strings.
  */
-export function sanitizeAndRedact(input: any, maxLength: number = 2000): any {
+export function sanitizeAndRedact(input: any, maxLength: number = 4000): any {
   if (input === null || input === undefined) {
     return input;
   }
@@ -35,19 +35,18 @@ export function sanitizeAndRedact(input: any, maxLength: number = 2000): any {
   if (typeof input === 'string') {
     let sanitized = input;
 
-    // 1. Redact API keys / long base64 / token secrets
+    // 1. Redact API keys / long tokens / credentials
     sanitized = sanitized.replace(API_KEY_OR_BASE64_REGEX, REDACTED_SECRET);
 
-    // 2. Redact PII (Emails, Phones, Credit Cards, IBANs)
-    sanitized = sanitized.replace(EMAIL_REGEX, REDACTED_EMAIL);
-    sanitized = sanitized.replace(PHONE_REGEX, (match) => {
-      if (match.includes('-') && match.length === 10 && match.startsWith('20')) return match;
-      return REDACTED_PHONE;
-    });
-    sanitized = sanitized.replace(CC_REGEX, REDACTED_CC);
+    // 2. Redact structured PII (IBANs, Credit Cards, Emails) BEFORE phones to avoid digit overlap
     sanitized = sanitized.replace(IBAN_REGEX, REDACTED_IBAN);
+    sanitized = sanitized.replace(CC_REGEX, REDACTED_CC);
+    sanitized = sanitized.replace(EMAIL_REGEX, REDACTED_EMAIL);
 
-    // 3. Truncate if exceeding max length
+    // 3. Redact phones last
+    sanitized = sanitized.replace(PHONE_REGEX, REDACTED_PHONE);
+
+    // 4. Truncate if exceeding max length
     if (sanitized.length > maxLength) {
       sanitized = sanitized.substring(0, maxLength) + TRUNCATED_MARKER;
     }
@@ -62,7 +61,17 @@ export function sanitizeAndRedact(input: any, maxLength: number = 2000): any {
   if (typeof input === 'object') {
     const sanitizedObj: Record<string, any> = {};
     for (const key of Object.keys(input)) {
-      if (key.toLowerCase().includes('apikey') || key.toLowerCase().includes('secret') || key.toLowerCase().includes('token')) {
+      const lowerKey = key.toLowerCase();
+      if (
+        lowerKey.includes('apikey') ||
+        lowerKey.includes('api_key') ||
+        lowerKey.includes('secret') ||
+        lowerKey.includes('token') ||
+        lowerKey.includes('password') ||
+        lowerKey.includes('credential') ||
+        lowerKey.includes('authorization') ||
+        (lowerKey === 'key' && typeof input[key] === 'string' && input[key].length > 20)
+      ) {
         sanitizedObj[key] = REDACTED_SECRET;
         continue;
       }
