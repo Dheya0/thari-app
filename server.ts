@@ -89,9 +89,12 @@ export function createApp() {
     const allowInsecureDev = process.env.ALLOW_INSECURE_DEV === 'true' || 
       (!isProduction && !isTest && process.env.ALLOW_INSECURE_DEV !== 'false');
 
-    const isPublicProduction = isProduction && !legacyToken && !jwtSecret;
+    // Fail-closed in production: no public open API bypass
+    if (isProduction && !legacyToken && !jwtSecret) {
+      return res.status(501).json({ error: 'Configuration Error: Authentication secrets required in production' });
+    }
 
-    if (!token && !allowInsecureDev && !isPublicProduction) {
+    if (!token && !allowInsecureDev) {
       console.warn(JSON.stringify({
         event: 'auth_failure',
         ip: clientIp,
@@ -113,10 +116,7 @@ export function createApp() {
       if (legacyToken && token === legacyToken) {
         return next();
       }
-      if (!isProduction && (!legacyToken && !jwtSecret) && (allowInsecureDev || process.env.ALLOW_INSECURE_DEV === 'true')) {
-        return next();
-      }
-      if (isProduction && isPublicProduction) {
+      if (!isProduction && allowInsecureDev) {
         return next();
       }
       console.warn(JSON.stringify({
@@ -128,7 +128,7 @@ export function createApp() {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
 
-    if (allowInsecureDev || isPublicProduction) {
+    if (allowInsecureDev) {
       return next();
     }
 
@@ -229,7 +229,7 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (isProduction && !process.env.APP_JWT_SECRET && !process.env.APP_AUTH_TOKEN) {
-    console.warn('WARNING: APP_JWT_SECRET or APP_AUTH_TOKEN are not set in production. Running in public open API mode with rate limiting.');
+    throw new Error('FATAL: Production environment requires APP_JWT_SECRET or APP_AUTH_TOKEN to be configured (fail-closed security invariant).');
   }
 
   const app = createApp();
@@ -250,7 +250,10 @@ async function startServer() {
           const templatePath = path.resolve(process.cwd(), 'index.html');
           let template = fs.readFileSync(templatePath, 'utf-8');
           const nonce = res.locals.cspNonce || '';
-          template = template.replace(/%CSP_NONCE%/g, nonce);
+          const jwtSecret = process.env.APP_JWT_SECRET;
+          const legacyToken = process.env.APP_AUTH_TOKEN;
+          const appToken = legacyToken || (jwtSecret ? jwt.sign({ client: 'web' }, jwtSecret, { expiresIn: '24h' }) : nonce);
+          template = template.replace(/%CSP_NONCE%/g, nonce).replace(/%APP_TOKEN%/g, appToken);
           let html = await vite.transformIndexHtml(req.originalUrl, template);
           html = html
             .replace(/<script\b(?![^>]*\bnonce=)/gi, `<script nonce="${nonce}"`)
@@ -275,7 +278,10 @@ async function startServer() {
           return res.status(500).send('Error loading app');
         }
         const nonce = res.locals.cspNonce || '';
-        const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
+        const jwtSecret = process.env.APP_JWT_SECRET;
+        const legacyToken = process.env.APP_AUTH_TOKEN;
+        const appToken = legacyToken || (jwtSecret ? jwt.sign({ client: 'web' }, jwtSecret, { expiresIn: '24h' }) : nonce);
+        const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce).replace(/%APP_TOKEN%/g, appToken);
         res.send(injectedHtml);
       });
     });

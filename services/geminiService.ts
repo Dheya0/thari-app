@@ -191,6 +191,14 @@ const callServerAI = async (
   const baseUrl = getAiApiBaseUrl();
   const endpoint = baseUrl ? `${baseUrl}/api/gemini` : '/api/gemini';
 
+  const getAppToken = (): string => {
+    if (typeof document !== 'undefined') {
+      const meta = document.querySelector('meta[name="app-token"]');
+      if (meta) return meta.getAttribute('content') || '';
+    }
+    return '';
+  };
+
   const timeoutMs = 25000;
   const timeoutId = setTimeout(() => {
     abortController.abort();
@@ -199,10 +207,12 @@ const callServerAI = async (
   console.log('[AI] request started');
 
   try {
+    const appToken = getAppToken();
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(appToken ? { 'x-app-token': appToken } : {})
       },
       body: JSON.stringify({
         contents: payload.message,

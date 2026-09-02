@@ -107,17 +107,18 @@ async function runSecurityTests() {
     throw new Error('FAIL: Health endpoint check failed');
   }
 
-  // Test 2d: Oversized body (>64kb) rejection
-  const payloadRes = await request(app)
-    .post('/api/gemini')
-    .set('x-app-token', 'thari-secure-dev-token')
-    .send({ contents: 'A'.repeat(70000) });
-
-  if (payloadRes.status === 413) {
-    console.log('  ✅ PASS: Oversized body (>64kb) successfully rejected with 413');
+  // Test 2e: Production fail-closed when secrets are missing
+  process.env.NODE_ENV = 'production';
+  delete process.env.APP_AUTH_TOKEN;
+  delete process.env.APP_JWT_SECRET;
+  const prodSecApp = createApp();
+  const prodSecRes = await request(prodSecApp).post('/api/gemini').send({ contents: 'test' });
+  if (prodSecRes.status === 501) {
+    console.log('  ✅ PASS: Production fail-closed correctly rejects requests with 501 when secrets are missing');
   } else {
-    console.log(`  ℹ️ Body size limit status received: ${payloadRes.status}`);
+    throw new Error(`FAIL: Expected 501 fail-closed in production without secrets, got ${prodSecRes.status}`);
   }
+  process.env.NODE_ENV = 'test';
 
   // 3. Architectural Production HTML & CSP Nonce Invariant Tests
   console.log('\n--- Test Suite S3: Production HTML Transform & CSP Nonce Invariants ---');
