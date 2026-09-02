@@ -37,7 +37,7 @@ export function generateSalt(length = 16): string {
     window.crypto.getRandomValues(array);
     return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
   }
-  return Math.random().toString(36).substring(2, 18);
+  throw new Error('CSPRNG_UNAVAILABLE: Cryptographically secure random values are required for salt generation.');
 }
 
 /**
@@ -50,47 +50,35 @@ export async function hashPin(
   iterations = PBKDF2_ITERATIONS_V2
 ): Promise<string> {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {
-    try {
-      const encoder = new TextEncoder();
-      const pinBuffer = encoder.encode(pin);
-      const saltBuffer = encoder.encode(saltHex);
+    const encoder = new TextEncoder();
+    const pinBuffer = encoder.encode(pin);
+    const saltBuffer = encoder.encode(saltHex);
 
-      const keyMaterial = await window.crypto.subtle.importKey(
-        'raw',
-        pinBuffer,
-        { name: 'PBKDF2' },
-        false,
-        ['deriveBits']
-      );
+    const keyMaterial = await window.crypto.subtle.importKey(
+      'raw',
+      pinBuffer,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
 
-      const derivedBits = await window.crypto.subtle.deriveBits(
-        {
-          name: 'PBKDF2',
-          salt: saltBuffer,
-          iterations,
-          hash: 'SHA-256',
-        },
-        keyMaterial,
-        256
-      );
+    const derivedBits = await window.crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: saltBuffer,
+        iterations,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      256
+    );
 
-      const hashArray = Array.from(new Uint8Array(derivedBits));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      return `pbkdf2_v2:${iterations}:${saltHex}:${hashHex}`;
-    } catch (e) {
-      console.warn('WebCrypto PBKDF2 failed, using fallback hash:', e);
-    }
+    const hashArray = Array.from(new Uint8Array(derivedBits));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return `pbkdf2_v2:${iterations}:${saltHex}:${hashHex}`;
   }
 
-  // Fallback if WebCrypto subtle is unavailable
-  let hash = 0;
-  const combined = pin + saltHex;
-  for (let i = 0; i < combined.length; i++) {
-    const char = combined.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0;
-  }
-  return `legacy_fb:${saltHex}:${Math.abs(hash).toString(16)}`;
+  throw new Error('WEBCRYPTO_UNAVAILABLE: WebCrypto Subtle API is required for secure PIN hashing.');
 }
 
 /**

@@ -219,7 +219,8 @@ const LockScreen: React.FC<LockScreenProps> = ({
                   if (biometricAvailable) {
                     triggerBiometricAuth(false);
                   } else {
-                    onUnlock();
+                    setBioStatus('failed');
+                    setBioFeedback('مستشعر البصمة غير متاح. لا يمكن تخطي الحماية بدون رمز مرور.');
                   }
                 }}
                 disabled={bioStatus === 'scanning'}
