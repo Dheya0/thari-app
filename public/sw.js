@@ -1,4 +1,4 @@
-const CACHE_NAME = 'thari-pwa-v6';
+const CACHE_NAME = 'thari-pwa-v7';
 
 const PRECACHE_ASSETS = [
   '/',
@@ -7,11 +7,10 @@ const PRECACHE_ASSETS = [
   '/logo.svg'
 ];
 
-// Install Event - cache core shell assets safely
+// Install Event - cache core shell assets safely & skip waiting
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
-      // Add each asset individually with try/catch to avoid Safari addAll failures
       for (const asset of PRECACHE_ASSETS) {
         try {
           await cache.add(asset);
@@ -23,14 +22,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event - clean up older caches
+// Activate Event - clean up older legacy caches & claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('Thari SW: Clearing old cache:', cache);
+            console.log('Thari SW: Clearing legacy cache:', cache);
             return caches.delete(cache);
           }
         })
@@ -39,63 +38,67 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - dynamic caching strategy with rock-solid Safari fallback
+// Fetch Event - dynamic caching strategy with rock-solid offline fallback
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
-  // Only handle GET requests and http/https schemes
+  // 1. Only handle GET requests and http/https schemes
   if (req.method !== 'GET' || !req.url.startsWith('http')) {
     return;
   }
 
   const url = new URL(req.url);
 
-  // Bypass API endpoints or non-GET requests
-  if (url.pathname.startsWith('/api/')) {
+  // 2. EXPLICITLY BYPASS Service Worker script itself and API routes
+  // Prevents SW self-interception loops, 304 update aborts, and API routing issues
+  if (
+    url.pathname === '/sw.js' ||
+    url.pathname.endsWith('/sw.js') ||
+    url.pathname.startsWith('/api/')
+  ) {
     return;
   }
 
-  // Handle navigation requests (opening the app or refreshing) — Offline-First
+  // 3. Navigation requests (Page reloads, opening app, SPA routes)
+  // Strategy: Network-First with Cache Fallback
+  // Guarantees fresh index.html with matching JS/CSS hashes when online, and instant offline shell
   if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
-      caches.match('/index.html').then((cachedIndex) => {
-        if (cachedIndex) {
-          // Asynchronously update cache in background if online
-          fetch(req)
-            .then((networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
-                caches.open(CACHE_NAME).then((cache) => cache.put(req, networkResponse));
-              }
-            })
-            .catch(() => {});
-          return cachedIndex;
-        }
-
-        return fetch(req)
-          .then((response) => {
-            if (response && response.status === 200) {
-              const clonedResponse = response.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put(req, clonedResponse));
-            }
-            return response;
-          })
-          .catch(async () => {
-            const cachedRoot = await caches.match('/');
-            if (cachedRoot) return cachedRoot;
-
-            const cachedReq = await caches.match(req);
-            if (cachedReq) return cachedReq;
-
-            return new Response('<!DOCTYPE html><html><head><meta charset="utf-8"><title>ثري - غير متصل</title></head><body style="background:#0A0D10;color:#F4F1EA;text-align:center;padding:50px;font-family:sans-serif;"><h2>تطبيق ثري يعمل محلياً بالكامل</h2><p>يرجى إعادة فتح التطبيق</p><button onclick="window.location.reload()" style="background:#D9B978;color:#0A0D10;padding:12px 24px;border:none;border-radius:10px;font-weight:bold;cursor:pointer;">إعادة المحاولة</button></body></html>', {
-              headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      fetch(req)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clonedResponse = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put('/index.html', clonedResponse);
+            }).catch(() => {});
+            return networkResponse;
+          }
+          // If network returns non-200, fallback to cached index.html
+          return caches.match('/index.html').then((cachedIndex) => {
+            if (cachedIndex) return cachedIndex;
+            return caches.match('/');
+          });
+        })
+        .catch(() => {
+          // Network failure (offline) -> serve cached index.html
+          return caches.match('/index.html').then((cachedIndex) => {
+            if (cachedIndex) return cachedIndex;
+            return caches.match('/').then((cachedRoot) => {
+              if (cachedRoot) return cachedRoot;
+              // Ultimate offline fallback response
+              return new Response(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>ثري - غير متصل</title></head><body style="background:#0A0D10;color:#F4F1EA;text-align:center;padding:50px;font-family:sans-serif;"><h2>تطبيق ثري يعمل محلياً بالكامل</h2><p>يرجى إعادة فتح التطبيق</p><button onclick="window.location.reload()" style="background:#D9B978;color:#0A0D10;padding:12px 24px;border:none;border-radius:10px;font-weight:bold;cursor:pointer;">إعادة المحاولة</button></body></html>',
+                { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+              );
             });
           });
-      })
+        })
     );
     return;
   }
 
-  // Cache-first for scripts, styles, images, fonts
+  // 4. Static Assets (JS, CSS, Images, Fonts, Manifest, Icons)
+  // Strategy: Cache-First with Network Fallback & Safe Revalidation
   event.respondWith(
     caches.match(req).then((cachedResponse) => {
       if (cachedResponse) {
@@ -103,7 +106,8 @@ self.addEventListener('fetch', (event) => {
         fetch(req)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(req, networkResponse));
+              const cloned = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, cloned)).catch(() => {});
             }
           })
           .catch(() => {});
@@ -114,7 +118,7 @@ self.addEventListener('fetch', (event) => {
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const cloned = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, cloned));
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, cloned)).catch(() => {});
           }
           return networkResponse;
         })
@@ -136,3 +140,4 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+

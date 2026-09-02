@@ -29,6 +29,9 @@ if ('serviceWorker' in navigator && window.location.protocol.startsWith('http'))
   try {
     navigator.serviceWorker.register('/sw.js')
       .then((reg) => {
+        // Proactively check for service worker updates on page load
+        reg.update().catch(() => {});
+
         reg.onupdatefound = () => {
           const installingWorker = reg.installing;
           if (installingWorker) {
