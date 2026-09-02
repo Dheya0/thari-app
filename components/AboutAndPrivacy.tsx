@@ -424,13 +424,13 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
                   {
                     icon: Globe,
                     color: '#D9B978',
-                    title: currentLang === 'ar' ? '5. استعلام أسعار الصرف العامة' : '5. External Currency Rate Lookups',
+                    title: currentLang === 'ar' ? '5. تشغيل محلي بالكامل 100% بدون شبكة' : '5. 100% Offline-First Currency Engine',
                     body: currentLang === 'ar'
-                      ? 'عند استخدام ميزة تحديث أسعار صرف العملات، يقتصر الاتصال على جلب بيانات أسعار السوق العامة دون إرسال أي معرفات شخصية أو أرقام محافظ أو تفاصيل تخص أرصدة المستخدم.'
-                      : 'When fetching dynamic foreign exchange rates, the application executes a stateless query for public market indices. No device identifiers, account balances, or transaction records are ever attached to these lookup requests.',
+                      ? 'يعمل التطبيق بكافة محركاته الرياضية والمالية وأسعار الصرف وتحويلات العملات محلياً على جهازك دون الحاجة لأي اتصال خارجي بالإنترنت.'
+                      : 'All financial engines, calculations, currency exchange rates, and ledger operations execute strictly offline on your device with zero network calls.',
                     points: currentLang === 'ar'
-                      ? ['جلب أسعار السوق العامة فقط', 'عدم إرسال أي تفاصيل عن أرصدة المستخدم', 'إمكانية العمل بأسعار الصرف المحفوظة أوفلاين']
-                      : ['Fetches public market indices only', 'Zero transmission of balances or account info', 'Fully operable offline with cached rates']
+                      ? ['عمل أوفلاين 100%', 'حفظ محلي تام لأسعار الصرف والمعاملات', 'استقلالية كاملة عن أي خوادم خارجية']
+                      : ['100% Offline execution', 'Local storage for exchange rates & transactions', 'Complete independence from external servers']
                   },
                   {
                     icon: Trash2,

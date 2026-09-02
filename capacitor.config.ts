@@ -7,12 +7,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    cleartext: false,
-    allowNavigation: [
-      'generativelanguage.googleapis.com',
-      'fonts.googleapis.com',
-      'fonts.gstatic.com'
-    ]
+    cleartext: false
   },
   plugins: {
     Keyboard: {

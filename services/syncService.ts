@@ -198,20 +198,13 @@ export function purgeExpiredTombstones(transactions: Transaction[], maxAgeDays =
 /**
  * Get current sync engine status
  */
-export function getSyncStatus(isOnline: boolean): SyncEngineStatus {
+export function getSyncStatus(_isOnline: boolean = false): SyncEngineStatus {
   const queue = getSyncQueue();
   const lastSync = localStorage.getItem(LAST_SYNC_KEY) || undefined;
 
-  let state: SyncState = 'SYNCED';
-  if (!isOnline) {
-    state = queue.length > 0 ? 'PENDING' : 'LOCAL_ONLY';
-  } else if (queue.length > 0) {
-    state = 'PENDING';
-  }
-
   return {
-    state,
-    isOnline,
+    state: 'LOCAL_ONLY',
+    isOnline: false,
     pendingCount: queue.length,
     lastSyncTimestamp: lastSync,
   };

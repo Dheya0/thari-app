@@ -32,15 +32,15 @@ export function createApp() {
     const csp = isProduction ? [
       `default-src 'self'`,
       `script-src 'self' 'nonce-${nonce}'`,
-      `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
-      `font-src 'self' https://fonts.gstatic.com`,
+      `style-src 'self' 'nonce-${nonce}'`,
+      `font-src 'self'`,
       `img-src 'self' data: blob:`,
       `connect-src 'self'`
     ].join('; ') : [
       `default-src 'self'`,
       `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}'`,
-      `style-src 'self' 'unsafe-inline' 'nonce-${nonce}' https://fonts.googleapis.com`,
-      `font-src 'self' https://fonts.gstatic.com`,
+      `style-src 'self' 'unsafe-inline' 'nonce-${nonce}'`,
+      `font-src 'self'`,
       `img-src 'self' data: blob:`,
       `connect-src 'self' 'unsafe-eval'`
     ].join('; ');

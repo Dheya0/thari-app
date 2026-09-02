@@ -55,33 +55,42 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle navigation requests (opening the app or refreshing)
+  // Handle navigation requests (opening the app or refreshing) — Offline-First
   if (req.mode === 'navigate' || req.destination === 'document') {
     event.respondWith(
-      fetch(req)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clonedResponse = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clonedResponse));
-          }
-          return response;
-        })
-        .catch(async () => {
-          // Robust fallback for Safari PWA offline launch
-          const cachedIndex = await caches.match('/index.html');
-          if (cachedIndex) return cachedIndex;
+      caches.match('/index.html').then((cachedIndex) => {
+        if (cachedIndex) {
+          // Asynchronously update cache in background if online
+          fetch(req)
+            .then((networkResponse) => {
+              if (networkResponse && networkResponse.status === 200) {
+                caches.open(CACHE_NAME).then((cache) => cache.put(req, networkResponse));
+              }
+            })
+            .catch(() => {});
+          return cachedIndex;
+        }
 
-          const cachedRoot = await caches.match('/');
-          if (cachedRoot) return cachedRoot;
+        return fetch(req)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const clonedResponse = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, clonedResponse));
+            }
+            return response;
+          })
+          .catch(async () => {
+            const cachedRoot = await caches.match('/');
+            if (cachedRoot) return cachedRoot;
 
-          const cachedReq = await caches.match(req);
-          if (cachedReq) return cachedReq;
+            const cachedReq = await caches.match(req);
+            if (cachedReq) return cachedReq;
 
-          // Return a basic offline response if nothing is cached
-          return new Response('<!DOCTYPE html><html><head><meta charset="utf-8"><title>ثري - غير متصل</title></head><body style="background:#020617;color:white;text-align:center;padding:50px;font-family:sans-serif;"><h2>تطبيق ثري يعمل بدون إنترنت</h2><p>يرجى إعادة تحميل الصفحة</p><button onclick="window.location.reload()" style="background:#f59e0b;color:#020617;padding:12px 24px;border:none;border-radius:10px;font-weight:bold;cursor:pointer;">إعادة المحاولة</button></body></html>', {
-            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+            return new Response('<!DOCTYPE html><html><head><meta charset="utf-8"><title>ثري - غير متصل</title></head><body style="background:#0A0D10;color:#F4F1EA;text-align:center;padding:50px;font-family:sans-serif;"><h2>تطبيق ثري يعمل محلياً بالكامل</h2><p>يرجى إعادة فتح التطبيق</p><button onclick="window.location.reload()" style="background:#D9B978;color:#0A0D10;padding:12px 24px;border:none;border-radius:10px;font-weight:bold;cursor:pointer;">إعادة المحاولة</button></body></html>', {
+              headers: { 'Content-Type': 'text/html; charset=utf-8' }
+            });
           });
-        })
+      })
     );
     return;
   }

@@ -153,6 +153,14 @@ async function runSecurityTests() {
     throw new Error('FAIL: vercel.json does not contain required buildCommand or outputDirectory configuration');
   }
 
+  const rewrites = vercelData.rewrites || [];
+  const hasApiExcludedRewrite = rewrites.some((r: any) => r.source && r.source.includes('api'));
+  if (hasApiExcludedRewrite) {
+    console.log('  ✅ PASS: vercel.json accurately excludes /api routes from SPA rewrite fallback');
+  } else {
+    throw new Error('FAIL: vercel.json does not exclude /api routes from SPA rewrite fallback');
+  }
+
   const renderYamlPath = path.join(process.cwd(), 'render.yaml');
   if (fs.existsSync(renderYamlPath)) {
     throw new Error('FAIL: render.yaml should be removed as Render is not part of deployment architecture');
