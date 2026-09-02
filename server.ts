@@ -42,6 +42,14 @@ export function createApp() {
         connectSrc: ["'self'", "https://generativelanguage.googleapis.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com"]
       }
     },
+    strictTransportSecurity: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    },
+    frameguard: { action: 'deny' },
+    noSniff: true,
+    referrerPolicy: { policy: 'no-referrer' },
     crossOriginEmbedderPolicy: false
   }));
 
@@ -57,11 +65,13 @@ export function createApp() {
     message: { error: "Too many AI requests from this IP, please try again after 15 minutes." }
   });
 
-  // Pluggable Authentication Middleware with strict development & production enforcement
+  // Pluggable Authentication Middleware with strict token presence enforcement
   const authenticateRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const authHeader = req.headers['authorization'];
     const appToken = req.headers['x-app-token'];
     const expectedToken = process.env.APP_AUTH_TOKEN;
+    const allowInsecureDev = process.env.ALLOW_INSECURE_DEV === 'true';
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
 
     let token = '';
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -76,21 +86,38 @@ export function createApp() {
         return res.status(500).json({ error: 'Server misconfiguration: Authentication required' });
       }
       if (!token || token !== expectedToken) {
+        console.warn(JSON.stringify({
+          event: 'auth_failure',
+          ip: clientIp,
+          timestamp: new Date().toISOString(),
+          reason: !token ? 'missing_token' : 'invalid_token'
+        }));
         return res.status(401).json({ error: 'Unauthorized: Valid app authentication token required' });
       }
     } else {
-      // Development mode strict enforcement: reject if token missing unless ALLOW_INSECURE_DEV=true is explicitly set
-      const allowInsecureDev = process.env.ALLOW_INSECURE_DEV === 'true';
+      // Non-production strict enforcement: require token unless ALLOW_INSECURE_DEV=true is explicitly set
       const devExpected = expectedToken || 'thari-secure-dev-token';
 
       if (!token) {
         if (!allowInsecureDev) {
+          console.warn(JSON.stringify({
+            event: 'auth_failure',
+            ip: clientIp,
+            timestamp: new Date().toISOString(),
+            reason: 'missing_token_in_dev'
+          }));
           return res.status(401).json({ 
-            error: 'Unauthorized: Missing authentication token in development. Set ALLOW_INSECURE_DEV=true or provide x-app-token / Authorization header.' 
+            error: 'Unauthorized: Missing authentication token. Set ALLOW_INSECURE_DEV=true or provide x-app-token / Authorization header.' 
           });
         }
       } else if (token !== devExpected) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid development token' });
+        console.warn(JSON.stringify({
+          event: 'auth_failure',
+          ip: clientIp,
+          timestamp: new Date().toISOString(),
+          reason: 'invalid_token'
+        }));
+        return res.status(401).json({ error: 'Unauthorized: Invalid authentication token' });
       }
     }
 

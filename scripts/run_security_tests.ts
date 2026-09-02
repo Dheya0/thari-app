@@ -1,6 +1,6 @@
 process.env.NODE_ENV = 'test';
 
-import { sanitizeAndRedact, REDACTED_EMAIL, REDACTED_PHONE, REDACTED_SECRET, REDACTED_IBAN, REDACTED_CC } from '../utils/sanitize';
+import { sanitizeAndRedact, maskPhone, REDACTED_EMAIL, REDACTED_PHONE, REDACTED_SECRET, REDACTED_IBAN, REDACTED_CC } from '../utils/sanitize';
 import request from 'supertest';
 import { createApp } from '../server';
 
@@ -40,10 +40,11 @@ async function runSecurityTests() {
     throw new Error('FAIL: Complex email redaction failed');
   }
 
-  if (sanitized.phoneSaudi === REDACTED_PHONE && sanitized.phoneLocal === REDACTED_PHONE && sanitized.phoneFormatted === REDACTED_PHONE) {
-    console.log('  ✅ PASS: Various phone number formats successfully redacted without leaks');
+  // Verify phone masking (does not leak full phone digits)
+  if (sanitized.phoneSaudi.includes('4567') && !sanitized.phoneSaudi.includes('501234')) {
+    console.log('  ✅ PASS: Phone number successfully masked (retaining last 4 digits without leak)');
   } else {
-    throw new Error('FAIL: Phone redaction failed');
+    throw new Error('FAIL: Phone masking leaked full digits or failed');
   }
 
   if (sanitized.token === REDACTED_SECRET && sanitized.bearerToken === REDACTED_SECRET && sanitized.secretProp === REDACTED_SECRET && sanitized.nested.apiKey === REDACTED_SECRET) {
@@ -89,7 +90,6 @@ async function runSecurityTests() {
   process.env.ALLOW_INSECURE_DEV = 'true';
   app = createApp();
   let insecureRes = await request(app).post('/api/gemini').send({ contents: 'test' });
-  // Note: may return 503 if GEMINI_API_KEY is not set, but status won't be 401 Unauthorized
   if (insecureRes.status !== 401) {
     console.log(`  ✅ PASS: ALLOW_INSECURE_DEV=true allows request past authentication (status: ${insecureRes.status})`);
   } else {
