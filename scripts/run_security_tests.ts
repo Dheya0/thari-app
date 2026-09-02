@@ -6,6 +6,7 @@ import { createApp } from '../server';
 import path from 'path';
 import express from 'express';
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 async function runSecurityTests() {
   console.log('🔒 Running Thari Advanced Security & Hardening Tests...\n');
@@ -100,15 +101,21 @@ async function runSecurityTests() {
   process.env.NODE_ENV = 'production';
   const prodApp = createApp();
   const distPath = path.join(process.cwd(), 'dist');
+  const indexPath = path.join(distPath, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    console.log('  ⚠️ dist/index.html missing. Building production bundle...');
+    execSync('npm run build', { stdio: 'inherit' });
+  }
+
   prodApp.use(express.static(distPath, { index: false }));
   prodApp.get('*all', (req: any, res: any) => {
-    const indexPath = path.join(distPath, 'index.html');
     fs.readFile(indexPath, 'utf8', (err, htmlData) => {
       if (err) {
         return res.status(500).send('Error loading app');
       }
       const nonce = res.locals.cspNonce || '';
       const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(injectedHtml);
     });
   });
