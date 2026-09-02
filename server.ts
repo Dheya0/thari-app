@@ -240,10 +240,31 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+
+    app.use(async (req: any, res: any, next: any) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      if (req.method === 'GET' && (req.headers.accept?.includes('text/html') || req.path === '/' || !req.path.includes('.'))) {
+        try {
+          const templatePath = path.resolve(process.cwd(), 'index.html');
+          let template = fs.readFileSync(templatePath, 'utf-8');
+          template = await vite.transformIndexHtml(req.originalUrl, template);
+          const nonce = res.locals.cspNonce || '';
+          const html = template.replace(/%CSP_NONCE%/g, nonce);
+          return res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
+        } catch (e: any) {
+          vite.ssrFixStacktrace(e);
+          return next(e);
+        }
+      }
+      return next();
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { index: false }));
     app.get('*all', (req: any, res: any) => {
       const indexPath = path.join(distPath, 'index.html');
       fs.readFile(indexPath, 'utf8', (err, htmlData) => {

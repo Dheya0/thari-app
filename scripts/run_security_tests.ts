@@ -3,6 +3,9 @@ process.env.NODE_ENV = 'test';
 import { sanitizeAndRedact, maskPhone, REDACTED_EMAIL, REDACTED_PHONE, REDACTED_SECRET, REDACTED_IBAN, REDACTED_CC } from '../utils/sanitize';
 import request from 'supertest';
 import { createApp } from '../server';
+import path from 'path';
+import express from 'express';
+import fs from 'fs';
 
 async function runSecurityTests() {
   console.log('🔒 Running Thari Advanced Security & Hardening Tests...\n');
@@ -115,6 +118,43 @@ async function runSecurityTests() {
   } else {
     console.log(`  ℹ️ Body size limit status received: ${payloadRes.status}`);
   }
+
+  // 3. Architectural Production HTML & CSP Nonce Invariant Tests
+  console.log('\n--- Test Suite S3: Production HTML Transform & CSP Nonce Invariants ---');
+  process.env.NODE_ENV = 'production';
+  const prodApp = createApp();
+  const distPath = path.join(process.cwd(), 'dist');
+  prodApp.use(express.static(distPath, { index: false }));
+  prodApp.get('*all', (req: any, res: any) => {
+    const indexPath = path.join(distPath, 'index.html');
+    fs.readFile(indexPath, 'utf8', (err, htmlData) => {
+      if (err) {
+        return res.status(500).send('Error loading app');
+      }
+      const nonce = res.locals.cspNonce || '';
+      const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
+      res.send(injectedHtml);
+    });
+  });
+
+  const prodRootRes = await request(prodApp).get('/');
+  if (prodRootRes.status === 200) {
+    console.log('  ✅ PASS: Production root / returns 200');
+  } else {
+    throw new Error(`FAIL: Production root / failed with status ${prodRootRes.status}`);
+  }
+
+  const prodHtml = prodRootRes.text;
+  const hasUnreplacedProdNonce = prodHtml.includes('%CSP_NONCE%');
+  const cspHeader = prodRootRes.headers['content-security-policy'] || '';
+  const hasNonceInCsp = cspHeader.includes('nonce-');
+
+  if (!hasUnreplacedProdNonce && hasNonceInCsp) {
+    console.log('  ✅ PASS: Production HTML successfully replaced %CSP_NONCE% with active nonce and CSP header is valid');
+  } else {
+    throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasNonceInCsp: ${hasNonceInCsp})`);
+  }
+  process.env.NODE_ENV = 'test';
 
   console.log('\n=============================================');
   console.log('✨ All Security & Hardening Tests Passed Successfully!');
