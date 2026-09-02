@@ -6,6 +6,7 @@ import { createApp } from '../server';
 import path from 'path';
 import express from 'express';
 import fs from 'fs';
+import jwt from 'jsonwebtoken';
 
 async function runSecurityTests() {
   console.log('🔒 Running Thari Advanced Security & Hardening Tests...\n');
@@ -133,7 +134,10 @@ async function runSecurityTests() {
         return res.status(500).send('Error loading app');
       }
       const nonce = res.locals.cspNonce || '';
-      const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
+      const jwtSecret = process.env.APP_JWT_SECRET;
+      const legacyToken = process.env.APP_AUTH_TOKEN;
+      const appToken = legacyToken || (jwtSecret ? jwt.sign({ client: 'web' }, jwtSecret, { expiresIn: '24h' }) : nonce);
+      const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce).replace(/%APP_TOKEN%/g, appToken);
       res.send(injectedHtml);
     });
   });
@@ -147,13 +151,29 @@ async function runSecurityTests() {
 
   const prodHtml = prodRootRes.text;
   const hasUnreplacedProdNonce = prodHtml.includes('%CSP_NONCE%');
+  const hasUnreplacedAppToken = prodHtml.includes('%APP_TOKEN%');
   const cspHeader = prodRootRes.headers['content-security-policy'] || '';
   const hasNonceInCsp = cspHeader.includes('nonce-');
 
-  if (!hasUnreplacedProdNonce && hasNonceInCsp) {
-    console.log('  ✅ PASS: Production HTML successfully replaced %CSP_NONCE% with active nonce and CSP header is valid');
+  if (!hasUnreplacedProdNonce && !hasUnreplacedAppToken && hasNonceInCsp) {
+    console.log('  ✅ PASS: Production HTML successfully replaced %CSP_NONCE% and %APP_TOKEN% with active values and CSP header is valid');
   } else {
-    throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasNonceInCsp: ${hasNonceInCsp})`);
+    throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasUnreplacedAppToken: ${hasUnreplacedAppToken}, hasNonceInCsp: ${hasNonceInCsp})`);
+  }
+
+  // Test valid token authentication on /api/gemini
+  process.env.APP_JWT_SECRET = 'test-secret-key-12345';
+  const authApp = createApp();
+  const token = jwt.sign({ client: 'web' }, process.env.APP_JWT_SECRET);
+  const validAuthRes = await request(authApp)
+    .post('/api/gemini')
+    .set('x-app-token', token)
+    .send({ contents: 'test' });
+  
+  if (validAuthRes.status !== 401) {
+    console.log(`  ✅ PASS: Valid app token successfully passed authentication (status: ${validAuthRes.status})`);
+  } else {
+    throw new Error(`FAIL: Valid app token was rejected with 401`);
   }
 
   process.env.NODE_ENV = 'test';
