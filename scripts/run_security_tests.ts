@@ -131,8 +131,8 @@ async function runSecurityTests() {
     throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasNonceInCsp: ${hasNonceInCsp})`);
   }
 
-  // 4. Render Blueprint & Production Deployment Configuration Contract
-  console.log('\n--- Test Suite S4: Render Blueprint & Production Deployment Smoke Checks ---');
+  // 4. Vercel & Production Deployment Configuration Contract
+  console.log('\n--- Test Suite S4: Vercel & Production Deployment Smoke Checks ---');
   const pkgPath = path.join(process.cwd(), 'package.json');
   const pkgData = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
   const startScript = pkgData.scripts?.start;
@@ -142,23 +142,22 @@ async function runSecurityTests() {
     throw new Error(`FAIL: package.json start script mismatch: "${startScript}"`);
   }
 
-  const renderYamlPath = path.join(process.cwd(), 'render.yaml');
-  if (!fs.existsSync(renderYamlPath)) {
-    throw new Error('FAIL: render.yaml blueprint file missing');
+  const vercelJsonPath = path.join(process.cwd(), 'vercel.json');
+  if (!fs.existsSync(vercelJsonPath)) {
+    throw new Error('FAIL: vercel.json configuration file missing');
   }
-  const renderYamlContent = fs.readFileSync(renderYamlPath, 'utf8');
-  if (renderYamlContent.includes('buildCommand: npm ci && npm run build') && 
-      renderYamlContent.includes('startCommand: npm start') &&
-      renderYamlContent.includes('value: production')) {
-    console.log('  ✅ PASS: render.yaml accurately enforces production build, start command, and NODE_ENV=production');
+  const vercelData = JSON.parse(fs.readFileSync(vercelJsonPath, 'utf8'));
+  if (vercelData.framework === 'vite' && vercelData.buildCommand === 'npm run build' && vercelData.outputDirectory === 'dist') {
+    console.log('  ✅ PASS: vercel.json accurately configures Vite framework, npm run build, and dist output directory');
   } else {
-    throw new Error('FAIL: render.yaml does not contain required build, start, or NODE_ENV production directives');
+    throw new Error('FAIL: vercel.json does not contain required buildCommand or outputDirectory configuration');
   }
 
-  if (!renderYamlContent.includes('npm run dev') && !renderYamlContent.includes('tsx server.ts')) {
-    console.log('  ✅ PASS: render.yaml strictly excludes development startup commands');
+  const renderYamlPath = path.join(process.cwd(), 'render.yaml');
+  if (fs.existsSync(renderYamlPath)) {
+    throw new Error('FAIL: render.yaml should be removed as Render is not part of deployment architecture');
   } else {
-    throw new Error('FAIL: render.yaml contains reference to development command');
+    console.log('  ✅ PASS: render.yaml is completely removed from repository');
   }
 
   process.env.NODE_ENV = 'test';
