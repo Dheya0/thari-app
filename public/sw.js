@@ -50,8 +50,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // Bypass Google API or non-GET requests
-  if (url.origin.includes('generativelanguage.googleapis.com')) {
+  // Bypass API endpoints or Google API or non-GET requests
+  if (url.pathname.startsWith('/api/') || url.origin.includes('generativelanguage.googleapis.com')) {
     return;
   }
 

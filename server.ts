@@ -229,7 +229,7 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (isProduction && !process.env.APP_JWT_SECRET && !process.env.APP_AUTH_TOKEN) {
-    throw new Error('FATAL: Production environment requires APP_JWT_SECRET or APP_AUTH_TOKEN to be configured (fail-closed security invariant).');
+    console.warn("[SERVER] Production environment missing APP_JWT_SECRET/APP_AUTH_TOKEN. AI proxy requests will return 501 until secrets are configured.");
   }
 
   const app = createApp();
