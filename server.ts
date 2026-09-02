@@ -249,9 +249,12 @@ async function startServer() {
         try {
           const templatePath = path.resolve(process.cwd(), 'index.html');
           let template = fs.readFileSync(templatePath, 'utf-8');
-          template = await vite.transformIndexHtml(req.originalUrl, template);
           const nonce = res.locals.cspNonce || '';
-          const html = template.replace(/%CSP_NONCE%/g, nonce);
+          template = template.replace(/%CSP_NONCE%/g, nonce);
+          let html = await vite.transformIndexHtml(req.originalUrl, template);
+          html = html
+            .replace(/<script\b(?![^>]*\bnonce=)/gi, `<script nonce="${nonce}"`)
+            .replace(/<style\b(?![^>]*\bnonce=)/gi, `<style nonce="${nonce}"`);
           return res.status(200).set({ 'Content-Type': 'text/html' }).send(html);
         } catch (e: any) {
           vite.ssrFixStacktrace(e);
