@@ -131,6 +131,36 @@ async function runSecurityTests() {
     throw new Error(`FAIL: Production HTML invariant violated (hasUnreplacedProdNonce: ${hasUnreplacedProdNonce}, hasNonceInCsp: ${hasNonceInCsp})`);
   }
 
+  // 4. Render Blueprint & Production Deployment Configuration Contract
+  console.log('\n--- Test Suite S4: Render Blueprint & Production Deployment Smoke Checks ---');
+  const pkgPath = path.join(process.cwd(), 'package.json');
+  const pkgData = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const startScript = pkgData.scripts?.start;
+  if (startScript === 'node dist/server.cjs') {
+    console.log('  ✅ PASS: package.json start script accurately resolves to "node dist/server.cjs"');
+  } else {
+    throw new Error(`FAIL: package.json start script mismatch: "${startScript}"`);
+  }
+
+  const renderYamlPath = path.join(process.cwd(), 'render.yaml');
+  if (!fs.existsSync(renderYamlPath)) {
+    throw new Error('FAIL: render.yaml blueprint file missing');
+  }
+  const renderYamlContent = fs.readFileSync(renderYamlPath, 'utf8');
+  if (renderYamlContent.includes('buildCommand: npm ci && npm run build') && 
+      renderYamlContent.includes('startCommand: npm start') &&
+      renderYamlContent.includes('value: production')) {
+    console.log('  ✅ PASS: render.yaml accurately enforces production build, start command, and NODE_ENV=production');
+  } else {
+    throw new Error('FAIL: render.yaml does not contain required build, start, or NODE_ENV production directives');
+  }
+
+  if (!renderYamlContent.includes('npm run dev') && !renderYamlContent.includes('tsx server.ts')) {
+    console.log('  ✅ PASS: render.yaml strictly excludes development startup commands');
+  } else {
+    throw new Error('FAIL: render.yaml contains reference to development command');
+  }
+
   process.env.NODE_ENV = 'test';
 
   console.log('\n=============================================');
