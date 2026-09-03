@@ -243,7 +243,24 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'transactions' | 'debts' | 'chat' | 'subscriptions' | 'settings' | 'budgets' | 'goals' | 'zakat'>('dashboard');
+  type TabType = 'dashboard' | 'transactions' | 'debts' | 'chat' | 'subscriptions' | 'settings' | 'budgets' | 'goals' | 'zakat';
+  const [activeTab, setActiveTabState] = useState<TabType>('dashboard');
+  const [tabHistory, setTabHistory] = useState<TabType[]>(['dashboard']);
+  const tabHistoryRef = useRef<TabType[]>(['dashboard']);
+  useEffect(() => {
+    tabHistoryRef.current = tabHistory;
+  }, [tabHistory]);
+
+  const setActiveTab = useCallback((targetTab: TabType) => {
+    setActiveTabState(targetTab);
+    setTabHistory((prev) => {
+      if (prev[prev.length - 1] === targetTab) return prev;
+      const next = [...prev, targetTab];
+      tabHistoryRef.current = next;
+      return next;
+    });
+  }, []);
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -462,14 +479,24 @@ const App: React.FC = () => {
     showAddForm
   ), 5);
 
-  // Tab back navigation: return to dashboard if inside another tab (priority 2)
+  // Tab back navigation: step back ONE level in history stack (priority 2)
   useBackNavigation(() => {
+    if (tabHistoryRef.current.length > 1) {
+      const newHistory = tabHistoryRef.current.slice(0, -1);
+      const prevTab = newHistory[newHistory.length - 1];
+      tabHistoryRef.current = newHistory;
+      setTabHistory(newHistory);
+      setActiveTabState(prevTab);
+      return true;
+    }
     if (activeTab !== 'dashboard') {
-      setActiveTab('dashboard');
+      setActiveTabState('dashboard');
+      tabHistoryRef.current = ['dashboard'];
+      setTabHistory(['dashboard']);
       return true;
     }
     return false;
-  }, activeTab !== 'dashboard', 2);
+  }, tabHistory.length > 1 || activeTab !== 'dashboard', 2);
 
   useEffect(() => {
     let backButtonListener: any = null;
@@ -487,19 +514,13 @@ const App: React.FC = () => {
           return;
         }
 
-        // 2. Delegate to prioritized Back Navigation Manager
+        // 2. Delegate to prioritized Back Navigation Manager (handles modals, sub-sections, and tab history step-by-step)
         const wasHandled = backNavigationManager.handleBack();
         if (wasHandled) {
           return;
         }
 
-        // 3. If user inside non-Dashboard tab -> return to Dashboard
-        if (activeTab !== 'dashboard') {
-          setActiveTab('dashboard');
-          return;
-        }
-
-        // 4. If Dashboard & no overlay -> allow app exit
+        // 3. If at root Dashboard with no history & no overlay -> allow app exit
         CapApp.exitApp();
       }).then(l => { backButtonListener = l; });
     }
@@ -1380,18 +1401,6 @@ const App: React.FC = () => {
               >
                 <Logo size={24} showText />
               </div>
-              {/* Header Back Button when navigating inside any sub-tab */}
-              {activeTab !== 'dashboard' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('dashboard')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/30 transition-all text-xs font-bold active:scale-90 shadow-sm"
-                  title="الرجوع إلى الشاشة الرئيسية"
-                >
-                  <ChevronRight size={16} className="rtl:rotate-0 ltr:rotate-180" />
-                  <span>الرئيسية</span>
-                </button>
-              )}
               {/* Offline-First Sovereignty Badge - 100% Local */}
               <div
                 className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
@@ -1484,32 +1493,6 @@ const App: React.FC = () => {
                 transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full will-change-transform"
               >
-                {/* Dedicated Sub-View Header with Back Button */}
-                {activeTab !== 'dashboard' && (
-                  <div className="flex items-center justify-between bg-[#11161C]/80 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 mb-4 shadow-sm animate-fade">
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('dashboard')}
-                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-[#D9B978]/15 text-[#D9B978] text-xs font-bold transition-all border border-[#D9B978]/30 active:scale-95"
-                    >
-                      <ChevronRight size={16} className="rtl:rotate-0 ltr:rotate-180" />
-                      <span>{activeLanguage === 'en' ? 'Back to Dashboard' : 'الرجوع للشاشة الرئيسية'}</span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-slate-200">
-                        {activeTab === 'transactions' && (activeLanguage === 'en' ? 'Ledger & Analytics' : 'سجل وكشف المعاملات')}
-                        {activeTab === 'debts' && (activeLanguage === 'en' ? 'Debts & Obligations' : 'إدارة الديون والذمم')}
-                        {activeTab === 'budgets' && (activeLanguage === 'en' ? 'Smart Budgets' : 'الميزانيات والإنفاق الذكي')}
-                        {activeTab === 'goals' && (activeLanguage === 'en' ? 'Financial Goals' : 'الأهداف المالية والمدخرات')}
-                        {activeTab === 'subscriptions' && (activeLanguage === 'en' ? 'Subscriptions' : 'الاشتراكات الدورية')}
-                        {activeTab === 'zakat' && (activeLanguage === 'en' ? 'Zakat Calculator' : 'محفظة وحاسبة الزكاة')}
-                        {activeTab === 'settings' && (activeLanguage === 'en' ? 'Settings & Accounts' : 'إعدادات النظام والمحافظ')}
-                      </span>
-                      <span className="w-2 h-2 rounded-full bg-[#D9B978]" />
-                    </div>
-                  </div>
-                )}
-
                 {activeTab === 'dashboard' && (
                   <ElegantDashboard
                     userName={state.userName}
@@ -1657,7 +1640,6 @@ const App: React.FC = () => {
                         installPrompt={installPrompt}
                         isUpdateAvailable={isUpdateAvailable}
                         swRegistration={swRegistration}
-                        onBack={() => setActiveTab('dashboard')}
                     />
                 )}
               </motion.div>

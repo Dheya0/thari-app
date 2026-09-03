@@ -15,6 +15,7 @@ export class BackNavigationManager {
   private handlers: RegisteredHandler[] = [];
   private isNativeListenerAttached = false;
   private isWebListenerAttached = false;
+  private isKeyboardListenerAttached = false;
   private fallbackHandler: (() => void) | null = null;
   private idCounter = 0;
   private lastBackTriggerTime = 0;
@@ -54,6 +55,24 @@ export class BackNavigationManager {
           try {
             window.history.pushState({ modalOpen: true }, '');
           } catch {}
+        }
+      });
+    }
+
+    if (!this.isKeyboardListenerAttached) {
+      this.isKeyboardListenerAttached = true;
+      window.addEventListener('keydown', (e: KeyboardEvent) => {
+        const target = e.target as HTMLElement | null;
+        const isInput = target && (
+          ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+          target.isContentEditable
+        );
+
+        if (e.key === 'Backspace' && !isInput && !e.altKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.handleBack();
+        } else if (e.key === 'Escape') {
+          this.handleBack();
         }
       });
     }
