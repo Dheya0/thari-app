@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, FileText, Repeat, Trash2, Scale, Briefcase, 
-  ArrowLeft, ArrowRight, Sparkles 
+  ArrowLeft, ArrowRight, Sparkles, Coins, LayoutDashboard, Calendar
 } from 'lucide-react';
 
 interface ToolsHubModalProps {
@@ -14,6 +14,10 @@ interface ToolsHubModalProps {
   onOpenRecurring: () => void;
   onOpenTrash: () => void;
   onOpenDiagnostics: () => void;
+  onOpenZakat?: () => void;
+  onOpenBudgets?: () => void;
+  onOpenGoals?: () => void;
+  onOpenSubscriptions?: () => void;
   language?: 'ar' | 'en';
 }
 
@@ -32,6 +36,22 @@ const STRINGS = {
       recurring: {
         title: 'العمليات الدورية والمجدولة',
         desc: 'أتمتة المصاريف والرواتب والاشتراكات المتكررة تلقائياً'
+      },
+      zakat: {
+        title: 'محفظة وحاسبة الزكاة الشرعية',
+        desc: 'حساب زكاة المال وعروض التجارة والذهب وتتبع سجل الإخراج'
+      },
+      budgets: {
+        title: 'الميزانيات والإنفاق الذكي',
+        desc: 'تحديد سقوف المصاريف لكل تصنيف وتنبيهات ترشيد الاستهلاك'
+      },
+      goals: {
+        title: 'الأهداف المالية والمدخرات',
+        desc: 'تتبع خطط التوفير وصناديق الطوارئ ونسب الإنجاز'
+      },
+      subscriptions: {
+        title: 'الاشتراكات والفواتير الدورية',
+        desc: 'متابعة مواعيد التجديد وتكلفة الاشتراكات الشهرية والسنوية'
       },
       trash: {
         title: 'سلة المحذوفات والاسترجاع',
@@ -58,6 +78,22 @@ const STRINGS = {
         title: 'Recurring & Scheduled Rules',
         desc: 'Automate repetitive expenses, salaries & recurring bills'
       },
+      zakat: {
+        title: 'Zakat & Purification Calculator',
+        desc: 'Calculate Zakat on liquid assets, gold, and commercial goods'
+      },
+      budgets: {
+        title: 'Budgets & Smart Limits',
+        desc: 'Set expense ceilings per category with smart spending tracking'
+      },
+      goals: {
+        title: 'Financial Goals & Savings',
+        desc: 'Track target funds, emergency reserves, and milestones'
+      },
+      subscriptions: {
+        title: 'Subscriptions & Recurring Bills',
+        desc: 'Monitor recurring service renewal dates and monthly commitments'
+      },
       trash: {
         title: 'Recycle Bin & Data Recovery',
         desc: 'Safely restore deleted records & prevent accidental data loss'
@@ -79,6 +115,10 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
   onOpenRecurring,
   onOpenTrash,
   onOpenDiagnostics,
+  onOpenZakat,
+  onOpenBudgets,
+  onOpenGoals,
+  onOpenSubscriptions,
   language = 'ar',
 }) => {
   if (!isOpen) return null;
@@ -173,7 +213,99 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
               <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
             </button>
 
-            {/* Tool 3: Trash Bin */}
+            {/* Tool: Zakat Calculator */}
+            {onOpenZakat && (
+              <button
+                onClick={() => { onClose(); onOpenZakat(); }}
+                className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#D9B978]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#D9B978]/10 text-[#D9B978] flex items-center justify-center shrink-0 border border-[#D9B978]/20 group-hover:scale-105 transition-transform">
+                    <Scale size={22} />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-sm font-semibold text-white group-hover:text-[#D9B978] transition-colors">
+                      {t.tools.zakat.title}
+                    </h4>
+                    <p className="text-xs text-slate-400 truncate">
+                      {t.tools.zakat.desc}
+                    </p>
+                  </div>
+                </div>
+                <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
+              </button>
+            )}
+
+            {/* Tool: Budgets Manager */}
+            {onOpenBudgets && (
+              <button
+                onClick={() => { onClose(); onOpenBudgets(); }}
+                className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#759BC8]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#759BC8]/10 text-[#759BC8] flex items-center justify-center shrink-0 border border-[#759BC8]/20 group-hover:scale-105 transition-transform">
+                    <LayoutDashboard size={22} />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-sm font-semibold text-white group-hover:text-[#759BC8] transition-colors">
+                      {t.tools.budgets.title}
+                    </h4>
+                    <p className="text-xs text-slate-400 truncate">
+                      {t.tools.budgets.desc}
+                    </p>
+                  </div>
+                </div>
+                <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
+              </button>
+            )}
+
+            {/* Tool: Goals & Savings */}
+            {onOpenGoals && (
+              <button
+                onClick={() => { onClose(); onOpenGoals(); }}
+                className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#D9B978]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#D9B978]/10 text-[#D9B978] flex items-center justify-center shrink-0 border border-[#D9B978]/20 group-hover:scale-105 transition-transform">
+                    <Coins size={22} />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-sm font-semibold text-white group-hover:text-[#D9B978] transition-colors">
+                      {t.tools.goals.title}
+                    </h4>
+                    <p className="text-xs text-slate-400 truncate">
+                      {t.tools.goals.desc}
+                    </p>
+                  </div>
+                </div>
+                <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
+              </button>
+            )}
+
+            {/* Tool: Subscriptions */}
+            {onOpenSubscriptions && (
+              <button
+                onClick={() => { onClose(); onOpenSubscriptions(); }}
+                className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#8EB9A7]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#8EB9A7]/10 text-[#8EB9A7] flex items-center justify-center shrink-0 border border-[#8EB9A7]/20 group-hover:scale-105 transition-transform">
+                    <Calendar size={22} />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-sm font-semibold text-white group-hover:text-[#8EB9A7] transition-colors">
+                      {t.tools.subscriptions.title}
+                    </h4>
+                    <p className="text-xs text-slate-400 truncate">
+                      {t.tools.subscriptions.desc}
+                    </p>
+                  </div>
+                </div>
+                <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
+              </button>
+            )}
+
+            {/* Tool: Trash Bin */}
             <button
               onClick={() => { onClose(); onOpenTrash(); }}
               className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#C98387]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"
@@ -201,7 +333,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
               <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
             </button>
 
-            {/* Tool 4: System Diagnostics & Accounting Audit */}
+            {/* Tool: System Diagnostics & Accounting Audit */}
             <button
               onClick={() => { onClose(); onOpenDiagnostics(); }}
               className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#759BC8]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"

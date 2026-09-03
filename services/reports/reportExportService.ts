@@ -1061,9 +1061,23 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
 
   let masterCanvas: HTMLCanvasElement | null = null;
   try {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const totalHeight = container.scrollHeight || 1123;
-    const scale = totalHeight > 4000 ? 1.25 : 1.5;
+    await new Promise(resolve => setTimeout(resolve, 250));
+    const scale = 2.0; // High-DPI crisp rendering
+
+    // Measure boundaries of atomic elements (rows, headers, cards)
+    const containerRect = container.getBoundingClientRect();
+    const atomicElements = Array.from(
+      container.querySelectorAll('tr, h2, .kpi-grid, .info-grid, .footer-seal, .header, .meta-box')
+    );
+    const protectedBorders: { top: number; bottom: number }[] = [];
+    atomicElements.forEach(el => {
+      const r = (el as HTMLElement).getBoundingClientRect();
+      const top = Math.round((r.top - containerRect.top) * scale);
+      const bottom = Math.round((r.bottom - containerRect.top) * scale);
+      if (bottom > top) {
+        protectedBorders.push({ top, bottom });
+      }
+    });
 
     masterCanvas = await html2canvas(container, {
       scale,
@@ -1074,17 +1088,31 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
 
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+    const pdfHeight = pdf.internal.pageSize.getHeight(); // 297 mm
     const canvasWidth = masterCanvas.width;
     const canvasHeight = masterCanvas.height;
 
-    // A4 height in canvas pixels for this scale (~1123px at 96dpi)
-    const pageCanvasHeight = Math.round(1123 * scale);
+    // A4 height in canvas pixels for this scale
+    const nominalPageCanvasHeight = Math.round((canvasWidth * pdfHeight) / pdfWidth);
     let sourceY = 0;
     let pageIndex = 0;
 
     while (sourceY < canvasHeight) {
-      const sliceHeight = Math.min(pageCanvasHeight, canvasHeight - sourceY);
-      
+      let targetY = sourceY + nominalPageCanvasHeight;
+
+      if (targetY < canvasHeight) {
+        // Find if targetY cuts inside any protected element
+        const intersecting = protectedBorders.find(b => b.top < targetY && b.bottom > targetY);
+        if (intersecting && (intersecting.top - sourceY) > nominalPageCanvasHeight * 0.45) {
+          // Snap slice cut to right above this element with a safe buffer
+          targetY = Math.max(sourceY + 100, intersecting.top - 2);
+        }
+      } else {
+        targetY = canvasHeight;
+      }
+
+      const sliceHeight = targetY - sourceY;
+
       const pageCanvas = document.createElement('canvas');
       pageCanvas.width = canvasWidth;
       pageCanvas.height = sliceHeight;
@@ -1105,7 +1133,7 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
           sliceHeight
         );
 
-        const imgData = pageCanvas.toDataURL('image/jpeg', 0.9);
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
         const slicePdfHeight = (sliceHeight * pdfWidth) / canvasWidth;
 
         if (pageIndex > 0) {
@@ -1118,7 +1146,7 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
         pageCanvas.height = 0;
       }
 
-      sourceY += sliceHeight;
+      sourceY = targetY;
       pageIndex++;
     }
 

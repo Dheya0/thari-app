@@ -30,26 +30,20 @@ export function createApp() {
     const nonce = crypto.randomBytes(16).toString('base64');
     res.locals.cspNonce = nonce;
     
-    // Strictly secure, offline-compatible, and asset-restricted CSP
-    // Restricts all resources to 'self' and uses cryptographically secure nonces.
+    // Strictly secure, offline-compatible, and asset-restricted CSP in production/test.
+    // In development, we omit CSP to allow the Vite dev server and its live preview iframe to function without script/style injection blockages.
     const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test';
-    const csp = isProd ? [
-      `default-src 'self'`,
-      `script-src 'self' 'nonce-${nonce}'`,
-      `style-src 'self' 'nonce-${nonce}'`,
-      `font-src 'self' data:`,
-      `img-src 'self' data: blob:`,
-      `connect-src 'self'`
-    ].join('; ') : [
-      `default-src 'self'`,
-      `script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}'`,
-      `style-src 'self' 'unsafe-inline' 'nonce-${nonce}'`,
-      `font-src 'self' data:`,
-      `img-src 'self' data: blob:`,
-      `connect-src 'self' ws://localhost:3000 ws://127.0.0.1:3000 http://localhost:3000 http://127.0.0.1:3000`
-    ].join('; ');
-
-    res.setHeader('Content-Security-Policy', csp);
+    if (isProd) {
+      const csp = [
+        `default-src 'self'`,
+        `script-src 'self' 'nonce-${nonce}'`,
+        `style-src 'self' 'nonce-${nonce}'`,
+        `font-src 'self' data:`,
+        `img-src 'self' data: blob:`,
+        `connect-src 'self'`
+      ].join('; ');
+      res.setHeader('Content-Security-Policy', csp);
+    }
     next();
   };
 

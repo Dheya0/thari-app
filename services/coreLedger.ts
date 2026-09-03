@@ -58,7 +58,7 @@ export function resolveHistoricalConversion(
   const destCurrency = tx.destinationCurrency || (isTransfer ? walletCurrency : sourceCurrency);
   const isCrossCurrency = sourceCurrency !== walletCurrency || (isTransfer && tx.destinationWalletId && destCurrency !== sourceCurrency);
 
-  // Case A — Same currency
+  // Case A — Same currency and not a cross-currency transfer
   if (!isCrossCurrency && sourceCurrency === walletCurrency) {
     const destinationAmount = tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount))
       ? Number(tx.destinationAmount)
@@ -76,7 +76,52 @@ export function resolveHistoricalConversion(
     };
   }
 
-  // Case B & C — Different currency or cross-currency transfer
+  // Case B — Transfer (source wallet is in walletCurrency, destination wallet is in destCurrency)
+  if (isTransfer) {
+    // Source wallet must be deducted in walletCurrency
+    let sourceAmountInWalletCurrency = sourceAmount;
+    if (sourceCurrency !== walletCurrency) {
+      if (tx.convertedAmountInWalletCurrency !== undefined && tx.convertedAmountInWalletCurrency !== null && !isNaN(Number(tx.convertedAmountInWalletCurrency))) {
+        sourceAmountInWalletCurrency = Number(tx.convertedAmountInWalletCurrency);
+      } else {
+        sourceAmountInWalletCurrency = convertCurrency(sourceAmount, sourceCurrency, walletCurrency, exchangeRates);
+      }
+    }
+
+    // Destination amount in destination wallet currency
+    let destinationAmount = sourceAmount;
+    let effectiveRate = 1.0;
+    if (tx.destinationAmount !== undefined && tx.destinationAmount !== null && !isNaN(Number(tx.destinationAmount))) {
+      destinationAmount = Number(tx.destinationAmount);
+      effectiveRate = sourceAmount > 0 ? destinationAmount / sourceAmount : 1.0;
+    } else if (tx.exchangeRateUsed !== undefined && tx.exchangeRateUsed !== null && !isNaN(Number(tx.exchangeRateUsed))) {
+      effectiveRate = Number(tx.exchangeRateUsed);
+      destinationAmount = safeMul(sourceAmount, effectiveRate);
+    } else if (tx.exchangeRate !== undefined && tx.exchangeRate !== null && !isNaN(Number(tx.exchangeRate))) {
+      effectiveRate = Number(tx.exchangeRate);
+      destinationAmount = safeMul(sourceAmount, effectiveRate);
+    } else if (sourceCurrency === destCurrency) {
+      destinationAmount = sourceAmount;
+      effectiveRate = 1.0;
+    } else {
+      destinationAmount = convertCurrency(sourceAmount, sourceCurrency, destCurrency, exchangeRates);
+      effectiveRate = sourceAmount > 0 ? destinationAmount / sourceAmount : 1.0;
+    }
+
+    return {
+      sourceAmount,
+      sourceCurrency,
+      destinationAmount,
+      destinationCurrency: destCurrency,
+      sourceAmountInWalletCurrency,
+      walletCurrency,
+      effectiveRate,
+      rateDirection: 'source_to_destination',
+      isLegacy: false,
+    };
+  }
+
+  // Case C — Non-transfer foreign transaction into host wallet (e.g. 100 USD expense on YER wallet)
   // Precedence for sourceAmountInWalletCurrency:
   // 1. convertedAmountInWalletCurrency
   // 2. exchangeRateUsed / exchangeRate
@@ -515,6 +560,7 @@ export function generateCoreLedger(
     }
 
     // Debt Detailed Payments Ledger
+    const detailedPaymentsSum = (debt.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
     if (debt.payments && debt.payments.length > 0) {
       debt.payments.forEach(pay => {
         const payAmount = Number(pay.amount) || 0;
@@ -602,6 +648,87 @@ export function generateCoreLedger(
           });
         }
       });
+    }
+
+    // Direct / Unitemized Debt Repayments (legacy/direct paidAmount)
+    const directUnrecorded = Math.max(0, (Number(debt.paidAmount) || 0) - detailedPaymentsSum);
+    if (directUnrecorded > 0) {
+      const payBaseAmount = calcBaseAmount(directUnrecorded, debtCurrency);
+      if (debt.type === 'to_me') {
+        journal.push({
+          id: `entry-pay-direct-${debt.id}`,
+          eventId: `direct-${debt.id}`,
+          eventType: 'debt_repayment',
+          date: debt.createdAt ? debt.createdAt.split('T')[0] : '2026-01-01',
+          timestamp: debt.createdAt || new Date().toISOString(),
+          description: `سداد مباشر مسجل لدين ${debt.personName}`,
+          debtId: debt.id,
+          personName: debt.personName,
+          lines: [
+            {
+              id: `line-pay-dr-direct-${debt.id}`,
+              accountId: 'cash-external',
+              accountName: 'نقد خارجي / تسوية مباشرة',
+              accountType: 'asset',
+              debit: directUnrecorded,
+              credit: 0,
+              currency: debtCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: payBaseAmount,
+              note: 'سداد مباشر مسجل'
+            },
+            {
+              id: `line-pay-cr-direct-${debt.id}`,
+              accountId: `rec-${debt.id}`,
+              accountName: `مستحق من: ${debt.personName}`,
+              accountType: 'receivable',
+              debit: 0,
+              credit: directUnrecorded,
+              currency: debtCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: payBaseAmount,
+              note: 'سداد مباشر وتخفيض المستحق'
+            }
+          ]
+        });
+      } else {
+        journal.push({
+          id: `entry-pay-direct-${debt.id}`,
+          eventId: `direct-${debt.id}`,
+          eventType: 'debt_repayment',
+          date: debt.createdAt ? debt.createdAt.split('T')[0] : '2026-01-01',
+          timestamp: debt.createdAt || new Date().toISOString(),
+          description: `سداد مباشر مسجل لدين ${debt.personName}`,
+          debtId: debt.id,
+          personName: debt.personName,
+          lines: [
+            {
+              id: `line-pay-dr-direct-${debt.id}`,
+              accountId: `pay-${debt.id}`,
+              accountName: `مستحق لـ: ${debt.personName}`,
+              accountType: 'payable',
+              debit: directUnrecorded,
+              credit: 0,
+              currency: debtCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: payBaseAmount,
+              note: 'سداد مباشر وتخفيض الالتزام'
+            },
+            {
+              id: `line-pay-cr-direct-${debt.id}`,
+              accountId: 'cash-external',
+              accountName: 'نقد خارجي / تسوية مباشرة',
+              accountType: 'asset',
+              debit: 0,
+              credit: directUnrecorded,
+              currency: debtCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: payBaseAmount,
+              note: 'سداد مباشر مسجل'
+            }
+          ]
+        });
+      }
     }
   });
 

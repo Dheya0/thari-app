@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown } from 'lucide-react';
+import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight } from 'lucide-react';
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
@@ -42,6 +42,7 @@ import { TrashModal } from './components/TrashModal';
 import { RecurringManagerModal } from './components/RecurringManagerModal';
 import { SystemDiagnosticsModal } from './components/SystemDiagnosticsModal';
 import { ToolsHubModal } from './components/ToolsHubModal';
+import { GlobalToast, ToastData } from './components/GlobalToast';
 import CurrencySelectorModal from './components/CurrencySelectorModal';
 import WalletSelectorModal from './components/WalletSelectorModal';
 import SmartAlerts from './components/SmartAlerts';
@@ -295,6 +296,17 @@ const App: React.FC = () => {
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
   const [timePeriodFilter, setTimePeriodFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [formDefaultType, setFormDefaultType] = useState<'expense' | 'income' | 'transfer' | 'adjustment' | undefined>(undefined);
+  const [globalToast, setGlobalToast] = useState<ToastData | null>(null);
+  const [transactionsSubView, setTransactionsSubView] = useState<'list' | 'analytics'>('list');
+
+  const showToast = useCallback((message: string, type: 'success' | 'info' | 'error' = 'info', action?: { label: string; onClick: () => void }) => {
+    setGlobalToast({
+      id: `toast_${Date.now()}_${Math.random()}`,
+      message,
+      type,
+      action,
+    });
+  }, []);
 
   // Sync Document Direction & Language
   useEffect(() => {
@@ -449,6 +461,15 @@ const App: React.FC = () => {
     showRecurringModal ||
     showAddForm
   ), 5);
+
+  // Tab back navigation: return to dashboard if inside another tab (priority 2)
+  useBackNavigation(() => {
+    if (activeTab !== 'dashboard') {
+      setActiveTab('dashboard');
+      return true;
+    }
+    return false;
+  }, activeTab !== 'dashboard', 2);
 
   useEffect(() => {
     let backButtonListener: any = null;
@@ -930,6 +951,15 @@ const App: React.FC = () => {
       transactions: p.transactions.filter(t => t.id !== id),
       trashTransactions: [deletedItem, ...(p.trashTransactions || [])],
     }));
+
+    showToast(
+      activeLanguage === 'en' ? 'Transaction moved to recycle bin' : 'تم نقل المعاملة إلى سلة المحذوفات',
+      'info',
+      {
+        label: activeLanguage === 'en' ? 'Undo' : 'تراجع',
+        onClick: () => handleRestoreTransaction(target.id)
+      }
+    );
   };
 
   const handleRestoreTransaction = (id: string) => {
@@ -948,6 +978,11 @@ const App: React.FC = () => {
       trashTransactions: (p.trashTransactions || []).filter(t => t.id !== id),
       transactions: [restoredItem, ...p.transactions],
     }));
+
+    showToast(
+      activeLanguage === 'en' ? 'Transaction restored successfully' : 'تمت استعادة المعاملة بنجاح',
+      'success'
+    );
   };
 
   const handlePermanentDelete = (id: string) => {
@@ -1076,11 +1111,13 @@ const App: React.FC = () => {
             ...p,
             transactions: p.transactions.map(t => t.id === targetId ? { ...txData, id: t.id, updatedAt: new Date().toISOString() } : t)
         }));
+        showToast(activeLanguage === 'en' ? 'Transaction updated successfully' : 'تم تحديث المعاملة بنجاح', 'success');
     } else {
         setState(p => ({ 
             ...p, 
             transactions: [{ ...txData, id: 'tx-' + Date.now(), createdAt: new Date().toISOString() }, ...p.transactions] 
         }));
+        showToast(activeLanguage === 'en' ? 'Transaction recorded successfully' : 'تم تسجيل المعاملة بنجاح', 'success');
     }
     setShowAddForm(false);
     setEditingTransaction(null);
@@ -1171,6 +1208,7 @@ const App: React.FC = () => {
             }
             return d;
         });
+        showToast(activeLanguage === 'en' ? 'Debt payment recorded' : 'تم تسجيل دفعة السداد بنجاح', 'success');
         return {
             ...p,
             transactions: newTransaction ? [newTransaction, ...p.transactions] : p.transactions,
@@ -1211,6 +1249,7 @@ const App: React.FC = () => {
             createdAt: new Date().toISOString()
         };
     }
+    showToast(activeLanguage === 'en' ? 'Debt record saved successfully' : 'تم حفظ بيانات الدين بنجاح', 'success');
     setState(p => {
         // Prevent duplicate addition
         if (p.debts.some(d => d.id === newDebtId)) {
@@ -1341,6 +1380,18 @@ const App: React.FC = () => {
               >
                 <Logo size={24} showText />
               </div>
+              {/* Header Back Button when navigating inside any sub-tab */}
+              {activeTab !== 'dashboard' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('dashboard')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/30 transition-all text-xs font-bold active:scale-90 shadow-sm"
+                  title="الرجوع إلى الشاشة الرئيسية"
+                >
+                  <ChevronRight size={16} className="rtl:rotate-0 ltr:rotate-180" />
+                  <span>الرئيسية</span>
+                </button>
+              )}
               {/* Offline-First Sovereignty Badge - 100% Local */}
               <div
                 className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
@@ -1433,6 +1484,32 @@ const App: React.FC = () => {
                 transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full will-change-transform"
               >
+                {/* Dedicated Sub-View Header with Back Button */}
+                {activeTab !== 'dashboard' && (
+                  <div className="flex items-center justify-between bg-[#11161C]/80 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 mb-4 shadow-sm animate-fade">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('dashboard')}
+                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-[#D9B978]/15 text-[#D9B978] text-xs font-bold transition-all border border-[#D9B978]/30 active:scale-95"
+                    >
+                      <ChevronRight size={16} className="rtl:rotate-0 ltr:rotate-180" />
+                      <span>{activeLanguage === 'en' ? 'Back to Dashboard' : 'الرجوع للشاشة الرئيسية'}</span>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-200">
+                        {activeTab === 'transactions' && (activeLanguage === 'en' ? 'Ledger & Analytics' : 'سجل وكشف المعاملات')}
+                        {activeTab === 'debts' && (activeLanguage === 'en' ? 'Debts & Obligations' : 'إدارة الديون والذمم')}
+                        {activeTab === 'budgets' && (activeLanguage === 'en' ? 'Smart Budgets' : 'الميزانيات والإنفاق الذكي')}
+                        {activeTab === 'goals' && (activeLanguage === 'en' ? 'Financial Goals' : 'الأهداف المالية والمدخرات')}
+                        {activeTab === 'subscriptions' && (activeLanguage === 'en' ? 'Subscriptions' : 'الاشتراكات الدورية')}
+                        {activeTab === 'zakat' && (activeLanguage === 'en' ? 'Zakat Calculator' : 'محفظة وحاسبة الزكاة')}
+                        {activeTab === 'settings' && (activeLanguage === 'en' ? 'Settings & Accounts' : 'إعدادات النظام والمحافظ')}
+                      </span>
+                      <span className="w-2 h-2 rounded-full bg-[#D9B978]" />
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'dashboard' && (
                   <ElegantDashboard
                     userName={state.userName}
@@ -1489,34 +1566,70 @@ const App: React.FC = () => {
                 )}
                 
                 {activeTab === 'transactions' && (
-                    <div className="space-y-8">
-                        <Analytics 
-                            transactions={state.transactions} 
-                            categories={state.categories} 
-                            wallets={state.wallets}
-                            currencySymbol={localizedCurrency.symbol} 
-                            onPrint={handlePrint} 
-                            currentCurrencyCode={state.currency.code} 
-                            exchangeRates={state.exchangeRates} 
-                            initialWalletId={selectedWalletId} 
-                            onFilterChange={handleSelectWallet} 
-                            userName={state.userName}
-                            currencies={localizedCurrencies}
-                        />
-                        
-                        <TransactionList 
-                            transactions={filteredTransactions} 
-                            categories={state.categories} 
-                            wallets={state.wallets} 
-                            onDelete={handleDeleteTransaction} 
-                            onEdit={handleEditTransaction} 
-                            currencySymbol={localizedCurrency.symbol}
-                            currentCurrencyCode={state.currency.code}
-                            currencies={localizedCurrencies}
-                            exchangeRates={state.exchangeRates}
-                            showFilters 
-                            language={activeLanguage}
-                        />
+                    <div className="space-y-6">
+                        {/* View Switcher: List vs Analytics */}
+                        <div className="flex items-center justify-center p-1 bg-slate-900/80 rounded-2xl border border-white/10 max-w-md mx-auto shadow-inner">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              NativeHaptics.selection().catch(() => {});
+                              setTransactionsSubView('list');
+                            }}
+                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                              transactionsSubView === 'list'
+                                ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <History size={16} />
+                            <span>{activeLanguage === 'en' ? 'Ledger & Search' : 'كشف العمليات والبحث'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              NativeHaptics.selection().catch(() => {});
+                              setTransactionsSubView('analytics');
+                            }}
+                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                              transactionsSubView === 'analytics'
+                                ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <Scale size={16} />
+                            <span>{activeLanguage === 'en' ? 'Analytics & Charts' : 'الرسوم والتحليلات'}</span>
+                          </button>
+                        </div>
+
+                        {transactionsSubView === 'list' ? (
+                          <TransactionList 
+                              transactions={filteredTransactions} 
+                              categories={state.categories} 
+                              wallets={state.wallets} 
+                              onDelete={handleDeleteTransaction} 
+                              onEdit={handleEditTransaction} 
+                              currencySymbol={localizedCurrency.symbol}
+                              currentCurrencyCode={state.currency.code}
+                              currencies={localizedCurrencies}
+                              exchangeRates={state.exchangeRates}
+                              showFilters 
+                              language={activeLanguage}
+                          />
+                        ) : (
+                          <Analytics 
+                              transactions={state.transactions} 
+                              categories={state.categories} 
+                              wallets={state.wallets}
+                              currencySymbol={localizedCurrency.symbol} 
+                              onPrint={handlePrint} 
+                              currentCurrencyCode={state.currency.code} 
+                              exchangeRates={state.exchangeRates} 
+                              initialWalletId={selectedWalletId} 
+                              onFilterChange={handleSelectWallet} 
+                              userName={state.userName}
+                              currencies={localizedCurrencies}
+                          />
+                        )}
                     </div>
                 )}
                 
@@ -1544,6 +1657,7 @@ const App: React.FC = () => {
                         installPrompt={installPrompt}
                         isUpdateAvailable={isUpdateAvailable}
                         swRegistration={swRegistration}
+                        onBack={() => setActiveTab('dashboard')}
                     />
                 )}
               </motion.div>
@@ -1554,7 +1668,7 @@ const App: React.FC = () => {
         <div className="fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-4 md:px-0 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent">
             <nav className="pointer-events-auto w-full md:max-w-xl bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2 py-2 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
                 <NavButton icon={<LayoutDashboard />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-                <NavButton icon={<Scale />} label={t.zakat} active={activeTab === 'zakat'} onClick={() => setActiveTab('zakat')} />
+                <NavButton icon={<History />} label={activeLanguage === 'en' ? 'Transactions' : 'المعاملات'} active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
                 
                 <motion.button 
                   whileHover={{ scale: 1.06 }}
@@ -1611,6 +1725,10 @@ const App: React.FC = () => {
               onOpenRecurring={() => setShowRecurringModal(true)}
               onOpenTrash={() => setShowTrashModal(true)}
               onOpenDiagnostics={() => setShowDiagnosticsModal(true)}
+              onOpenZakat={() => { setShowToolsHub(false); setActiveTab('zakat'); }}
+              onOpenBudgets={() => { setShowToolsHub(false); setActiveTab('budgets'); }}
+              onOpenGoals={() => { setShowToolsHub(false); setActiveTab('goals'); }}
+              onOpenSubscriptions={() => { setShowToolsHub(false); setActiveTab('subscriptions'); }}
               language={state.language || 'ar'}
             />
           )}
@@ -1719,6 +1837,8 @@ const App: React.FC = () => {
             />
           )}
         </AnimatePresence>
+
+        <GlobalToast toast={globalToast} onDismiss={() => setGlobalToast(null)} />
       </div>
     </div>
   );

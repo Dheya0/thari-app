@@ -285,32 +285,34 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-2xl bg-[#11161C] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] sm:max-h-[88vh] text-[#F4F1EA]"
+        className={`w-full ${showPreview ? 'max-w-4xl' : 'max-w-2xl'} bg-[#11161C] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[94dvh] sm:max-h-[90vh] text-[#F4F1EA] transition-all duration-200`}
         dir="rtl"
       >
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-white/10 flex justify-between items-center bg-[#0A0D10]/80 shrink-0">
+        <div className="p-4 sm:p-5 border-b border-white/10 flex justify-between items-center bg-[#0A0D10]/90 shrink-0">
           <div className="flex items-center gap-3">
-            {showPreview && (
+            {showPreview ? (
               <button
                 type="button"
                 onClick={() => setShowPreview(false)}
-                className="w-10 h-10 rounded-2xl bg-white/5 hover:bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] active:scale-90 transition-all"
-                aria-label="الرجوع للخيارات"
-                title="الرجوع للخيارات"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/5 hover:bg-[#D9B978]/15 border border-[#D9B978]/30 text-[#D9B978] active:scale-90 transition-all font-bold text-xs"
+                aria-label="الرجوع لخيارات التقرير"
+                title="الرجوع لخيارات التقرير"
               >
                 <ArrowRight size={18} />
+                <span>الخيارات</span>
               </button>
+            ) : (
+              <div className="w-10 h-10 rounded-2xl bg-[#D9B978]/10 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
+                <FileText size={20} />
+              </div>
             )}
-            <div className="w-10 h-10 rounded-2xl bg-[#D9B978]/10 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
-              <FileText size={20} />
-            </div>
             <div>
               <h3 className="text-base font-bold text-[#F4F1EA]">
-                {showPreview ? 'معاينة التقرير المالي المباشرة' : 'إصدار التقارير المالية وكشوف الحساب'}
+                {showPreview ? 'معاينة المستند المالي المباشرة' : 'إصدار التقارير المالية وكشوف الحساب'}
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
-                {showPreview ? 'اضغط رجوع للعودة إلى خيارات التقرير' : 'تطبيق ثـري • وثائق مالية تفصيلية وموجزة'}
+                {showPreview ? 'مستند عالي الدقة جاهز للطباعة والمشاركة والتحميل' : 'تطبيق ثـري • وثائق مالية تفصيلية وموجزة'}
               </p>
             </div>
           </div>
@@ -331,8 +333,34 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar overscroll-contain">
-          {/* 1. Report Type Grid */}
+        {showPreview ? (
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-950/60 custom-scrollbar overscroll-contain">
+            <div className="max-w-3xl mx-auto space-y-4">
+              <div className="flex items-center justify-between bg-[#171D24] p-3 px-4 rounded-2xl border border-[#D9B978]/30 shadow-md">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-bold text-slate-200">
+                    معاينة المستند المالي التفاعلي • دقة عالية ومطابقة معيارية
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[#D9B978] text-xs font-bold transition-all border border-[#D9B978]/30 active:scale-95"
+                >
+                  <ArrowRight size={14} />
+                  <span>تعديل الفلاتر</span>
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-300 overflow-hidden shadow-2xl bg-white">
+                <FinancialReportDocument model={reportModel} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar overscroll-contain">
+            {/* 1. Report Type Grid */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
               1. نوع التقرير المالي المطلوب
@@ -539,7 +567,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
 
           {/* Scope Summary Preview Box */}
-          <div className="p-3.5 bg-[#0A0D10]/80 rounded-2xl border border-white/5 flex items-center justify-between">
+          <div className="p-4 bg-[#0A0D10]/80 rounded-2xl border border-white/10 flex items-center justify-between">
             <div className="space-y-0.5">
               <span className="text-[10px] font-bold text-[#D9B978] uppercase tracking-widest block">
                 ملخص التقرير المجهز
@@ -551,38 +579,43 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold transition-colors border border-white/10"
+              onClick={() => setShowPreview(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] text-xs font-black transition-all border border-[#D9B978]/40 shadow-sm active:scale-95"
             >
-              <Eye size={14} className="text-[#D9B978]" />
-              <span>{showPreview ? 'إخفاء المعاينة' : 'معاينة مباشرة'}</span>
+              <Eye size={16} />
+              <span>معاينة المستند</span>
             </button>
           </div>
-
-          {/* Live In-App Preview Container */}
-          <AnimatePresence>
-            {showPreview && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden rounded-2xl border border-[#D9B978]/30 bg-white"
-              >
-                <div className="max-h-96 overflow-y-auto p-4 scale-95 origin-top text-slate-900">
-                  <FinancialReportDocument model={reportModel} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
+        )}
 
         {/* Footer Actions with Safe-Area Insets */}
-        <div className="p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] border-t border-white/10 bg-[#0A0D10]/95 shrink-0 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] border-t border-white/10 bg-[#0A0D10]/95 shrink-0 flex flex-wrap sm:flex-nowrap gap-2.5">
+          {showPreview ? (
+            <button
+              type="button"
+              onClick={() => setShowPreview(false)}
+              className="py-3.5 px-4 bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all shrink-0"
+            >
+              <ArrowRight size={16} />
+              <span>تعديل الخيارات</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              className="py-3.5 px-4 bg-white/5 hover:bg-white/10 text-[#D9B978] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-[#D9B978]/30 active:scale-98 transition-all shrink-0"
+            >
+              <Eye size={16} />
+              <span>معاينة حية</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handlePrint}
             disabled={isProcessing}
-            className={`py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`flex-1 py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <Printer size={16} className={isProcessing ? 'animate-spin' : ''} />
             <span>{isProcessing ? 'جاري المعالجة...' : 'طباعة / PDF'}</span>
@@ -592,7 +625,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             type="button"
             onClick={handleShareReport}
             disabled={isProcessing}
-            className={`py-3.5 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`flex-1 py-3.5 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <FileText size={16} className={isProcessing ? 'animate-spin' : ''} />
             <span>{isProcessing ? 'جاري التصدير...' : 'مشاركة التقرير'}</span>
@@ -602,10 +635,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             type="button"
             onClick={handleExportExcel}
             disabled={isProcessing}
-            className={`py-3.5 px-3 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`py-3.5 px-4 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all shrink-0 ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <FileSpreadsheet size={16} className={`text-[#8EB9A7] ${isProcessing ? 'animate-spin' : ''}`} />
-            <span>{isProcessing ? 'جاري التصدير...' : 'تصدير Excel'}</span>
+            <span className="hidden sm:inline">{isProcessing ? 'جاري التصدير...' : 'تصدير Excel'}</span>
+            <span className="sm:hidden">Excel</span>
           </button>
         </div>
       </motion.div>

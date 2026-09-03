@@ -174,6 +174,7 @@ interface SettingsProps {
   installPrompt?: any;
   isUpdateAvailable?: boolean;
   swRegistration?: ServiceWorkerRegistration | null;
+  onBack?: () => void;
 }
 
 export default function Settings({ 
@@ -181,7 +182,8 @@ export default function Settings({
   onAddCurrency, onRemoveCurrency, onAddWallet, onUpdateWallet, onRemoveWallet,
   onAddCategory, onUpdateCategory, onRemoveCategory,
   onRestore, onClearData, onShowPrivacyPolicy, onPrint, onShare, onExportExcel,
-  installPrompt = null, isUpdateAvailable = false, swRegistration = null
+  installPrompt = null, isUpdateAvailable = false, swRegistration = null,
+  onBack
 }: SettingsProps) {
   const safeCurrencies = currencies || [];
   const safeWallets = wallets || [];
@@ -553,6 +555,10 @@ export default function Settings({
     }
     if (activeSection !== 'main') {
       setActiveSection('main');
+      return true;
+    }
+    if (onBack) {
+      onBack();
       return true;
     }
     return false;
@@ -1285,7 +1291,20 @@ export default function Settings({
   return (
     <div className="space-y-6 pb-24 animate-fade text-start">
       <div className="flex justify-between items-center bg-[#11161C] p-5 rounded-[2.5rem] border border-white/10 shadow-xl">
-        <h3 className="font-black text-[#F4F1EA] text-lg">{t.generalSettings}</h3>
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-2xl text-[#D9B978] active:scale-90 transition-all flex items-center gap-1.5 text-xs font-bold border border-white/5"
+              title="الرجوع للشاشة الرئيسية"
+            >
+              <ChevronRight size={18} className="rtl:rotate-0 ltr:rotate-180" />
+              <span className="hidden sm:inline">الرئيسية</span>
+            </button>
+          )}
+          <h3 className="font-black text-[#F4F1EA] text-lg">{t.generalSettings}</h3>
+        </div>
         <button onClick={handleSaveProfile} className="bg-[#D9B978] text-[#0A0D10] px-8 py-3 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 hover:bg-[#c9a764]">{t.save}</button>
       </div>
 
