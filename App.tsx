@@ -1372,115 +1372,109 @@ const App: React.FC = () => {
       />
       
       <div className="flex flex-col flex-1 print:hidden relative z-20 overflow-hidden">
-        <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 pb-2.5 sm:pb-3 md:py-4 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
-          <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-2 min-w-0">
-            {/* App Branding & Quick Add Long Press */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
-              <div
-                className="cursor-pointer active:scale-95 transition-transform"
-                title="اضغط مطولاً للإضافة السريعة"
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  NativeHaptics.impact('HEAVY').catch(() => {});
-                  setShowAddForm(true);
-                }}
-                onTouchStart={(e) => {
-                  const target = e.currentTarget;
-                  const timer = setTimeout(() => {
+        {/* Top Header - Displayed exclusively on Dashboard (الرئيسية) */}
+        {activeTab === 'dashboard' && (
+          <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90 animate-fade" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
+            <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-2 min-w-0">
+              {/* App Branding & Quick Add Long Press */}
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+                <div
+                  className="cursor-pointer active:scale-95 transition-transform"
+                  title="اضغط مطولاً للإضافة السريعة"
+                  onContextMenu={(e) => {
+                    e.preventDefault();
                     NativeHaptics.impact('HEAVY').catch(() => {});
                     setShowAddForm(true);
-                  }, 450);
-                  const clear = () => {
-                    clearTimeout(timer);
-                    target.removeEventListener('touchend', clear);
-                    target.removeEventListener('touchmove', clear);
-                  };
-                  target.addEventListener('touchend', clear, { once: true });
-                  target.addEventListener('touchmove', clear, { once: true });
-                }}
-              >
-                <Logo size={24} showText />
-              </div>
-              {/* Offline-First Sovereignty Badge - 100% Local */}
-              <div
-                className="hidden md:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
-                title="تطبيق ثري يعمل بالكامل محلياً دون الحاجة لأي إنترنت (0 نت)"
-              >
-                <WifiOff size={11} />
-                <span>أوفلاين 100% (بدون نت)</span>
-              </div>
-            </div>
-
-            {/* Header Actions & Selectors */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Wallet Quick Selector Button */}
-              <button
-                type="button"
-                onClick={() => setShowWalletSelector(true)}
-                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-xl bg-[#141B24] hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[110px] sm:max-w-[160px]"
-                title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
-              >
-                <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 shadow-xs">
-                  <WalletIcon size={12} />
+                  }}
+                  onTouchStart={(e) => {
+                    const target = e.currentTarget;
+                    const timer = setTimeout(() => {
+                      NativeHaptics.impact('HEAVY').catch(() => {});
+                      setShowAddForm(true);
+                    }, 450);
+                    const clear = () => {
+                      clearTimeout(timer);
+                      target.removeEventListener('touchend', clear);
+                      target.removeEventListener('touchmove', clear);
+                    };
+                    target.addEventListener('touchend', clear, { once: true });
+                    target.addEventListener('touchmove', clear, { once: true });
+                  }}
+                >
+                  <Logo size={22} showText />
                 </div>
-                <div className="flex items-baseline gap-1 min-w-0 truncate">
-                  <span className="font-bold text-white tracking-wide truncate text-[11px] sm:text-xs">
+                {/* Offline-First Sovereignty Badge - 100% Local (Large Screens) */}
+                <div
+                  className="hidden lg:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
+                  title="تطبيق ثري يعمل بالكامل محلياً دون الحاجة لأي إنترنت (0 نت)"
+                >
+                  <WifiOff size={11} />
+                  <span>أوفلاين 100% (بدون نت)</span>
+                </div>
+              </div>
+
+              {/* Header Actions & Quick Selectors */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* Wallet Quick Selector Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowWalletSelector(true)}
+                  className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[100px] sm:max-w-[140px]"
+                  title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
+                >
+                  <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
+                    <WalletIcon size={11} />
+                  </div>
+                  <span className="font-bold text-white tracking-wide truncate text-[10px] sm:text-xs">
                     {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
                   </span>
-                </div>
-                <ChevronDown size={13} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
-              </button>
+                  <ChevronDown size={12} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
+                </button>
 
-              {/* Currency Badge / Interactive Quick Selector */}
-              {(() => {
-                const currentCurrLoc = getLocalizedCurrency(state.currency?.code || 'SAR', state.currency?.name, state.currency?.symbol, state.language || 'ar');
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrencySelector(true)}
-                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24] hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
-                    title={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
-                  >
-                    <div className="w-5 h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[11px] flex items-center justify-center shrink-0 shadow-xs">
-                      {currentCurrLoc.symbol}
-                    </div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="font-bold text-white tracking-wide text-[11px] sm:text-xs">{state.currency.code}</span>
-                      <span className="text-[10px] text-slate-400 font-normal hidden lg:inline">({currentCurrLoc.name})</span>
-                    </div>
-                    <ChevronDown size={13} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform shrink-0" />
-                  </button>
-                );
-              })()}
+                {/* Currency Badge / Interactive Quick Selector */}
+                {(() => {
+                  const currentCurrLoc = getLocalizedCurrency(state.currency?.code || 'SAR', state.currency?.name, state.currency?.symbol, state.language || 'ar');
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrencySelector(true)}
+                      className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
+                      title={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
+                    >
+                      <div className="w-5 h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
+                        {currentCurrLoc.symbol}
+                      </div>
+                      <span className="font-bold text-white tracking-wide text-[10px] sm:text-xs">{state.currency.code}</span>
+                      <ChevronDown size={12} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform shrink-0" />
+                    </button>
+                  );
+                })()}
 
-              {/* Tools Hub Button */}
-              <button
-                type="button"
-                onClick={() => setShowToolsHub(true)}
-                className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
-                title="مركز الأدوات والتقارير"
-              >
-                <Sparkles size={15} />
-                {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
-                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
-                )}
-              </button>
+                {/* Tools Hub Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowToolsHub(true)}
+                  className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
+                  title="مركز الأدوات والتقارير"
+                >
+                  <Sparkles size={15} />
+                  {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
+                  )}
+                </button>
 
-              {/* Settings Shortcut */}
-              <button 
-                onClick={() => setActiveTab('settings')} 
-                className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl border transition-all shrink-0 active:scale-95 backdrop-blur-md ${
-                  activeTab === 'settings' 
-                    ? 'bg-[#D9B978] text-slate-950 border-[#D9B978] shadow-[0_0_20px_rgba(217,185,120,0.4)]' 
-                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-[#D9B978] hover:border-[#D9B978]/50'
-                }`} 
-                title="الإعدادات"
-              >
-                <SettingsIcon size={15} />
-              </button>
+                {/* Settings Shortcut (Tablet & Desktop only; on mobile it is in bottom bar) */}
+                <button 
+                  onClick={() => setActiveTab('settings')} 
+                  className="hidden sm:flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl border transition-all shrink-0 active:scale-95 backdrop-blur-md bg-white/5 border-white/10 text-slate-400 hover:text-[#D9B978] hover:border-[#D9B978]/50" 
+                  title="الإعدادات"
+                >
+                  <SettingsIcon size={15} />
+                </button>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         <main className="flex-1 overflow-y-auto no-scrollbar smooth-scroll overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full">
           <div className="py-4 sm:py-6 max-w-7xl mx-auto w-full">
