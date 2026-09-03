@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Repeat, Play, Pause, Trash2, Plus, Calendar, 
@@ -162,16 +163,23 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
     return t.frequencies[freq as keyof typeof t.frequencies] || freq;
   };
 
-  return (
+  const content = (
     <div 
       dir={isRTL ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md"
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          if (isAdding) setIsAdding(false);
+          else onClose();
+        }
+      }}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-start"
+        className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl my-auto max-h-[88dvh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-start"
+        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
@@ -482,4 +490,8 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
       </motion.div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
+
+export default RecurringManagerModal;

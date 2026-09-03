@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, Search, X, SlidersHorizontal, Coins, Globe } from 'lucide-react';
 import { Currency } from '../types';
@@ -85,9 +86,9 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  const content = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 pt-16 sm:pt-4 overflow-y-auto">
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 overflow-hidden">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -104,7 +105,7 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-md bg-[#0F141C] border border-[#D9B978]/30 rounded-2xl md:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-10 flex flex-col max-h-[85vh] font-sans"
+          className="relative w-full max-w-md bg-[#0F141C] border border-[#D9B978]/30 rounded-2xl md:rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-10 flex flex-col max-h-[88dvh] sm:max-h-[85vh] font-sans my-auto"
         >
           {/* Header */}
           <div className="p-4 sm:p-5 border-b border-white/[0.08] flex items-center justify-between bg-[#141B24]">
@@ -303,6 +304,8 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
       </div>
     </AnimatePresence>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
 
 export default CurrencySelectorModal;

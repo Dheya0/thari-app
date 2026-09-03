@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Calendar, StickyNote, Wallet as WalletIcon, ArrowLeftRight, 
@@ -764,12 +765,12 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
+      className="fixed inset-0 z-[99999] flex flex-col justify-center items-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
       style={{
         paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined,
       }}
@@ -790,8 +791,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         style={{
           maxHeight: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight + 12}px)` : undefined,
         }}
-        className={`w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-[max-height] duration-150 ${
-          keyboardHeight > 0 ? 'max-h-[calc(100dvh-12px)]' : 'max-h-[94dvh] sm:max-h-[90vh]'
+        className={`w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto transition-[max-height] duration-150 ${
+          keyboardHeight > 0 ? 'max-h-[calc(100dvh-12px)]' : 'max-h-[90dvh] sm:max-h-[90vh]'
         }`}
       >
         {/* TOP BAR / NAVIGATION */}
@@ -2182,6 +2183,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       </motion.div>
     </motion.div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 export default TransactionForm;

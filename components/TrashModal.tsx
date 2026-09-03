@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trash2, RotateCcw, X, ArrowLeftRight } from 'lucide-react';
 import { Transaction, Category, Wallet, Currency } from '../types';
@@ -71,19 +72,21 @@ export const TrashModal: React.FC<TrashModalProps> = ({
   const isRTL = language === 'ar';
   const t = STRINGS[language] || STRINGS.ar;
 
-  return (
+  const content = (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       dir={isRTL ? 'rtl' : 'ltr'}
-      className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[500] flex items-center justify-center p-3 sm:p-4 no-print"
+      className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
         initial={{ scale: 0.95, y: 15, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 15, opacity: 0 }}
-        className="bg-slate-900 w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 flex flex-col max-h-[85vh] overflow-hidden text-start"
+        className="bg-slate-900 w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 flex flex-col max-h-[88dvh] sm:max-h-[88vh] overflow-hidden text-start my-auto"
+        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex justify-between items-center pb-3 border-b border-white/10 shrink-0">
@@ -227,4 +230,8 @@ export const TrashModal: React.FC<TrashModalProps> = ({
       </motion.div>
     </motion.div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
+
+export default TrashModal;

@@ -280,13 +280,25 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   ];
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden no-print">
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden no-print"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          if (showPreview) {
+            setShowPreview(false);
+          } else {
+            onClose();
+          }
+        }
+      }}
+    >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className={`w-full ${showPreview ? 'max-w-4xl' : 'max-w-2xl'} bg-[#11161C] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[94dvh] sm:max-h-[90vh] text-[#F4F1EA] transition-all duration-200`}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        className={`w-full ${showPreview ? 'max-w-4xl' : 'max-w-2xl'} bg-[#11161C] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col my-auto max-h-[88dvh] sm:max-h-[88vh] text-[#F4F1EA] transition-all duration-200`}
         dir="rtl"
+        onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-white/10 flex justify-between items-center bg-[#0A0D10]/90 shrink-0">

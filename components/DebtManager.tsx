@@ -1417,8 +1417,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
 
       {/* MODAL 1: ADD / EDIT DEBT */}
       {showAddForm && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl relative max-h-[92dvh] sm:max-h-[85vh] flex flex-col border-t sm:border border-white/10 overflow-hidden text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div 
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAddForm(false); }}
+        >
+          <div 
+            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl relative max-h-[88dvh] sm:max-h-[88vh] flex flex-col border border-white/10 overflow-hidden text-start my-auto" 
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-white/5">
               <h3 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
                 <Receipt size={18} className="text-[#D9B978]" />
@@ -1826,8 +1833,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
 
       {/* MODAL 2: RECORD PAYMENT */}
       {paymentModalData && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-md mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl border-t sm:border border-white/10 overflow-hidden max-h-[92dvh] sm:max-h-[85vh] flex flex-col min-h-0 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div 
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) setPaymentModalData(null); }}
+        >
+          <div 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 text-start my-auto" 
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5">
               <h3 className="text-base font-black text-white flex items-center gap-2">
                 <CreditCard size={18} className="text-emerald-400" />
@@ -2042,8 +2056,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
 
       {/* MODAL 3: PAYMENT HISTORY MODAL */}
       {historyModalDebt && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-md mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl border-t sm:border border-white/10 overflow-hidden max-h-[92dvh] sm:max-h-[85vh] flex flex-col min-h-0 text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div 
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) setHistoryModalDebt(null); }}
+        >
+          <div 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 text-start my-auto" 
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/5">
               <div>
                 <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -2107,8 +2128,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
 
       {/* MODAL 4: DEBT REMINDER & SHARING MODAL (تذكير بالديون ومشاركتها) */}
       {reminderModalData && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print overflow-hidden">
-          <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-t-[2.5rem] sm:rounded-3xl p-5 sm:p-6 shadow-2xl border-t sm:border border-[#D9B978]/30 overflow-hidden max-h-[92dvh] sm:max-h-[90vh] flex flex-col min-h-0 text-start relative" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div 
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) setReminderModalData(null); }}
+        >
+          <div 
+            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#D9B978]/30 overflow-hidden max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 text-start relative my-auto" 
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onClick={e => e.stopPropagation()}
+          >
             
             {/* Header */}
             <div className="flex justify-between items-center mb-3 pb-3 border-b border-white/10 shrink-0">

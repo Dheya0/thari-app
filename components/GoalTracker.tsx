@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Target, Plus, Star, Compass, X } from 'lucide-react';
 import { Goal, Wallet, Transaction } from '../types';
 import { parseArabicNumber } from '../utils/formatters';
@@ -118,14 +119,21 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
         })}
       </div>
 
-      {showAdd && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[150] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden">
-          <div className="bg-slate-900 w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative max-h-[85vh] sm:max-h-[88vh] flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden" dir={isRtl ? 'rtl' : 'ltr'}>
+      {showAdd && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowAdd(false); }}
+        >
+          <div 
+            className="bg-slate-900 w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden my-auto" 
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-4 shrink-0 pb-2 border-b border-white/5">
               <h3 className="text-lg sm:text-xl font-bold text-white">{t.newGoal}</h3>
               <button onClick={() => setShowAdd(false)} className="p-2 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-all"><X size={18} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-1">
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-1 overscroll-contain">
                <div className="space-y-2">
                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">{t.goalDreamPrompt}</label>
                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t.goalDreamPlaceholder} className="w-full p-4 sm:p-5 rounded-2xl bg-slate-950 text-white font-bold border-none outline-none focus:ring-1 focus:ring-amber-500 shadow-inner" />
@@ -154,7 +162,8 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
                </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

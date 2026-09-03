@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
@@ -116,19 +117,24 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
   const details = getCategoryDetails();
   const Icon = details.icon;
 
-  return (
+  const content = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md" dir="rtl">
+      <div 
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-hidden" 
+        dir="rtl"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
           transition={{ duration: 0.2 }}
-          className="w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          className="w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col my-auto max-h-[88dvh] sm:max-h-[88vh]"
           style={{
             backgroundColor: isDark ? '#10151C' : '#FFFFFF',
             borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
           }}
+          onClick={e => e.stopPropagation()}
         >
           {/* Modal Header */}
           <div className="p-4 sm:p-5 border-b flex items-center justify-between gap-3 shrink-0"
@@ -688,4 +694,8 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
       </div>
     </AnimatePresence>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
+
+export default ZakatAssetConfigModal;

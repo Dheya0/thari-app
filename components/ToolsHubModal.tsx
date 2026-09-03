@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, FileText, Repeat, Trash2, Scale, Briefcase, 
@@ -127,11 +128,11 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
   const t = STRINGS[language] || STRINGS.ar;
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
-  return (
+  const content = (
     <AnimatePresence>
       <div 
         dir={isRTL ? 'rtl' : 'ltr'}
-        className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-fade no-print"
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade no-print overflow-hidden"
         onClick={onClose}
       >
         <motion.div
@@ -139,7 +140,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-xl bg-[#0F141C] border border-white/10 rounded-[2.5rem] p-6 sm:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-start overflow-hidden flex flex-col max-h-[90vh]"
+          className="relative w-full max-w-xl bg-[#0F141C] border border-white/10 rounded-3xl p-5 sm:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-start overflow-hidden flex flex-col my-auto max-h-[88dvh] sm:max-h-[88vh]"
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
@@ -163,7 +164,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
           </div>
 
           {/* Tools Grid */}
-          <div className="flex-1 overflow-y-auto no-scrollbar py-6 space-y-3">
+          <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-3 overscroll-contain">
             {/* Tool 1: Financial Reports */}
             <button
               onClick={() => { onClose(); onOpenReports(); }}
@@ -358,4 +359,8 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
       </div>
     </AnimatePresence>
   );
+
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
+
+export default ToolsHubModal;

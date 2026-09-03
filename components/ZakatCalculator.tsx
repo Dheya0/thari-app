@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Scale, 
@@ -1446,13 +1447,17 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
 
       {/* MODAL: NEW ZAKAT PROFILE */}
       <AnimatePresence>
-        {showNewProfileModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        {showNewProfileModal && typeof document !== 'undefined' && createPortal(
+          <div 
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowNewProfileModal(false); }}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-5 shadow-2xl text-start"
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-5 shadow-2xl text-start my-auto max-h-[88dvh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar"
+              onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                 <h3 className="text-base font-semibold text-[#F4F1EA]">{t.createNewZakatProfile}</h3>
@@ -1494,19 +1499,24 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* MODAL: RECORD ZAKAT PAYMENT */}
       <AnimatePresence>
-        {showPaymentModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        {showPaymentModal && typeof document !== 'undefined' && createPortal(
+          <div 
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start"
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start my-auto max-h-[88dvh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar"
+              onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                 <h3 className="text-base font-semibold text-[#F4F1EA]">{t.documentZakatPayment}</h3>
@@ -1583,19 +1593,24 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 
       {/* MODAL: RESET HAWL CONFIRMATION */}
       <AnimatePresence>
-        {showHawlResetConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+        {showHawlResetConfirm && typeof document !== 'undefined' && createPortal(
+          <div 
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowHawlResetConfirm(false); }}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start"
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start my-auto max-h-[88dvh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar"
+              onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 text-amber-400 border-b border-white/[0.06] pb-3">
                 <RotateCcw size={20} />
@@ -1623,7 +1638,8 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 </button>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         )}
       </AnimatePresence>
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Trash2, User, Wallet as WalletIcon, Lock, Upload, Edit2, Plus, Tag, Coins, X, Check, Printer, FileDown, ChevronDown, AlertCircle, AlertTriangle, FileSpreadsheet, Code, ChevronLeft, Palette, Type,
   ChevronRight, TrendingUp, ShieldCheck, ShieldAlert, Key, Unlock, Smartphone, RefreshCw, Plane, Sparkles, FileText, Bell, Star, Fingerprint, MessageSquare, Heart, Send, HelpCircle, CheckCircle2,
@@ -18,19 +19,30 @@ import { useBackNavigation } from '../utils/backNavigation';
 const COLORS = ['#D9B978', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f43f5e', '#64748b'];
 const ICONS = ['Utensils', 'Car', 'Home', 'Receipt', 'Film', 'HeartPulse', 'GraduationCap', 'Briefcase', 'Wallet', 'CreditCard', 'ShoppingBag', 'Gift', 'PiggyBank', 'Coffee', 'Zap', 'Bus', 'Plane', 'Smartphone', 'ShieldCheck'];
 
-const Modal = ({ title, children, onClose }: { title: string, children?: React.ReactNode, onClose: () => void }) => (
-    <div className="fixed inset-0 bg-[#0A0D10]/80 backdrop-blur-md z-[400] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden">
-        <div className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 animate-slide-up flex flex-col max-h-[85vh] sm:max-h-[88vh] overflow-hidden">
-            <div className="flex justify-between items-center mb-4 sm:mb-6 shrink-0 pb-3 border-b border-white/5">
-                <h3 className="text-lg sm:text-xl font-black text-[#F4F1EA] tracking-tight">{title}</h3>
-                <button onClick={onClose} className="p-2.5 bg-[#0A0D10] hover:bg-[#11161C] rounded-2xl text-slate-400 hover:text-white active:scale-90 transition-all"><X size={18} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1">
-                {children}
+const Modal = ({ title, children, onClose }: { title: string, children?: React.ReactNode, onClose: () => void }) => {
+    const modalContent = (
+        <div 
+            className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+        >
+            <div 
+                className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 animate-slide-up flex flex-col max-h-[88dvh] sm:max-h-[88vh] overflow-hidden my-auto"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex justify-between items-center mb-4 sm:mb-6 shrink-0 pb-3 border-b border-white/5">
+                    <h3 className="text-lg sm:text-xl font-black text-[#F4F1EA] tracking-tight">{title}</h3>
+                    <button onClick={onClose} className="p-2.5 bg-[#0A0D10] hover:bg-[#11161C] rounded-2xl text-slate-400 hover:text-white active:scale-90 transition-all"><X size={18} /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 overscroll-contain">
+                    {children}
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
+};
 
 const InputField = ({ label, value, onChange, placeholder, ...props }: any) => (
     <div className="space-y-2">
@@ -70,7 +82,7 @@ const ColorPicker = ({ selected, onSelect, t }: { selected: string, onSelect: (c
 
 const ToastNotification = ({ toast }: { toast: { message: string, type: 'success' | 'error' } | null }) => {
   if (!toast) return null;
-  return (
+  const content = (
     <div className="fixed top-20 left-0 right-0 z-[99999] flex justify-center items-center pointer-events-none px-4 no-print">
       <div className={`pointer-events-auto max-w-xs sm:max-w-sm px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-3 border backdrop-blur-xl animate-slide-down ${
         toast.type === 'success' 
@@ -84,15 +96,24 @@ const ToastNotification = ({ toast }: { toast: { message: string, type: 'success
       </div>
     </div>
   );
+  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
 };
 
 const ConfirmDialog = ({ confirmData, onCancel, t }: { confirmData: { message: string, action: () => void, title?: string, type?: 'danger' | 'info' } | null, onCancel: () => void, t: any }) => {
   if (!confirmData) return null;
   const isDanger = confirmData.type === 'danger';
   
-  return (
-    <div className="fixed inset-0 bg-[#0A0D10]/80 backdrop-blur-sm z-[500] flex items-center justify-center p-4 animate-fade">
-      <div className="bg-[#11161C] p-8 rounded-[2.5rem] max-w-sm w-full border border-white/10 shadow-2xl space-y-6 text-center">
+  const dialogContent = (
+    <div 
+      className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div 
+        className="bg-[#11161C] p-6 sm:p-8 rounded-[2.5rem] max-w-sm w-full border border-white/10 shadow-2xl space-y-6 text-center my-auto"
+        onClick={e => e.stopPropagation()}
+      >
         <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isDanger ? 'bg-rose-500/10 text-rose-500' : 'bg-[#D9B978]/10 text-[#D9B978]'}`}>
            {isDanger ? <Trash2 size={32} /> : <AlertTriangle size={32} />}
         </div>
@@ -107,6 +128,7 @@ const ConfirmDialog = ({ confirmData, onCancel, t }: { confirmData: { message: s
       </div>
     </div>
   );
+  return typeof document !== 'undefined' ? createPortal(dialogContent, document.body) : dialogContent;
 };
 
 const AccordionItem = ({ 
