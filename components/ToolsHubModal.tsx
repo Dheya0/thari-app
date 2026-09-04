@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, FileText, Repeat, Trash2, Scale, Briefcase, 
-  ArrowLeft, ArrowRight, Sparkles, Coins, LayoutDashboard, Calendar
+  ArrowLeft, ArrowRight, Sparkles, Coins, LayoutDashboard, Calendar, Database
 } from 'lucide-react';
 
 interface ToolsHubModalProps {
@@ -14,7 +14,6 @@ interface ToolsHubModalProps {
   onOpenReports: () => void;
   onOpenRecurring: () => void;
   onOpenTrash: () => void;
-  onOpenDiagnostics: () => void;
   onOpenZakat?: () => void;
   onOpenBudgets?: () => void;
   onOpenGoals?: () => void;
@@ -57,16 +56,12 @@ const STRINGS = {
       trash: {
         title: 'سلة المحذوفات والاسترجاع',
         desc: 'استرجاع العمليات المحذوفة بأمان وتفادي الحذف العرضي'
-      },
-      diagnostics: {
-        title: 'فحص تكامل البيانات والتدقيق',
-        desc: 'مطابقة ميزان المحافظ والتحقق من العمليات المعزولة والنزاهة'
       }
     }
   },
   en: {
     title: 'Tools & Features Hub',
-    subtitle: 'Advanced management for reports, operations & financial audit',
+    subtitle: 'Advanced management for reports, operations & financial planning',
     close: 'Close',
     activeBadge: 'active',
     opsBadge: 'records',
@@ -98,10 +93,6 @@ const STRINGS = {
       trash: {
         title: 'Recycle Bin & Data Recovery',
         desc: 'Safely restore deleted records & prevent accidental data loss'
-      },
-      diagnostics: {
-        title: 'System Diagnostics & Audit',
-        desc: 'Reconcile wallet balances, verify invariants & inspect ledger integrity'
       }
     }
   }
@@ -115,7 +106,6 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
   onOpenReports,
   onOpenRecurring,
   onOpenTrash,
-  onOpenDiagnostics,
   onOpenZakat,
   onOpenBudgets,
   onOpenGoals,
@@ -328,27 +318,6 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
                   </div>
                   <p className="text-xs text-slate-400 truncate">
                     {t.tools.trash.desc}
-                  </p>
-                </div>
-              </div>
-              <ArrowIcon size={16} className="text-slate-500 group-hover:text-white transition-all shrink-0 group-hover:translate-x-0.5" />
-            </button>
-
-            {/* Tool: System Diagnostics & Accounting Audit */}
-            <button
-              onClick={() => { onClose(); onOpenDiagnostics(); }}
-              className="w-full group p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#759BC8]/30 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-2xl bg-[#759BC8]/10 text-[#759BC8] flex items-center justify-center shrink-0 border border-[#759BC8]/20 group-hover:scale-105 transition-transform">
-                  <Scale size={22} />
-                </div>
-                <div className="truncate">
-                  <h4 className="text-sm font-semibold text-white group-hover:text-[#759BC8] transition-colors">
-                    {t.tools.diagnostics.title}
-                  </h4>
-                  <p className="text-xs text-slate-400 truncate">
-                    {t.tools.diagnostics.desc}
                   </p>
                 </div>
               </div>

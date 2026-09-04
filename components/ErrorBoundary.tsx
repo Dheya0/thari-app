@@ -29,12 +29,11 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleResetData = () => {
-    if (window.confirm('هل تريد إعادة تعيين الذاكرة المحلية المؤقتة لحل المشكلة؟ لن تفقد النسخ الاحتياطية المصدرة.')) {
-      try {
-        localStorage.clear();
-      } catch (e) {}
-      window.location.reload();
-    }
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {}
+    window.location.reload();
   };
 
   public render() {

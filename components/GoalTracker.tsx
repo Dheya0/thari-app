@@ -43,21 +43,21 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
   return (
     <div className="space-y-6 pb-24 animate-fade text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="flex justify-between items-center px-2">
-        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-          <Target size={14} /> {t.goalsTitle}
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+          <Target size={14} className="text-[#D9B978]" /> {t.goalsTitle}
         </h3>
-        <button onClick={() => setShowAdd(true)} className="p-2 bg-amber-500/10 text-amber-500 rounded-xl active:scale-90 transition-all">
-          <Plus size={18} />
+        <button onClick={() => setShowAdd(true)} className="p-2.5 bg-[#D9B978]/10 hover:bg-[#D9B978]/20 text-[#D9B978] border border-[#D9B978]/20 rounded-xl active:scale-95 transition-all">
+          <Plus size={16} />
         </button>
       </div>
 
-      <div className="grid gap-6">
+      <div className="grid gap-4 sm:gap-5">
         {goals.length === 0 && (
-          <div className="bg-slate-900/40 p-10 rounded-[3rem] border border-dashed border-slate-800 text-center space-y-4">
-            <div className="w-16 h-16 bg-slate-800 rounded-3xl flex items-center justify-center mx-auto text-slate-600">
-               <Star size={32} />
+          <div className="bg-[#11161C] p-8 sm:p-10 rounded-3xl border border-dashed border-white/10 text-center space-y-3">
+            <div className="w-14 h-14 bg-[#0A0D10] border border-white/5 rounded-2xl flex items-center justify-center mx-auto text-[#D9B978]">
+               <Star size={26} />
             </div>
-            <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest">{t.noGoalsYet}</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t.noGoalsYet}</p>
           </div>
         )}
 
@@ -73,43 +73,43 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
             : `${remainingAmt.toLocaleString()} ${currencySymbol} remaining to achieve your goal.`;
 
           return (
-            <div key={goal.id} className={`bg-slate-900/60 backdrop-blur-3xl p-6 rounded-[2.5rem] border border-white/5 space-y-5 transition-all hover:bg-slate-900/80 ${isCompleted ? 'border-emerald-500/30' : ''}`}>
+            <div key={goal.id} className={`bg-[#11161C] p-5 sm:p-6 rounded-3xl border space-y-4 transition-all shadow-sm ${isCompleted ? 'border-[#8EB9A7]/40 bg-[#8EB9A7]/5' : 'border-white/10 hover:border-white/20'}`}>
               <div className="flex justify-between items-start">
-                <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${isCompleted ? 'bg-emerald-500 text-slate-950' : 'bg-amber-500/10 text-amber-500'}`}>
-                    <Star size={24} fill={isCompleted ? "currentColor" : "none"} />
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${isCompleted ? 'bg-[#8EB9A7] text-[#0A0D10]' : 'bg-[#D9B978]/15 text-[#D9B978] border border-[#D9B978]/20'}`}>
+                    <Star size={20} fill={isCompleted ? "currentColor" : "none"} />
                   </div>
                   <div>
-                    <h4 className="font-black text-white text-lg">{goal.name}</h4>
-                    <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-[#F4F1EA] text-base">{goal.name}</h4>
+                    <div className="flex items-center gap-2 mt-0.5">
                         {linkedWallet && <div className="w-2 h-2 rounded-full" style={{backgroundColor: linkedWallet.color}} />}
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{linkedWallet?.name || t.generalWallet}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{linkedWallet?.name || t.generalWallet}</p>
                     </div>
                   </div>
                 </div>
                 <div className="text-start sm:text-end">
-                  <span className={`text-xl font-black ${isCompleted ? 'text-emerald-500' : 'text-white'}`}>{Math.round(progress)}%</span>
+                  <span className={`text-lg font-bold ${isCompleted ? 'text-[#8EB9A7]' : 'text-[#D9B978]'}`}>{Math.round(progress)}%</span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <span>{t.achieved}: {goal.currentAmount.toLocaleString(isRtl ? 'ar-SA' : 'en-US')} {currencySymbol}</span>
                   <span>{t.targetAmount}: {goal.targetAmount.toLocaleString(isRtl ? 'ar-SA' : 'en-US')} {currencySymbol}</span>
                 </div>
-                <div className="h-3 bg-slate-950 rounded-full overflow-hidden p-[2px]">
-                   <div className={`h-full rounded-full transition-all duration-1000 ${isCompleted ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: `${progress}%` }} />
+                <div className="h-2.5 bg-[#0A0D10] rounded-full overflow-hidden border border-white/5">
+                   <div className={`h-full rounded-full transition-all duration-1000 ${isCompleted ? 'bg-[#8EB9A7]' : 'bg-[#D9B978]'}`} style={{ width: `${progress}%` }} />
                 </div>
               </div>
 
               {!isCompleted && (
-                <div className="bg-[#D9B978]/5 rounded-2xl p-4 border border-[#D9B978]/15 relative group">
-                  <div className="flex items-center justify-between mb-2">
-                     <span className="text-[9px] font-black text-[#D9B978] uppercase tracking-widest flex items-center gap-1.5">
-                        <Compass size={13} /> {t.goalAdviceTitle}
+                <div className="bg-[#0A0D10] rounded-2xl p-3.5 border border-[#D9B978]/20 relative group">
+                  <div className="flex items-center justify-between mb-1.5">
+                     <span className="text-[9px] font-bold text-[#D9B978] uppercase tracking-wider flex items-center gap-1.5">
+                        <Compass size={12} /> {t.goalAdviceTitle}
                      </span>
                   </div>
-                  <p className="text-[11px] font-medium text-slate-300 leading-relaxed min-h-[1.5em]">
+                  <p className="text-xs font-normal text-slate-300 leading-relaxed">
                     {localAdviceText}
                   </p>
                 </div>
@@ -125,28 +125,28 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
           onClick={(e) => { if (e.target === e.currentTarget) setShowAdd(false); }}
         >
           <div 
-            className="bg-slate-900 w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden my-auto" 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden my-auto" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-4 shrink-0 pb-2 border-b border-white/5">
-              <h3 className="text-lg sm:text-xl font-bold text-white">{t.newGoal}</h3>
-              <button onClick={() => setShowAdd(false)} className="p-2 bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-all"><X size={18} /></button>
+            <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-white/10">
+              <h3 className="text-base sm:text-lg font-bold text-[#F4F1EA]">{t.newGoal}</h3>
+              <button onClick={() => setShowAdd(false)} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all"><X size={18} /></button>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-1 overscroll-contain">
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">{t.goalDreamPrompt}</label>
-                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t.goalDreamPlaceholder} className="w-full p-4 sm:p-5 rounded-2xl bg-slate-950 text-white font-bold border-none outline-none focus:ring-1 focus:ring-amber-500 shadow-inner" />
+               <div className="space-y-1.5">
+                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.goalDreamPrompt}</label>
+                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t.goalDreamPlaceholder} className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-medium text-xs border border-white/10 outline-none focus:border-[#D9B978]/50 transition-colors" />
                </div>
                
                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                   <div className="space-y-2">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 text-center block">{t.targetAmount}</label>
-                     <input type="number" inputMode="decimal" value={target} onChange={e => setTarget(e.target.value)} placeholder="0.00" className="w-full p-4 sm:p-5 rounded-2xl bg-slate-950 text-white font-black border-none outline-none focus:ring-1 focus:ring-amber-500 text-center" />
+                   <div className="space-y-1.5">
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 text-center block">{t.targetAmount}</label>
+                     <input type="number" inputMode="decimal" value={target} onChange={e => setTarget(e.target.value)} placeholder="0.00" className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-bold text-xs border border-white/10 outline-none focus:border-[#D9B978]/50 text-center transition-colors" />
                    </div>
-                   <div className="space-y-2">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2 text-center block">{t.linkToWallet}</label>
-                     <select value={selectedWallet} onChange={e => setSelectedWallet(e.target.value)} className="w-full p-4 sm:p-5 rounded-2xl bg-slate-950 text-sm text-white font-bold border-none outline-none focus:ring-1 focus:ring-amber-500">
+                   <div className="space-y-1.5">
+                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 text-center block">{t.linkToWallet}</label>
+                     <select value={selectedWallet} onChange={e => setSelectedWallet(e.target.value)} className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-xs text-[#F4F1EA] font-medium border border-white/10 outline-none focus:border-[#D9B978]/50 transition-colors">
                         {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                      </select>
                    </div>
@@ -154,10 +154,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
 
                <button onClick={() => {
                  if (name && target) {
-                   onAddGoal({ name, targetAmount: parseArabicNumber(target), currentAmount: 0, color: '#f59e0b', icon: 'Star', walletId: selectedWallet });
+                   onAddGoal({ name, targetAmount: parseArabicNumber(target), currentAmount: 0, color: '#D9B978', icon: 'Star', walletId: selectedWallet });
                    setShowAdd(false); setName(''); setTarget('');
                  }
-               }} className="w-full mt-4 py-5 bg-amber-500 text-slate-950 font-black rounded-[2rem] text-lg shadow-[0_15px_30px_rgba(245,158,11,0.3)] active:scale-95 transition-all">
+               }} className="w-full mt-4 py-3.5 sm:py-4 bg-[#D9B978] hover:bg-[#E5C98D] text-[#0A0D10] font-bold rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#D9B978]/20 active:scale-95 transition-all">
                  {t.createGoalNow}
                </button>
             </div>

@@ -40,7 +40,6 @@ import FinancialReport from './components/FinancialReport';
 import { ReportModal } from './components/reports/ReportModal';
 import { TrashModal } from './components/TrashModal';
 import { RecurringManagerModal } from './components/RecurringManagerModal';
-import { SystemDiagnosticsModal } from './components/SystemDiagnosticsModal';
 import { ToolsHubModal } from './components/ToolsHubModal';
 import { GlobalToast, ToastData } from './components/GlobalToast';
 import CurrencySelectorModal from './components/CurrencySelectorModal';
@@ -168,9 +167,6 @@ const App: React.FC = () => {
   }, [state]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-      console.log('[perf] startup-start');
-    }
     // Hide Capacitor native splash immediately when app loads
     SplashScreen.hide().catch(() => {});
     let cancelled = false;
@@ -185,10 +181,6 @@ const App: React.FC = () => {
           setState(normalizeStoredState(parsed));
           isHydratedRef.current = true;
           const initialRevision = stateRevisionRef.current;
-
-          if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-            console.log('[perf] hydration-complete');
-          }
 
           // Run non-critical receipt migration in background with revision check
           setTimeout(async () => {
@@ -225,9 +217,6 @@ const App: React.FC = () => {
           }, 500);
         } else {
           isHydratedRef.current = true;
-          if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-            console.log('[perf] hydration-complete');
-          }
         }
       } catch (error) {
         console.warn('App hydrate error:', error);
@@ -304,7 +293,6 @@ const App: React.FC = () => {
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
   const [showTrashModal, setShowTrashModal] = useState<boolean>(false);
   const [showRecurringModal, setShowRecurringModal] = useState<boolean>(false);
-  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState<boolean>(false);
   const [showToolsHub, setShowToolsHub] = useState<boolean>(false);
   const [showCurrencySelector, setShowCurrencySelector] = useState<boolean>(false);
   const [showWalletSelector, setShowWalletSelector] = useState<boolean>(false);
@@ -432,10 +420,6 @@ const App: React.FC = () => {
       setShowPrivacyPolicy(false);
       return true;
     }
-    if (showDiagnosticsModal) {
-      setShowDiagnosticsModal(false);
-      return true;
-    }
     if (showTrashModal) {
       setShowTrashModal(false);
       return true;
@@ -469,7 +453,6 @@ const App: React.FC = () => {
     return false;
   }, Boolean(
     showPrivacyPolicy ||
-    showDiagnosticsModal ||
     showTrashModal ||
     showToolsHub ||
     showCurrencySelector ||
@@ -1121,10 +1104,6 @@ const App: React.FC = () => {
     saveSecureStateSync(STORAGE_KEY, sanitizedState);
   };
 
-  const handleApplyRepairedState = (repairedState: AppState) => {
-    setState(repairedState);
-  };
-
   const handleSubmitTransaction = (txData: any) => {
     const targetId = editingTransaction?.id || txData.id;
     if (targetId) {
@@ -1700,7 +1679,6 @@ const App: React.FC = () => {
               onOpenReports={() => setShowReportModal(true)}
               onOpenRecurring={() => setShowRecurringModal(true)}
               onOpenTrash={() => setShowTrashModal(true)}
-              onOpenDiagnostics={() => setShowDiagnosticsModal(true)}
               onOpenZakat={() => { setShowToolsHub(false); setActiveTab('zakat'); }}
               onOpenBudgets={() => { setShowToolsHub(false); setActiveTab('budgets'); }}
               onOpenGoals={() => { setShowToolsHub(false); setActiveTab('goals'); }}
@@ -1754,15 +1732,6 @@ const App: React.FC = () => {
               onDeleteRule={handleDeleteRecurringRule}
               onAddRule={handleAddRecurringRule}
               onTriggerCatchup={handleTriggerRecurringCatchup}
-              language={state.language || 'ar'}
-            />
-          )}
-          {showDiagnosticsModal && (
-            <SystemDiagnosticsModal
-              isOpen={showDiagnosticsModal}
-              onClose={() => setShowDiagnosticsModal(false)}
-              state={state}
-              onApplyRepairedState={handleApplyRepairedState}
               language={state.language || 'ar'}
             />
           )}

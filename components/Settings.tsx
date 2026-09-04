@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { 
   Trash2, User, Wallet as WalletIcon, Lock, Upload, Edit2, Plus, Tag, Coins, X, Check, Printer, FileDown, ChevronDown, AlertCircle, AlertTriangle, FileSpreadsheet, Code, ChevronLeft, Palette, Type,
   ChevronRight, TrendingUp, ShieldCheck, ShieldAlert, Key, Unlock, Smartphone, RefreshCw, Plane, Sparkles, FileText, Bell, Star, Fingerprint, MessageSquare, Heart, Send, HelpCircle, CheckCircle2,
-  Mail, HardDrive, Shield, Activity, Clock, Laptop, ScanFace, FileCheck, Share2
+  Mail, HardDrive, Shield, Activity, Clock, Laptop, ScanFace, FileCheck, Share2, Database
 } from 'lucide-react';
 import { Currency, Wallet, Category, Transaction } from '../types';
 import { getTranslation, getLocalizedCurrency } from '../utils/translations';
@@ -203,7 +203,7 @@ export default function Settings({
   onAddCurrency, onRemoveCurrency, onAddWallet, onUpdateWallet, onRemoveWallet,
   onAddCategory, onUpdateCategory, onRemoveCategory,
   onRestore, onClearData, onShowPrivacyPolicy, onPrint, onShare, onExportExcel,
-  installPrompt = null, isUpdateAvailable = false, swRegistration = null
+  installPrompt = null, isUpdateAvailable = false, swRegistration = null,
 }: SettingsProps) {
   const safeCurrencies = currencies || [];
   const safeWallets = wallets || [];
@@ -237,8 +237,6 @@ export default function Settings({
 
   const [isBioHardwareAvailable, setIsBioHardwareAvailable] = useState(false);
   const [biometryTypeTitle, setBiometryTypeTitle] = useState('Face ID / Touch ID');
-  const [bioTestStatus, setBioTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
-  const [bioTestFeedback, setBioTestFeedback] = useState('');
 
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportConfig, setReportConfig] = useState<{
@@ -626,42 +624,6 @@ export default function Settings({
       showToast(t.appLockedSuccess);
     } else {
       showToast(t.securitySettingsUpdated);
-    }
-  };
-
-  const handleRunBiometricTest = async () => {
-    setBioTestStatus('testing');
-    try {
-      const res = await authenticateBiometrics();
-      if (res.success) {
-        setBioTestStatus('success');
-        setBioTestFeedback(t.bioTestSuccess);
-      } else {
-        setBioTestStatus('failed');
-        setBioTestFeedback(res.error || t.bioTestFail);
-      }
-    } catch (e: any) {
-      setBioTestStatus('failed');
-      setBioTestFeedback(e.message || t.bioTestError);
-    }
-  };
-
-  const handleTestNotification = async () => {
-    try {
-      if ('Notification' in window) {
-        const perm = await Notification.requestPermission();
-        if (perm === 'granted') {
-          new Notification(t.testNotificationTitle, {
-            body: t.testNotificationBody,
-            icon: '/icon.png'
-          });
-          showToast(t.testNotificationSent);
-          return;
-        }
-      }
-      showToast(t.testNotificationSent);
-    } catch (e) {
-      showToast(t.testNotificationSent);
     }
   };
 
@@ -1720,37 +1682,6 @@ export default function Settings({
                     </div>
                 </div>
 
-                <div className="pt-4 space-y-3">
-                  <div className="bg-[#0A0D10] p-4 rounded-2xl border border-white/10 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-black text-[#F4F1EA]">
-                        <Laptop size={16} className="text-[#D9B978]" />
-                        <span>{t.deviceWebCompatibilityCheck}</span>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        {isNativeApp ? t.nativeApp : t.webCompatibleApp}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleRunBiometricTest}
-                      disabled={bioTestStatus === 'testing'}
-                      className="w-full py-2.5 bg-[#11161C] hover:bg-white/5 border border-[#D9B978]/30 text-[#D9B978] rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center justify-center gap-2"
-                    >
-                      <ScanFace size={15} />
-                      <span>{bioTestStatus === 'testing' ? t.testingSensor : t.testBiometricNow}</span>
-                    </button>
-
-                    {bioTestFeedback && (
-                      <div className={`p-2.5 rounded-xl border text-[11px] font-bold flex items-center gap-2 ${bioTestStatus === 'success' ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' : 'bg-rose-950/40 border-rose-500/30 text-rose-300'}`}>
-                        {bioTestStatus === 'success' ? <CheckCircle2 size={16} className="shrink-0 text-emerald-400" /> : <AlertCircle size={16} className="shrink-0 text-rose-400" />}
-                        <span>{bioTestFeedback}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {(isSecurityEnabled || isBiometricEnabled) && (
                   <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
@@ -1855,9 +1786,6 @@ export default function Settings({
                         </div>
                     </div>
                 </div>
-                <button type="button" onClick={handleTestNotification} className="w-full py-3 bg-[#D9B978]/10 text-[#D9B978] rounded-xl font-bold text-xs border border-[#D9B978]/20 active:scale-95 flex items-center justify-center gap-2">
-                    <Bell size={14} /> {t.testNotificationBtn}
-                </button>
             </div>
          </AccordionItem>
 

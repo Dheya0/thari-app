@@ -118,27 +118,27 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
     <div className="space-y-6 pb-24 animate-luxury-pop">
       
       {/* Abundance & Investment Reward Score Card */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-800 to-slate-900 p-5 sm:p-7 rounded-2xl md:rounded-[2.5rem] shadow-2xl text-white group border border-indigo-500/20">
-         <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-500/30 to-transparent pointer-events-none"></div>
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#171D24] via-[#11161C] to-[#0A0D10] p-5 sm:p-7 rounded-2xl md:rounded-3xl shadow-2xl text-white group border border-white/10">
+         <div className="absolute inset-x-0 top-0 h-32 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#D9B978]/15 via-transparent to-transparent pointer-events-none" />
          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider text-indigo-200">
-                <Award size={12} />
-                أداء عقلية الوفرة والنماء وعكس التقشف
+            <div className="space-y-2.5">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9B978]/10 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#D9B978] border border-[#D9B978]/20">
+                <Award size={13} />
+                <span>أداء عقلية الوفرة والنماء وعكس التقشف</span>
               </div>
-              <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">مؤشر نقاط الوفرة الفعالة</h3>
-              <p className="text-xs text-indigo-200 max-w-lg font-bold leading-relaxed">
+              <h3 className="text-xl sm:text-2xl font-bold text-[#F4F1EA] leading-tight">مؤشر نقاط الوفرة الفعالة</h3>
+              <p className="text-xs text-slate-300 max-w-lg font-medium leading-relaxed">
                 ترتكز عقلية القيادة والنمو على توسيع قنوات الدخل وتوجيه التدفقات النقدية نحو الأصول المدرة للأرباح والاستثمارات وليس فقط الحد الصارم والتقشف.
               </p>
             </div>
 
-            <div className="flex flex-col items-center justify-center bg-slate-950/40 backdrop-blur-xl border border-white/5 px-6 py-6 rounded-2xl min-w-[140px] text-center self-center md:self-auto">
+            <div className="flex flex-col items-center justify-center bg-[#0A0D10]/70 backdrop-blur-xl border border-white/10 px-6 py-5 rounded-2xl min-w-[140px] text-center self-center md:self-auto shadow-inner">
               <div className="relative flex items-center justify-center">
-                <span className="text-4xl font-extrabold text-indigo-400">{abundanceData.abundanceScore}</span>
-                <span className="text-[10px] text-slate-400 font-bold mr-1">/100</span>
+                <span className="text-4xl font-extrabold text-[#D9B978]">{abundanceData.abundanceScore}</span>
+                <span className="text-[11px] text-slate-400 font-bold mr-1">/100</span>
               </div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-2">مستوى الكفاءة</p>
-              <span className="text-[11px] text-indigo-200 mt-0.5 font-bold">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1.5">مستوى الكفاءة</p>
+              <span className="text-xs text-[#8EB9A7] mt-0.5 font-bold">
                 {abundanceData.abundanceScore > 80 ? 'قائد وفرة ذكي' : abundanceData.abundanceScore > 50 ? 'متوازن ومستقر' : 'مكافح نامٍ'}
               </span>
             </div>
@@ -147,53 +147,53 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
 
       {/* Burn Rate and Runway Tracker widgets */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-slate-900/45 border border-white/5 p-4 sm:p-5 rounded-xl sm:rounded-2xl">
+        <div className="bg-[#11161C] border border-white/10 p-4 sm:p-5 rounded-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#C98387]/15 text-[#C98387] flex items-center justify-center shrink-0 border border-[#C98387]/20">
               <TriangleAlert size={18} />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider leading-none mb-1">معدل الحرق المالي</p>
-              <p className="text-xs font-black text-white">إجمالي الصرف الجاري</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1">معدل الحرق المالي</p>
+              <p className="text-xs font-bold text-[#F4F1EA]">إجمالي الصرف الجاري</p>
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-white leading-tight">
-            {abundanceData.burnRate.toLocaleString()} <span className="text-xs text-slate-400 font-bold">{currencySymbol}</span>
+          <div className="text-lg sm:text-xl font-bold text-[#F4F1EA] leading-tight">
+            {abundanceData.burnRate.toLocaleString()} <span className="text-xs text-slate-400 font-normal">{currencySymbol}</span>
           </div>
         </div>
 
-        <div className="bg-slate-900/45 border border-white/5 p-4 sm:p-5 rounded-xl sm:rounded-2xl">
+        <div className="bg-[#11161C] border border-white/10 p-4 sm:p-5 rounded-2xl">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#8EB9A7]/15 text-[#8EB9A7] flex items-center justify-center shrink-0 border border-[#8EB9A7]/20">
               <TrendingUp size={18} />
             </div>
             <div>
-              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider leading-none mb-1">معدل الوفرة والادخار</p>
-              <p className="text-xs font-black text-white">المدخرات المحققة</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1">معدل الوفرة والادخار</p>
+              <p className="text-xs font-bold text-[#F4F1EA]">المدخرات المحققة</p>
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-black text-emerald-400 leading-tight">
+          <div className="text-lg sm:text-xl font-bold text-[#8EB9A7] leading-tight">
             +{Math.round(abundanceData.savingsRate)}%
           </div>
         </div>
       </div>
 
       {/* Target Setting Form */}
-      <div className="bg-slate-900 border border-white/5 p-4 sm:p-5 rounded-xl sm:rounded-2xl shadow-xl space-y-4">
+      <div className="bg-[#11161C] border border-white/10 p-4 sm:p-5 rounded-2xl shadow-xl space-y-4">
         <div className="flex items-center gap-2 mb-1 px-1">
-          <Target size={18} className="text-indigo-400" />
-          <h4 className="text-xs font-black text-white uppercase tracking-wider">ضبط حدود التشغيل الاحتياطية لتصنيف محدد</h4>
+          <Target size={18} className="text-[#D9B978]" />
+          <h4 className="text-xs font-bold text-[#F4F1EA] uppercase tracking-wider">ضبط حدود التشغيل الاحتياطية لتصنيف محدد</h4>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <select 
             value={selectedCat}
             onChange={e => setSelectedCat(e.target.value)}
-            className="w-full p-3.5 rounded-xl bg-slate-950 border border-white/5 outline-none text-white font-bold text-xs"
+            className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 outline-none text-[#F4F1EA] font-medium text-xs focus:border-[#D9B978]/50 transition-colors"
           >
-            <option value="" className="text-slate-900">انقر هنا لاختيار التصنيف الجاري</option>
+            <option value="" className="bg-[#11161C] text-slate-300">انقر هنا لاختيار التصنيف الجاري</option>
             {expenseCategories.map(c => (
-              <option key={c.id} value={c.id} className="text-slate-900">{c.name}</option>
+              <option key={c.id} value={c.id} className="bg-[#11161C] text-[#F4F1EA]">{c.name}</option>
             ))}
           </select>
           
@@ -204,7 +204,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                 placeholder="الحد الشرعي المقترح للصرف"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
-                className="w-full p-3.5 rounded-xl bg-slate-950 border border-white/5 outline-none text-white font-black text-xs"
+                className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 outline-none text-[#F4F1EA] font-bold text-xs focus:border-[#D9B978]/50 transition-colors"
               />
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">{resolvedSymbol}</span>
             </div>
@@ -216,7 +216,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                   setSelectedCat('');
                 }
               }}
-              className="bg-indigo-500 hover:bg-indigo-600 text-slate-950 px-5 font-black text-xs rounded-xl active:scale-95 transition-all shadow-lg hover:shadow-indigo-500/20"
+              className="bg-[#D9B978] hover:bg-[#E5C98D] text-[#0A0D10] px-5 font-bold text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-[#D9B978]/20 shrink-0"
             >
               {isRtl ? 'حفظ وتطبيق' : 'Save & Apply'}
             </button>
@@ -226,11 +226,11 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
 
       {/* Monitoring Budgets with high design fidelity */}
       <div className="space-y-4">
-        <h4 className="font-black text-white px-2 text-xs uppercase tracking-widest text-slate-500">{isRtl ? 'رصد حدود الإنفاق والتشغيل الحالية بالبوابات' : 'Current Spending Limits'}</h4>
+        <h4 className="font-bold text-[#F4F1EA] px-2 text-xs uppercase tracking-widest text-slate-400">{isRtl ? 'رصد حدود الإنفاق والتشغيل الحالية بالبوابات' : 'Current Spending Limits'}</h4>
         
         {budgetStats.length === 0 && (
-          <div className="text-center py-12 bg-slate-900/20 rounded-2xl border-2 border-dashed border-white/5">
-            <p className="text-slate-500 font-bold text-xs">{isRtl ? 'لا توجد حدود إنفاق تشغيلية محددة حالياً.' : 'No active budget limits set.'}</p>
+          <div className="text-center py-12 bg-[#11161C]/50 rounded-2xl border-2 border-dashed border-white/5">
+            <p className="text-slate-400 font-medium text-xs">{isRtl ? 'لا توجد حدود إنفاق تشغيلية محددة حالياً.' : 'No active budget limits set.'}</p>
           </div>
         )}
         
@@ -240,25 +240,25 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
             const isWarning = b.percentage >= 75 && b.percentage < 90;
 
             return (
-              <div key={b.categoryId} className={`bg-slate-900/40 p-4 sm:p-5 rounded-2xl space-y-4 border transition-all ${isCritical ? 'border-rose-500/20 bg-rose-500/5' : 'border-white/5'}`}>
+              <div key={b.categoryId} className={`bg-[#11161C] p-4 sm:p-5 rounded-2xl space-y-4 border transition-all ${isCritical ? 'border-[#C98387]/40 bg-[#C98387]/5' : 'border-white/10 hover:border-white/20'}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div 
-                      className={`p-3 rounded-xl transition-all duration-300 ${isCritical ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-950 text-slate-400'}`}
+                      className={`p-3 rounded-xl transition-all duration-300 ${isCritical ? 'bg-[#C98387]/20 text-[#C98387]' : 'bg-[#0A0D10] text-[#D9B978] border border-white/5'}`}
                     >
                       {isCritical ? <TriangleAlert size={18} className="animate-pulse" /> : <Target size={18} />}
                     </div>
                     <div>
-                      <span className="font-black text-white text-sm block leading-none mb-1">{b.category?.name}</span>
-                      {isCritical && <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">{isRtl ? 'تجاوز لسقف الميزانية المعتمد!' : 'Budget Limit Exceeded!'}</span>}
-                      {isWarning && !isCritical && <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">{isRtl ? 'تنبيه بالاقتراب من السقف' : 'Approaching Budget Limit'}</span>}
+                      <span className="font-bold text-[#F4F1EA] text-sm block leading-none mb-1">{b.category?.name}</span>
+                      {isCritical && <span className="text-[9px] font-bold text-[#C98387] uppercase tracking-widest">{isRtl ? 'تجاوز لسقف الميزانية المعتمد!' : 'Budget Limit Exceeded!'}</span>}
+                      {isWarning && !isCritical && <span className="text-[9px] font-bold text-[#D9B978] uppercase tracking-widest">{isRtl ? 'تنبيه بالاقتراب من السقف' : 'Approaching Budget Limit'}</span>}
                     </div>
                   </div>
                   <div className="text-start sm:text-end leading-none">
-                     <p className="text-xs font-black text-white">
-                      {b.spent.toLocaleString()} / {b.amount.toLocaleString()} <span className="text-[10px] text-slate-500">{resolvedSymbol}</span>
+                     <p className="text-xs font-bold text-[#F4F1EA]">
+                      {b.spent.toLocaleString()} / {b.amount.toLocaleString()} <span className="text-[10px] text-slate-400">{resolvedSymbol}</span>
                     </p>
-                    <p className={`text-[11px] font-bold mt-1.5 ${isCritical ? 'text-rose-500' : 'text-slate-400'}`}>
+                    <p className={`text-[11px] font-medium mt-1.5 ${isCritical ? 'text-[#C98387]' : 'text-slate-400'}`}>
                       {isCritical ? (isRtl ? 'سقف مستهلك' : 'Limit exceeded') : (isRtl ? `تبقي ${(b.amount - b.spent).toLocaleString()} ${resolvedSymbol}` : `Remaining ${(b.amount - b.spent).toLocaleString()} ${resolvedSymbol}`)}
                     </p>
                   </div>
@@ -267,16 +267,16 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
-                      <span className={`text-[10px] font-black inline-block py-1 px-2 rounded-lg ${isCritical ? 'bg-rose-500 text-slate-950' : isWarning ? 'bg-amber-500 text-slate-900' : 'bg-emerald-500 text-slate-950'}`}>
+                      <span className={`text-[10px] font-bold inline-block py-1 px-2.5 rounded-lg ${isCritical ? 'bg-[#C98387] text-[#0A0D10]' : isWarning ? 'bg-[#D9B978] text-[#0A0D10]' : 'bg-[#8EB9A7] text-[#0A0D10]'}`}>
                         {Math.round(b.percentage)}% مستخدم
                       </span>
                     </div>
                   </div>
-                  <div className="overflow-hidden h-2.5 text-xs flex rounded-full bg-slate-950 border border-white/5">
+                  <div className="overflow-hidden h-2.5 text-xs flex rounded-full bg-[#0A0D10] border border-white/5">
                     <div 
                       style={{ width: `${b.percentage}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-1000 ${
-                        isCritical ? 'bg-rose-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                        isCritical ? 'bg-[#C98387]' : isWarning ? 'bg-[#D9B978]' : 'bg-[#8EB9A7]'
                       }`}
                     />
                   </div>

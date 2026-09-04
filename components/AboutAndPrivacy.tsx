@@ -26,6 +26,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { LanguageKey } from '../utils/translations';
+import { Logo } from './Logo';
 
 interface AboutAndPrivacyProps {
   onBack: () => void;
@@ -46,7 +47,7 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
   const isRTL = currentLang === 'ar';
 
   const toggleLanguage = () => {
-    setCurrentLang(prev => (prev === 'ar' ? 'en' : 'ar'));
+    setCurrentLang(prev => prev === 'ar' ? 'en' : 'ar');
   };
 
   return (
@@ -57,14 +58,17 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
       {/* ─────────────────────────────────────────────────────────────
           1. HEADER - QUIET LUXURY NAVIGATION & TABS
       ───────────────────────────────────────────────────────────── */}
-      <header className="bg-[#11161C]/95 backdrop-blur-2xl border-b border-white/[0.06] px-4 pt-10 pb-4 shrink-0 shadow-lg z-10">
+      <header 
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.85rem)' }}
+        className="bg-[#11161C]/95 backdrop-blur-2xl border-b border-white/[0.06] px-4 pb-4 shrink-0 shadow-lg z-10"
+      >
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
           
           <div className="flex items-center gap-3">
             <button 
               type="button"
               onClick={onBack}
-              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 border border-white/10 rounded-2xl text-[#D9B978] active:scale-90 transition-all duration-200 flex items-center gap-1.5 min-h-[44px] min-w-[44px] justify-center"
+              className="p-2.5 bg-[#0A0D10] hover:bg-white/5 border border-white/10 rounded-2xl text-[#D9B978] active:scale-90 transition-all duration-200 flex items-center gap-1.5 min-h-[44px] min-w-[44px] justify-center shadow-sm"
               title={currentLang === 'ar' ? 'رجوع' : 'Back'}
             >
               {isRTL ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
@@ -73,15 +77,13 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
               </span>
             </button>
             
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-[#D9B978]/10 border border-[#D9B978]/20 text-[#D9B978] flex items-center justify-center">
-                <Sparkles size={17} />
-              </div>
+            <div className="flex items-center gap-2.5">
+              <Logo size={34} />
               <div>
-                <h2 className="text-base sm:text-lg font-semibold text-[#F4F1EA] tracking-tight">
+                <h2 className="text-base sm:text-lg font-bold text-[#F4F1EA] tracking-tight leading-tight">
                   {currentLang === 'ar' ? 'ثري | THARI' : 'THARI — Living Wealth'}
                 </h2>
-                <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
+                <p className="text-[10px] text-[#D9B978] font-medium hidden sm:block">
                   {currentLang === 'ar' ? 'الفخامة الهادئة والخصوصية المطلقة' : 'Quiet Luxury & Sovereign Privacy'}
                 </p>
               </div>
@@ -106,25 +108,24 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
             onClick={() => setActiveTab('about')}
             className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 min-h-[46px] active:scale-[0.98] ${
               activeTab === 'about'
-                ? 'bg-[#D9B978] text-[#0A0D10] shadow-md shadow-[#D9B978]/20'
+                ? 'bg-[#D9B978] text-[#0A0D10] font-bold shadow-md shadow-[#D9B978]/20'
                 : 'bg-[#0A0D10]/80 hover:bg-white/5 text-slate-300 border border-white/[0.04]'
             }`}
           >
             <Info size={16} />
             <span>{currentLang === 'ar' ? 'نبذة عن التطبيق والفلسفة' : 'About THARI & Philosophy'}</span>
           </button>
-
           <button
             type="button"
             onClick={() => setActiveTab('privacy')}
             className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 min-h-[46px] active:scale-[0.98] ${
               activeTab === 'privacy'
-                ? 'bg-[#D9B978] text-[#0A0D10] shadow-md shadow-[#D9B978]/20'
+                ? 'bg-[#D9B978] text-[#0A0D10] font-bold shadow-md shadow-[#D9B978]/20'
                 : 'bg-[#0A0D10]/80 hover:bg-white/5 text-slate-300 border border-white/[0.04]'
             }`}
           >
             <ShieldCheck size={16} />
-            <span>{currentLang === 'ar' ? 'سياسة الخصوصية والأمان' : 'Privacy & Security Policy'}</span>
+            <span>{currentLang === 'ar' ? 'سياسة الخصوصية والسيادة' : 'Privacy & Data Sovereignty'}</span>
           </button>
         </div>
       </header>
@@ -144,13 +145,13 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.2 }}
               className="space-y-6"
             >
               {/* Hero Banner */}
-              <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/[0.06] shadow-xl text-center space-y-4 relative overflow-hidden">
-                <div className="w-16 h-16 bg-[#D9B978]/15 border border-[#D9B978]/30 rounded-2xl flex items-center justify-center mx-auto text-[#D9B978] shadow-lg shadow-[#D9B978]/10">
-                  <Sparkles size={32} strokeWidth={2} />
+              <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/[0.08] shadow-2xl text-center space-y-4 relative overflow-hidden">
+                <div className="flex items-center justify-center mx-auto py-1">
+                  <Logo size={64} />
                 </div>
                 
                 <div className="space-y-2 max-w-2xl mx-auto">
@@ -265,7 +266,9 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
                   return (
                     <div 
                       key={idx}
-                      className="p-5 rounded-2xl bg-[#11161C] border border-white/[0.05] transition-all duration-200"
+                      className={`p-5 rounded-2xl bg-[#11161C] border transition-all duration-200 ${
+                        isExpanded ? 'border-[#D9B978]/30 shadow-lg shadow-black/40' : 'border-white/[0.06] hover:border-white/15'
+                      }`}
                     >
                       <button
                         type="button"
@@ -449,7 +452,9 @@ export const AboutAndPrivacy: React.FC<AboutAndPrivacyProps> = ({
                   return (
                     <div 
                       key={sIdx}
-                      className="p-5 rounded-2xl bg-[#11161C] border border-white/[0.05] transition-all duration-200"
+                      className={`p-5 rounded-2xl bg-[#11161C] border transition-all duration-200 ${
+                        isExpanded ? 'border-[#D9B978]/30 shadow-lg shadow-black/40' : 'border-white/[0.06] hover:border-white/15'
+                      }`}
                     >
                       <button
                         type="button"

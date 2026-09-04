@@ -304,6 +304,15 @@ export interface ZakatPaymentRecord {
   cycleYear: string;
 }
 
+export interface ArchivedYearSummary {
+  year: number;
+  transactionCount: number;
+  totalIncome: number;
+  totalExpense: number;
+  walletBalancesSnapshot: Record<string, number>;
+  archivedAt: string;
+}
+
 export interface AppState {
   accounts: Account[];
   activeAccountId: string;
@@ -339,4 +348,6 @@ export interface AppState {
   lastAutoBackupTime?: string; // ISO date string of last automatic backup
   syncStatus?: SyncState;
   language?: 'ar' | 'en'; // App language (Arabic / English)
+  archivedYears?: ArchivedYearSummary[]; // Cold storage archived fiscal years
+  archivedTransactionsCount?: number; // Total transactions in cold archive
 }

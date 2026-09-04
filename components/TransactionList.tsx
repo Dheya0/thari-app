@@ -71,6 +71,18 @@ const TransactionList: React.FC<TransactionListProps> = ({
     return Array.from(set);
   }, [transactions]);
 
+  const categoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categories.forEach(c => map.set(c.id, c.name.toLowerCase()));
+    return map;
+  }, [categories]);
+
+  const walletNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    wallets.forEach(w => map.set(w.id, w.name.toLowerCase()));
+    return map;
+  }, [wallets]);
+
   const filteredTransactions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -87,14 +99,14 @@ const TransactionList: React.FC<TransactionListProps> = ({
       if (!matchType || !matchWallet || !matchCurrency) return false;
 
       if (query) {
-        const category = categories.find(c => c.id === tx.categoryId);
-        const sourceWallet = wallets.find(w => w.id === tx.walletId);
-        const destWallet = wallets.find(w => w.id === tx.destinationWalletId);
+        const catName = categoryNameMap.get(tx.categoryId) || '';
+        const srcWalletName = (tx.walletId ? walletNameMap.get(tx.walletId) : '') || '';
+        const destWalletName = (tx.destinationWalletId ? walletNameMap.get(tx.destinationWalletId) : '') || '';
 
         const inNote = (tx.note || '').toLowerCase().includes(query);
-        const inCat = (category?.name || '').toLowerCase().includes(query);
-        const inSrcWallet = (sourceWallet?.name || '').toLowerCase().includes(query);
-        const inDestWallet = (destWallet?.name || '').toLowerCase().includes(query);
+        const inCat = catName.includes(query);
+        const inSrcWallet = srcWalletName.includes(query);
+        const inDestWallet = destWalletName.includes(query);
         const inAmount = tx.amount.toString().includes(query);
         const inDate = (tx.date || '').includes(query);
 
@@ -103,12 +115,17 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
       return true;
     });
-  }, [transactions, typeFilter, walletFilter, currencyFilter, searchQuery, categories, wallets]);
+  }, [transactions, typeFilter, walletFilter, currencyFilter, searchQuery, categoryNameMap, walletNameMap]);
 
   const sortedTransactions = useMemo(() => {
-    return [...filteredTransactions].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    return [...filteredTransactions].sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      if (dateA === dateB) {
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      }
+      return dateB.localeCompare(dateA);
+    });
   }, [filteredTransactions]);
 
   const [scrollTop, setScrollTop] = useState(0);
@@ -129,12 +146,6 @@ const TransactionList: React.FC<TransactionListProps> = ({
       scrollContainerRef.current.scrollTop = 0;
     }
   }, [searchQuery, typeFilter, walletFilter, currencyFilter]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-      console.log('[perf] transaction-list-render', sortedTransactions.length);
-    }
-  }, [sortedTransactions.length]);
 
   const closeReceiptViewer = () => {
     if (viewingReceipt && viewingReceipt.startsWith('blob:')) {

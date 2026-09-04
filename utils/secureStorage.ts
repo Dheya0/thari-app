@@ -18,6 +18,7 @@
 
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { idbSet, idbGet, STORES, saveToNativeFilesystem, readFromNativeFilesystem } from '../services/storage/ultraStorageEngine';
 
 const STORAGE_SECRET_SALT = 'THARI_SECURE_VAULT_v4_2026';
 const SNAPSHOT_KEYS = ['thari_vault_snap_a', 'thari_vault_snap_b', 'thari_vault_snap_c'];
@@ -336,14 +337,43 @@ export function deobfuscateData(encodedString: string): string | null {
 export async function writeEncryptedValue(primaryKey: string, value: string): Promise<void> {
   try {
     const encryptedData = await encryptWithAesGcm(value);
+
+    // 1. Primary High-Capacity Store: IndexedDB (Zero 5MB limit, async, thread-safe)
     try {
-      localStorage.setItem(primaryKey, encryptedData);
-      const snapIndex = Math.floor(Date.now() / (1000 * 60 * 60)) % SNAPSHOT_KEYS.length;
-      const targetSnapKey = SNAPSHOT_KEYS[snapIndex];
-      localStorage.setItem(targetSnapKey, encryptedData);
+      await idbSet(STORES.VAULT, primaryKey, encryptedData);
+    } catch (idbErr) {
+      console.warn('[Security] IndexedDB write warning:', idbErr);
+    }
+
+    // 2. Native Mobile Filesystem (iOS & Android)
+    if (isNativePlatformSafe()) {
+      try {
+        await saveToNativeFilesystem('thari_data_vault.enc', encryptedData);
+      } catch (nativeErr) {
+        console.warn('[Security] Native filesystem write warning:', nativeErr);
+      }
+    }
+
+    // 3. Quota-Safe LocalStorage (Only if size is < 2MB to prevent QuotaExceededError crashes)
+    try {
+      if (encryptedData.length < 2_000_000) {
+        localStorage.setItem(primaryKey, encryptedData);
+        const snapIndex = Math.floor(Date.now() / (1000 * 60 * 60)) % SNAPSHOT_KEYS.length;
+        const targetSnapKey = SNAPSHOT_KEYS[snapIndex];
+        localStorage.setItem(targetSnapKey, encryptedData);
+      } else {
+        // High volume marker for large databases
+        localStorage.setItem(`${primaryKey}_meta`, JSON.stringify({ isLargeDb: true, updated: Date.now() }));
+      }
       localStorage.setItem('thari_last_save_ts', Date.now().toString());
     } catch (storageErr) {
-      console.warn('[Security] localStorage write failed, skipping persistent snapshot.');
+      // Clean up snapshots if quota reached, but data is already safe in IndexedDB
+      for (const key of SNAPSHOT_KEYS) {
+        try { localStorage.removeItem(key); } catch {}
+      }
+      try {
+        localStorage.setItem('thari_last_save_ts', Date.now().toString());
+      } catch {}
     }
   } catch (err) {
     // Fail safely: do not overwrite with weak fallback or plaintext; preserve existing valid state
@@ -356,9 +386,11 @@ export function saveSecureStateSync(primaryKey: string, stateObj: any): void {
     if (!stateObj) return;
     const jsonStr = JSON.stringify(stateObj);
     // Minimal recovery snapshot only (synchronous obfuscated safeguard without async write duplication)
-    localStorage.setItem(`${primaryKey}_sync_guard`, obfuscateData(jsonStr));
+    if (jsonStr.length < 1_500_000) {
+      localStorage.setItem(`${primaryKey}_sync_guard`, obfuscateData(jsonStr));
+    }
   } catch (err) {
-    console.error('SecureStorage: Error in sync recovery save', err);
+    // Gracefully handle storage quota limit during sync flush
   }
 }
 
@@ -369,9 +401,6 @@ let debounceTimer: any = null;
 
 export function queueSecureStateSave(primaryKey: string, stateObj: any, onComplete?: () => void) {
   pendingSaveState = stateObj;
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[persistence] scheduled');
-  }
 
   if (debounceTimer) clearTimeout(debounceTimer);
 
@@ -396,9 +425,6 @@ async function executeSavePipeline(primaryKey: string, onComplete?: () => void) 
   pendingSaveState = null;
 
   const currentGen = ++saveGeneration;
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[persistence] started', { gen: currentGen });
-  }
 
   while (saveInFlight) {
     try {
@@ -408,33 +434,21 @@ async function executeSavePipeline(primaryKey: string, onComplete?: () => void) 
 
   // If a newer save arrived while waiting
   if (currentGen !== saveGeneration && pendingSaveState !== null) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[persistence] skipped-stale', { gen: currentGen });
-    }
     return;
   }
 
   saveInFlight = (async () => {
     try {
       if (currentGen !== saveGeneration && pendingSaveState !== null) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[persistence] skipped-stale', { gen: currentGen });
-        }
         return;
       }
 
       await saveSecureState(primaryKey, stateToSave);
 
       if (currentGen !== saveGeneration && pendingSaveState !== null) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[persistence] skipped-stale', { gen: currentGen });
-        }
         return;
       }
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[persistence] completed', { gen: currentGen });
-      }
       if (onComplete) onComplete();
     } catch (err) {
       console.error('[persistence] error', err);
@@ -450,34 +464,7 @@ export async function saveSecureState(primaryKey: string, stateObj: any): Promis
   try {
     if (!stateObj) return;
     const jsonStr = JSON.stringify(stateObj);
-
-    try {
-      await writeEncryptedValue(primaryKey, jsonStr);
-    } catch (quotaErr) {
-      console.warn('SecureStorage: secure persistence retry on quota...', quotaErr);
-      for (const key of SNAPSHOT_KEYS) {
-        try { localStorage.removeItem(key); } catch {}
-      }
-      try {
-        await writeEncryptedValue(primaryKey, jsonStr);
-      } catch (retryErr) {
-        console.warn('SecureStorage: secure persistence unavailable; skipping state save.', retryErr);
-      }
-    }
-
-    if (isNativePlatformSafe()) {
-      try {
-        const encrypted = await encryptWithAesGcm(jsonStr);
-        await Filesystem.writeFile({
-          path: 'thari_data_vault.enc',
-          data: encrypted,
-          directory: Directory.Data,
-          encoding: Encoding.UTF8,
-        });
-      } catch (nativeErr) {
-        console.warn('SecureStorage: native vault write unavailable; continuing with localStorage.', nativeErr);
-      }
-    }
+    await writeEncryptedValue(primaryKey, jsonStr);
   } catch (err) {
     console.error('SecureStorage: Error saving state', err);
   }
@@ -485,6 +472,40 @@ export async function saveSecureState(primaryKey: string, stateObj: any): Promis
 
 export async function loadSecureStateAsync(primaryKey: string): Promise<any | null> {
   try {
+    // Tier 1: Load from IndexedDB (Unlimited Capacity & High Speed)
+    try {
+      const idbData = await idbGet<string>(STORES.VAULT, primaryKey);
+      if (idbData && typeof idbData === 'string') {
+        if (idbData.startsWith(V2_PREFIX)) {
+          const decrypted = await decryptWithAesGcm(idbData);
+          return JSON.parse(decrypted);
+        } else if (idbData.startsWith('{') || idbData.startsWith('[')) {
+          return JSON.parse(idbData);
+        }
+      }
+    } catch (idbReadErr) {
+      console.warn('[SecureStorage] IndexedDB read fallback:', idbReadErr);
+    }
+
+    // Tier 2: Load from Native Mobile Filesystem (iOS / Android)
+    if (isNativePlatformSafe()) {
+      try {
+        const nativeData = await readFromNativeFilesystem('thari_data_vault.enc');
+        if (nativeData && typeof nativeData === 'string') {
+          if (nativeData.startsWith(V2_PREFIX)) {
+            const decrypted = await decryptWithAesGcm(nativeData);
+            const parsed = JSON.parse(decrypted);
+            // Sync forward into IndexedDB for subsequent instant access
+            void idbSet(STORES.VAULT, primaryKey, nativeData);
+            return parsed;
+          }
+        }
+      } catch (nativeReadErr) {
+        console.warn('[SecureStorage] Native filesystem read fallback:', nativeReadErr);
+      }
+    }
+
+    // Tier 3: Load from localStorage (Legacy data & automatic seamless migration)
     const keysToCheck = [
       primaryKey, 
       `${primaryKey}_sync_guard`,
@@ -507,7 +528,13 @@ export async function loadSecureStateAsync(primaryKey: string): Promise<any | nu
       if (raw.startsWith(V2_PREFIX)) {
         try {
           const decrypted = await decryptWithAesGcm(raw);
-          return JSON.parse(decrypted);
+          const parsed = JSON.parse(decrypted);
+          // Seamless forward migration to IndexedDB & Native Filesystem
+          void idbSet(STORES.VAULT, primaryKey, raw);
+          if (isNativePlatformSafe()) {
+            void saveToNativeFilesystem('thari_data_vault.enc', raw);
+          }
+          return parsed;
         } catch (e) {
           console.warn(`SecureStorage: Decryption failed for key ${key}, trying next snapshot...`);
           continue;
@@ -520,7 +547,7 @@ export async function loadSecureStateAsync(primaryKey: string): Promise<any | nu
           const deobfuscated = deobfuscateData(raw);
           if (deobfuscated) {
             const parsed = JSON.parse(deobfuscated);
-            // Silently upgrade to V2 AES-GCM
+            // Silently upgrade to V2 AES-GCM in IndexedDB & storage
             void writeEncryptedValue(primaryKey, deobfuscated);
             return parsed;
           }
@@ -531,7 +558,7 @@ export async function loadSecureStateAsync(primaryKey: string): Promise<any | nu
       if (raw.startsWith('{') || raw.startsWith('[')) {
         try {
           const parsed = JSON.parse(raw);
-          // Silently upgrade to V2 AES-GCM
+          // Silently upgrade to V2 AES-GCM in IndexedDB & storage
           void writeEncryptedValue(primaryKey, raw);
           return parsed;
         } catch {}
