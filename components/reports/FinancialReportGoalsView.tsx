@@ -66,13 +66,13 @@ export const FinancialReportGoalsView: React.FC<GoalsViewProps> = ({ model }) =>
         </div>
 
         {/* Completion Progress */}
-        <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4.5 flex flex-col justify-between">
-          <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">نسبة الإنجاز والتحقيق الكلية</span>
+        <div className="bg-[#D9B978]/10 border border-[#D9B978]/30 rounded-2xl p-4.5 flex flex-col justify-between">
+          <span className="text-[11px] font-bold text-[#8A6D3B] uppercase tracking-wider">نسبة الإنجاز والتحقيق الكلية</span>
           <div className="mt-2">
-            <div className="text-2xl font-black text-blue-950 dir-ltr text-right">
-              {overallProgress}% <span className="text-sm font-bold text-blue-800">مكتمل</span>
+            <div className="text-2xl font-black text-slate-900 dir-ltr text-right">
+              {overallProgress}% <span className="text-sm font-bold text-[#8A6D3B]">مكتمل</span>
             </div>
-            <p className="text-[10.5px] text-blue-700 font-medium mt-1">
+            <p className="text-[10.5px] text-slate-600 font-medium mt-1">
               تم إنجاز {completedCount} من أصل {items.length} أهداف بالكامل
             </p>
           </div>
@@ -144,7 +144,7 @@ export const FinancialReportGoalsView: React.FC<GoalsViewProps> = ({ model }) =>
                         <div className="w-full max-w-[140px] mx-auto space-y-1">
                           <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                             <div
-                              className={`h-full transition-all ${g.isCompleted ? 'bg-emerald-600' : 'bg-blue-600'}`}
+                              className={`h-full transition-all ${g.isCompleted ? 'bg-emerald-600' : 'bg-[#D9B978]'}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>

@@ -637,7 +637,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             type="button"
             onClick={handleShareReport}
             disabled={isProcessing}
-            className={`flex-1 py-3.5 px-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`flex-1 py-3.5 px-3 bg-[#759BC8] hover:bg-[#688DB9] text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#759BC8]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <FileText size={16} className={isProcessing ? 'animate-spin' : ''} />
             <span>{isProcessing ? 'جاري التصدير...' : 'مشاركة التقرير'}</span>

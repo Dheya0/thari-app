@@ -12,11 +12,12 @@ import { encryptData, decryptData } from '../services/encryptionService';
 import { authenticateBiometrics, checkBiometricAvailable, isNativeCapacitorEnvironment, isStandalonePwaMode } from '../services/biometricService';
 import { getIcon, DEFAULT_EXCHANGE_RATES, convertCurrency } from '../constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
-import { exportAndShareNativeFile } from '../services/reports/reportExportService';
+import { exportAndShareNativeFile, buildModernExcelWorkbook, exportAndShareXlsxFile } from '../services/reports/reportExportService';
+import { generateFinancialReportSync } from '../services/reports/reportService';
 import { ReportModal } from './reports/ReportModal';
 import { useBackNavigation } from '../utils/backNavigation';
 
-const COLORS = ['#D9B978', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f43f5e', '#64748b'];
+const COLORS = ['#D9B978', '#8EB9A7', '#759BC8', '#C98387', '#C5A25D', '#A898D0', '#D4836A', '#9EAA9F', '#BFA054', '#8C9BAE'];
 const ICONS = ['Utensils', 'Car', 'Home', 'Receipt', 'Film', 'HeartPulse', 'GraduationCap', 'Briefcase', 'Wallet', 'CreditCard', 'ShoppingBag', 'Gift', 'PiggyBank', 'Coffee', 'Zap', 'Bus', 'Plane', 'Smartphone', 'ShieldCheck'];
 
 const Modal = ({ title, children, onClose }: { title: string, children?: React.ReactNode, onClose: () => void }) => {
@@ -706,21 +707,28 @@ export default function Settings({
 
   const handleExportCSV = async (type: 'summary' | 'detailed', currencyFilter: string | null) => {
     try {
-      const csv = buildExecutiveCSVContent({
+      const model = generateFinancialReportSync({
         transactions: appState.transactions || [],
         categories: appState.categories || categories || [],
         wallets: appState.wallets || wallets || [],
         userName: appState.userName || userName || (appState?.language === 'en' ? 'Thari User' : 'مستخدم ثري'),
-        currency: currency || appState.currency,
+        baseCurrencyCode: (currency || appState.currency)?.code || 'SAR',
         exchangeRates: appState.exchangeRates || exchangeRates || {},
-        type,
-        filterCurrency: currencyFilter
+        budgets: appState.budgets || [],
+        debts: appState.debts || [],
+        goals: appState.goals || [],
+        params: {
+          type,
+          currencyCode: currencyFilter,
+          targetCurrencyCode: (currency || appState.currency)?.code || 'SAR',
+        }
       });
-      const fileName = `thari_financial_report_${type}_${new Date().toISOString().slice(0, 10)}.csv`;
-      await exportAndShareExecutiveCSV(csv, fileName);
+      const wb = buildModernExcelWorkbook(model);
+      const fileName = `Thari_Financial_Report_${type}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      await exportAndShareXlsxFile(wb, fileName, 'تقرير ثـري المالي (Excel XLSX)');
       showToast(t.excelExportSuccess);
     } catch (e) {
-      console.error('Excel CSV export error:', e);
+      console.error('Excel XLSX export error:', e);
       showToast(t.excelExportFail, 'error');
     }
   };
@@ -1294,7 +1302,7 @@ export default function Settings({
             <span className="text-[11px] font-black uppercase tracking-wider">{t.walletsManagement}</span>
          </button>
          <button type="button" onClick={() => setActiveSection('categories')} className="bg-[#11161C] p-5 rounded-[2rem] border border-white/10 flex flex-col items-center gap-3 text-[#F4F1EA] font-bold hover:bg-white/[0.03] transition-all active:scale-95 shadow-xl">
-            <div className="w-11 h-11 bg-blue-500/10 text-blue-400 flex items-center justify-center rounded-2xl"><Tag size={22} /></div>
+            <div className="w-11 h-11 bg-[#759BC8]/10 text-[#759BC8] flex items-center justify-center rounded-2xl"><Tag size={22} /></div>
             <span className="text-[11px] font-black uppercase tracking-wider">{t.categoriesManagement}</span>
          </button>
          <button type="button" onClick={() => setActiveSection('currencies')} className="bg-[#11161C] p-5 rounded-[2rem] border border-white/10 flex flex-col items-center gap-3 text-[#F4F1EA] font-bold hover:bg-white/[0.03] transition-all active:scale-95 shadow-xl">
@@ -1738,8 +1746,8 @@ export default function Settings({
                         <FileDown size={18} className="text-emerald-400" />
                         <span className="text-[10px]">{t.sharePdf}</span>
                     </button>
-                    <button type="button" onClick={() => handleExportCSV('detailed', null)} className="flex flex-col items-center justify-center gap-1.5 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-blue-500/30 text-xs font-bold">
-                        <FileSpreadsheet size={18} className="text-blue-400" />
+                    <button type="button" onClick={() => handleExportCSV('detailed', null)} className="flex flex-col items-center justify-center gap-1.5 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-[#8EB9A7]/40 text-xs font-bold">
+                        <FileSpreadsheet size={18} className="text-[#8EB9A7]" />
                         <span className="text-[10px]">{t.exportExcel}</span>
                     </button>
                 </div>

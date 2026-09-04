@@ -150,8 +150,8 @@ export const TrashModal: React.FC<TrashModalProps> = ({
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                       style={{
-                        backgroundColor: `${category?.color || '#3b82f6'}20`,
-                        color: category?.color || '#3b82f6',
+                        backgroundColor: `${category?.color || '#D9B978'}20`,
+                        color: category?.color || '#D9B978',
                       }}
                     >
                       {isTransfer ? (

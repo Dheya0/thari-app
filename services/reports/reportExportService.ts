@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import * as XLSX from 'xlsx';
 import { ReportModel, ReportType } from './reportTypes';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -189,7 +190,219 @@ export function buildExcelReportCSV(model: ReportModel): string {
 }
 
 /**
- * Builds a structured multi-table HTML spreadsheet (.xls) for Microsoft Excel & Google Sheets
+ * Generates an authentic, modern Microsoft Excel (.xlsx) workbook (Office Open XML / 2016-365 format)
+ * with dedicated multi-sheet structure, numeric cell types, and RTL orientation.
+ */
+export function buildModernExcelWorkbook(model: ReportModel): XLSX.WorkBook {
+  const wb = XLSX.utils.book_new();
+  const {
+    metadata,
+    reportType,
+    account,
+    scope,
+    kpis,
+    currencyBreakdown,
+    expenseCategories,
+    incomeCategories,
+    walletSummaries,
+    transactions,
+    budgets = [],
+    debts,
+    goals,
+  } = model;
+
+  const baseSymbol = scope.baseCurrency.symbol;
+  const typeTitles: Record<ReportType, string> = {
+    summary: 'الملخص المالي التنفيذي العام',
+    detailed: 'كشف القيود والمعاملات المحاسبي التفصيلي',
+    category: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي',
+    wealth: 'تقرير صافي الثروة وتوزيع المحافظ والعملات',
+    debts: 'كشف الذمم والديون والالتزامات المالية',
+    savings_goals: 'تقرير الأهداف المالية ومتابعة المدخرات',
+  };
+  const reportTitleAr = typeTitles[reportType] || 'تقرير ثري المالي';
+
+  // --- 1. ورقة الملخص التنفيذي والمؤشرات ---
+  const summaryAoa: any[][] = [
+    ['تطبيق ثـري المالي - ' + reportTitleAr + ' (THARI Financial Report)'],
+    [],
+    ['معرف التقرير', metadata.reportId, 'البصمة الرقمية', metadata.fingerprint],
+    ['صاحب الحساب', `${account.name} (${account.accountTypeAr})`, 'تاريخ الإصدار', `${metadata.generatedAtFormattedAr} - ${metadata.generatedTimeFormattedAr}`],
+    ['نطاق التقرير', scope.walletNameAr, 'العملة المرجعية', scope.baseCurrency.code],
+    ['الفترة الزمنية', scope.periodLabelAr, 'العملة المحددة', scope.currencyFilter || 'كافة العملات'],
+    [],
+    ['المؤشرات المالية الرئيسية', 'القيمة', 'العملة / تفاصيل'],
+    ['الرصيد الافتتاحي للفترة', Math.round(kpis.openingBalance), baseSymbol],
+    ['إجمالي الواردات (المقبوضات)', Math.round(kpis.totalIncome), `${baseSymbol} (${kpis.incomeCount} حركة)`],
+    ['إجمالي المنصرفات (المصروفات)', Math.round(kpis.totalExpense), `${baseSymbol} (${kpis.expenseCount} حركة)`],
+    ['صافي الفائض / العجز المالي', Math.round(kpis.netSavings), baseSymbol],
+    ['معدل الادخار', `${kpis.savingsRatePercent}%`, ''],
+    ['الرصيد الختامي للفترة', Math.round(kpis.closingBalance), baseSymbol],
+    ['إجمالي عدد الحركات المسجلة', kpis.totalTransactions, 'حركة'],
+  ];
+
+  if (currencyBreakdown && currencyBreakdown.length > 0) {
+    summaryAoa.push([]);
+    summaryAoa.push(['توزيع السيولة حسب العملات', 'الرصيد الفعلي', 'المعادل بـ ' + scope.baseCurrency.code, 'عدد العمليات']);
+    currencyBreakdown.forEach(c => {
+      summaryAoa.push([
+        c.metadata?.nameAr || c.code,
+        c.net,
+        Math.round(c.convertedNetToBase),
+        `${c.transactionCount} حركة`
+      ]);
+    });
+  }
+
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
+  wsSummary['!cols'] = [{ wch: 30 }, { wch: 22 }, { wch: 24 }, { wch: 28 }];
+  wsSummary['!views'] = [{ RTL: true }];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'الملخص التنفيذي');
+
+  // --- 2. ورقة القيود والمعاملات المحاسبية ---
+  if (transactions && transactions.length > 0) {
+    const txAoa: any[][] = [
+      ['رقم القيد', 'التاريخ', 'الوقت', 'نوع الحركة', 'التصنيف', 'المحفظة', 'المبلغ بالعملة الأصلية', 'العملة الأصلية', 'المقيد بالمحفظة', 'المعادل بالأساسية', 'عملة التقييم', 'الرصيد التراكمي', 'البيان والملاحظات']
+    ];
+
+    transactions.forEach(t => {
+      const sign = t.type === 'income' ? '+' : '-';
+      const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
+        ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
+        : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
+
+      txAoa.push([
+        t.index,
+        t.date,
+        t.time || '',
+        t.typeLabelAr,
+        t.categoryName,
+        t.walletName,
+        t.originalAmount,
+        t.currencyCode,
+        walletDeductionStr,
+        Math.round(t.convertedAmount),
+        scope.baseCurrency.code,
+        t.runningBalance !== undefined ? Math.round(t.runningBalance) : '',
+        t.note || ''
+      ]);
+    });
+
+    const wsTx = XLSX.utils.aoa_to_sheet(txAoa);
+    wsTx['!cols'] = [
+      { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 18 },
+      { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 20 },
+      { wch: 14 }, { wch: 18 }, { wch: 35 }
+    ];
+    wsTx['!views'] = [{ RTL: true }];
+    XLSX.utils.book_append_sheet(wb, wsTx, 'سجل العمليات');
+  }
+
+  // --- 3. ورقة تحليل التصنيفات والميزانيات ---
+  const catAoa: any[][] = [];
+  if (expenseCategories && expenseCategories.length > 0) {
+    catAoa.push(['تحليل مصروفات التصنيفات', 'المبلغ المعادل (' + scope.baseCurrency.code + ')', 'النسبة من الإجمالي', 'عدد العمليات']);
+    expenseCategories.forEach(c => {
+      catAoa.push([c.name, Math.round(c.totalAmount), `${c.percentageOfTotal.toFixed(1)}%`, c.transactionCount]);
+    });
+    catAoa.push([]);
+  }
+
+  if (incomeCategories && incomeCategories.length > 0) {
+    catAoa.push(['تحليل مصادر الدخل', 'المبلغ المعادل (' + scope.baseCurrency.code + ')', 'النسبة من الإجمالي', 'عدد العمليات']);
+    incomeCategories.forEach(c => {
+      catAoa.push([c.name, Math.round(c.totalAmount), `${c.percentageOfTotal.toFixed(1)}%`, c.transactionCount]);
+    });
+    catAoa.push([]);
+  }
+
+  if (budgets && budgets.length > 0) {
+    catAoa.push(['جدول متابعة الميزانيات المعتمدة', 'الميزانية المحددة', 'المنصرف الفعلي', 'المتبقي', 'نسبة الاستهلاك', 'الحالة']);
+    budgets.forEach(b => {
+      catAoa.push([
+        b.categoryName,
+        Math.round(b.budgetAmount),
+        Math.round(b.spentAmount),
+        Math.round(b.remainingAmount),
+        `${b.percentageUsed.toFixed(1)}%`,
+        b.statusLabelAr
+      ]);
+    });
+  }
+
+  if (catAoa.length > 0) {
+    const wsCat = XLSX.utils.aoa_to_sheet(catAoa);
+    wsCat['!cols'] = [{ wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 16 }];
+    wsCat['!views'] = [{ RTL: true }];
+    XLSX.utils.book_append_sheet(wb, wsCat, 'التصنيفات والميزانيات');
+  }
+
+  // --- 4. ورقة كشف الذمم والديون إن وجدت ---
+  if (debts && debts.items && debts.items.length > 0) {
+    const debtAoa: any[][] = [
+      ['ملخص الذمم والديون'],
+      ['إجمالي مستحقات لي', Math.round(debts.totalReceivable), baseSymbol],
+      ['إجمالي التزامات علي', Math.round(debts.totalPayable), baseSymbol],
+      ['صافي الموقف المالي للديون', Math.round(debts.netDebtPosition), baseSymbol],
+      [],
+      ['الطرف / الاسم', 'النوع', 'المبلغ الأصلي', 'العملة', 'المسدد', 'المتبقي', 'المعادل بـ ' + scope.baseCurrency.code, 'تاريخ الإنشاء', 'تاريخ الاستحقاق', 'الحالة', 'ملاحظات']
+    ];
+
+    debts.items.forEach(d => {
+      debtAoa.push([
+        d.personName,
+        d.typeLabelAr,
+        d.originalAmount,
+        d.currency,
+        d.paidAmount,
+        d.remainingAmount,
+        Math.round(d.convertedRemaining),
+        d.createdAt || '',
+        d.dueDate || '',
+        d.statusLabelAr,
+        d.note || ''
+      ]);
+    });
+
+    const wsDebt = XLSX.utils.aoa_to_sheet(debtAoa);
+    wsDebt['!cols'] = [
+      { wch: 22 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 },
+      { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 30 }
+    ];
+    wsDebt['!views'] = [{ RTL: true }];
+    XLSX.utils.book_append_sheet(wb, wsDebt, 'كشف الديون والذمم');
+  }
+
+  // --- 5. ورقة الأهداف المالية إن وجدت ---
+  if (goals?.items && goals.items.length > 0) {
+    const goalAoa: any[][] = [
+      ['اسم الهدف المالي', 'المبلغ المستهدف', 'المبلغ المحقق', 'المتبقي', 'نسبة الإنجاز', 'الحالة']
+    ];
+    goals.items.forEach(g => {
+      const target = g.targetAmount || 0;
+      const current = g.currentAmount || 0;
+      const pct = g.progressPercent ?? (target > 0 ? (current / target) * 100 : 0);
+      goalAoa.push([
+        g.name,
+        target,
+        current,
+        Math.max(0, target - current),
+        `${pct.toFixed(1)}%`,
+        g.isCompleted || pct >= 100 ? 'مكتمل' : 'قيد الإنجاز'
+      ]);
+    });
+
+    const wsGoals = XLSX.utils.aoa_to_sheet(goalAoa);
+    wsGoals['!cols'] = [{ wch: 26 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }];
+    wsGoals['!views'] = [{ RTL: true }];
+    XLSX.utils.book_append_sheet(wb, wsGoals, 'الأهداف المالية');
+  }
+
+  return wb;
+}
+
+/**
+ * Builds a structured multi-table HTML spreadsheet (.xls) for legacy compatibility
  */
 export function buildExcelReportHTML(model: ReportModel): string {
   const {
@@ -1180,13 +1393,12 @@ export async function printOrShareFinancialReport(
     const typeKey = model.reportType || 'summary';
 
     if (preferredAction === 'excel') {
-      const htmlContent = buildExcelReportHTML(model);
-      const fileName = `THARI_${typeKey.toUpperCase()}_${dateStr}.xls`;
-      await exportAndShareNativeFile(
-        htmlContent,
+      const workbook = buildModernExcelWorkbook(model);
+      const fileName = `THARI_${typeKey.toUpperCase()}_${dateStr}.xlsx`;
+      await exportAndShareXlsxFile(
+        workbook,
         fileName,
-        'application/vnd.ms-excel;charset=utf-8;',
-        'تقرير ثري المالي (Excel)'
+        'تقرير ثري المالي (Excel XLSX)'
       );
       return;
     }
@@ -1292,6 +1504,85 @@ export async function exportAndSharePdfFile(
     }, 1000);
   } catch (err) {
     console.error('PDF download fallback error:', err);
+  }
+}
+
+/**
+ * Universally writes and shares modern Excel (.xlsx) workbooks across Native iOS/Android
+ * (Capacitor Filesystem & Native Share Sheet), Web Share API with files, and browser downloads.
+ */
+export async function exportAndShareXlsxFile(
+  workbook: XLSX.WorkBook,
+  fileName: string,
+  dialogTitle = 'تصدير كشف حساب Excel (XLSX)'
+): Promise<void> {
+  const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  // 1. Native iOS / Android Platform (Capacitor Filesystem + Share Sheet)
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+      const result = await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Documents,
+      });
+
+      await Share.share({
+        title: dialogTitle,
+        url: result.uri,
+        dialogTitle: dialogTitle,
+      });
+      return;
+    } catch (e) {
+      const errName = (e as Error).name;
+      const errMsg = (e as Error).message || '';
+      if (errName === 'AbortError' || errMsg.includes('cancel') || errMsg.includes('abort')) {
+        return;
+      }
+      console.warn('Native XLSX Filesystem/Share failed, falling back:', e);
+    }
+  }
+
+  // 2. Web Share API with files (iOS Safari / Android Chrome)
+  const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([arrayBuffer], { type: mimeType });
+
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], fileName, { type: mimeType });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: dialogTitle,
+          text: dialogTitle,
+          files: [file],
+        });
+        return;
+      }
+    } catch (err) {
+      const errName = (err as Error).name;
+      if (errName === 'AbortError' || (err as Error).message?.includes('cancel')) {
+        return;
+      }
+      console.warn('Web Share API XLSX failed, falling back to download:', err);
+    }
+  }
+
+  // 3. Web Browser Download Trigger
+  try {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  } catch (err) {
+    console.error('XLSX download fallback error:', err);
   }
 }
 

@@ -60,13 +60,13 @@ export const FinancialReportWealthView: React.FC<WealthViewProps> = ({ model }) 
           </div>
         </div>
 
-        <div className="bg-blue-50/80 border border-blue-200 rounded-2xl p-4.5 flex flex-col justify-between">
-          <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">صافي التدفق المالي التراكمي</span>
+        <div className="bg-[#D9B978]/10 border border-[#D9B978]/30 rounded-2xl p-4.5 flex flex-col justify-between">
+          <span className="text-[11px] font-bold text-[#8A6D3B] uppercase tracking-wider">صافي التدفق المالي التراكمي</span>
           <div className="mt-2">
-            <div className={`text-2xl font-black dir-ltr text-right ${kpis.netSavings >= 0 ? 'text-blue-950' : 'text-rose-950'}`}>
-              {kpis.netSavings >= 0 ? '+' : ''}{Math.round(kpis.netSavings).toLocaleString()} <span className="text-sm font-bold text-blue-800">{baseCurrency.symbol}</span>
+            <div className={`text-2xl font-black dir-ltr text-right ${kpis.netSavings >= 0 ? 'text-slate-900' : 'text-rose-950'}`}>
+              {kpis.netSavings >= 0 ? '+' : ''}{Math.round(kpis.netSavings).toLocaleString()} <span className="text-sm font-bold text-[#8A6D3B]">{baseCurrency.symbol}</span>
             </div>
-            <p className="text-[10.5px] text-blue-700 font-medium mt-1">
+            <p className="text-[10.5px] text-slate-600 font-medium mt-1">
               نسبة الادخار الكلية: {kpis.savingsRatePercent}%
             </p>
           </div>
@@ -107,7 +107,7 @@ export const FinancialReportWealthView: React.FC<WealthViewProps> = ({ model }) 
                       <div className="flex items-center gap-2">
                         <span
                           className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: w.color || '#3b82f6' }}
+                          style={{ backgroundColor: w.color || '#D9B978' }}
                         />
                         <span>{w.name}</span>
                       </div>
@@ -154,7 +154,7 @@ export const FinancialReportWealthView: React.FC<WealthViewProps> = ({ model }) 
         <div className="break-avoid">
           <div className="flex justify-between items-center mb-2.5">
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-4 bg-blue-500 rounded-full" />
+              <div className="w-1.5 h-4 bg-[#759BC8] rounded-full" />
               <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
                 مصفوفة العملات الأجنبية وأسعار الصرف المعتمدة
               </h3>

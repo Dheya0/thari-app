@@ -1,7 +1,14 @@
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { generateFinancialReportSync } from '../services/reports/reportService';
-import { buildExcelReportHTML, exportAndShareNativeFile, printOrShareFinancialReport } from '../services/reports/reportExportService';
+import { 
+  buildModernExcelWorkbook, 
+  buildExcelReportHTML, 
+  exportAndShareXlsxFile, 
+  exportAndShareNativeFile, 
+  printOrShareFinancialReport 
+} from '../services/reports/reportExportService';
 import { formatLocalDateOnly } from './formatters';
+import * as XLSX from 'xlsx';
 
 export const generateAndSharePDF = async (
   transactionsOrElementId: any,
@@ -78,10 +85,33 @@ export const buildExecutiveCSVContent = ({
 
 export const exportAndShareExecutiveCSV = async (
   content: string,
-  fileName?: string
+  fileName?: string,
+  model?: any
 ) => {
-  const actualName = fileName ? fileName.replace(/\.csv$/, '.xls') : `THARI_Report_${formatLocalDateOnly(new Date())}.xls`;
-  await exportAndShareNativeFile(content, actualName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
+  const actualName = fileName ? fileName.replace(/\.(csv|xls)$/, '.xlsx') : `THARI_Report_${formatLocalDateOnly(new Date())}.xlsx`;
+  if (model) {
+    const wb = buildModernExcelWorkbook(model);
+    await exportAndShareXlsxFile(wb, actualName, 'تقرير ثري المالي (Excel XLSX)');
+    return;
+  }
+  // If only string content was provided (CSV or HTML table), parse into modern XLSX
+  try {
+    let wb: XLSX.WorkBook;
+    if (content.includes('<html') || content.includes('<table')) {
+      wb = XLSX.read(content, { type: 'string' });
+    } else {
+      const rows = content.split('\n').map(r => r.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'البيانات المالية');
+    }
+    await exportAndShareXlsxFile(wb, actualName, 'تقرير ثري المالي (Excel XLSX)');
+  } catch (err) {
+    console.error('Error parsing content for modern XLSX:', err);
+    // Fallback directly to CSV with utf-8 BOM
+    const csvName = fileName ? fileName.replace(/\.xls$/, '.csv') : `THARI_Report_${formatLocalDateOnly(new Date())}.csv`;
+    await exportAndShareNativeFile('\uFEFF' + content, csvName, 'text/csv;charset=utf-8;', 'تقرير ثري المالي (CSV)');
+  }
 };
 
 export const generateAndShareCSV = async (
@@ -106,7 +136,7 @@ export const generateAndShareCSV = async (
     },
   });
 
-  const htmlContent = buildExcelReportHTML(model);
-  const fileName = `Thari_Transactions_${formatLocalDateOnly(new Date())}.xls`;
-  await exportAndShareNativeFile(htmlContent, fileName, 'application/vnd.ms-excel;charset=utf-8;', 'تقرير ثري المالي (Excel)');
+  const wb = buildModernExcelWorkbook(model);
+  const fileName = `Thari_Transactions_${formatLocalDateOnly(new Date())}.xlsx`;
+  await exportAndShareXlsxFile(wb, fileName, 'سجل معاملات ثـري (Excel XLSX)');
 };

@@ -138,19 +138,19 @@ export const convertCurrency = (
 
 export const INITIAL_CATEGORIES: Category[] = [
   // Expenses
-  { id: '1', name: 'طعام', icon: 'Utensils', color: '#ef4444', type: 'expense' },
-  { id: '2', name: 'مواصلات', icon: 'Car', color: '#f59e0b', type: 'expense' },
-  { id: '3', name: 'سكن', icon: 'Home', color: '#3b82f6', type: 'expense' },
-  { id: '4', name: 'فواتير', icon: 'Receipt', color: '#10b981', type: 'expense' },
-  { id: '5', name: 'ترفيه', icon: 'Film', color: '#8b5cf6', type: 'expense' },
-  { id: '6', name: 'صحة', icon: 'HeartPulse', color: '#ec4899', type: 'expense' },
-  { id: '7', name: 'تعليم', icon: 'GraduationCap', color: '#6366f1', type: 'expense' },
-  { id: '8', name: 'تسوق', icon: 'ShoppingBag', color: '#f43f5e', type: 'expense' },
+  { id: '1', name: 'طعام', icon: 'Utensils', color: '#C98387', type: 'expense' },
+  { id: '2', name: 'مواصلات', icon: 'Car', color: '#D9B978', type: 'expense' },
+  { id: '3', name: 'سكن', icon: 'Home', color: '#759BC8', type: 'expense' },
+  { id: '4', name: 'فواتير', icon: 'Receipt', color: '#8EB9A7', type: 'expense' },
+  { id: '5', name: 'ترفيه', icon: 'Film', color: '#A898D0', type: 'expense' },
+  { id: '6', name: 'صحة', icon: 'HeartPulse', color: '#D4836A', type: 'expense' },
+  { id: '7', name: 'تعليم', icon: 'GraduationCap', color: '#C5A25D', type: 'expense' },
+  { id: '8', name: 'تسوق', icon: 'ShoppingBag', color: '#9EAA9F', type: 'expense' },
   // Income
-  { id: '9', name: 'راتب', icon: 'Wallet', color: '#10b981', type: 'income' },
-  { id: '10', name: 'عمل حر', icon: 'Briefcase', color: '#06b6d4', type: 'income' },
-  { id: '11', name: 'استثمار', icon: 'PiggyBank', color: '#84cc16', type: 'income' },
-  { id: '12', name: 'هدية', icon: 'Gift', color: '#f97316', type: 'income' },
+  { id: '9', name: 'راتب', icon: 'Wallet', color: '#8EB9A7', type: 'income' },
+  { id: '10', name: 'عمل حر', icon: 'Briefcase', color: '#D9B978', type: 'income' },
+  { id: '11', name: 'استثمار', icon: 'PiggyBank', color: '#BFA054', type: 'income' },
+  { id: '12', name: 'هدية', icon: 'Gift', color: '#D4836A', type: 'income' },
 ];
 
 export const getIcon = (name: string, size = 20) => {

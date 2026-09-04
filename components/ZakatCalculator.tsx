@@ -993,11 +993,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
             <AssetItemRow
               id="trading-stocks"
               icon={<TrendingUp size={18} />}
-              iconBg="bg-blue-500/10 border-blue-500/20"
-              iconColor="text-blue-400"
+              iconBg="bg-[#759BC8]/10 border-[#759BC8]/20"
+              iconColor="text-[#759BC8]"
               title={t.tradingStocks}
               codeBadge="STK-TRD"
-              badgeColor="bg-blue-500/15 text-blue-400 border-blue-500/30"
+              badgeColor="bg-[#759BC8]/15 text-[#759BC8] border-[#759BC8]/30"
               description={t.tradingStocksDesc}
               valueDisplay={formatFinancialNumber(activeProfile.tradingStocksValue || 0)}
               currencyCode={displaySymbol}
@@ -1011,7 +1011,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                     placeholder="0.00"
                     value={activeProfile.tradingStocksValue || ''}
                     onChange={(e) => updateActiveProfile({ tradingStocksValue: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-black/40 border border-white/10 focus:border-blue-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
+                    className="w-full bg-black/40 border border-white/10 focus:border-[#759BC8] rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
                     {displaySymbol}

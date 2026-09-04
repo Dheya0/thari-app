@@ -786,7 +786,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                           ? 'bg-rose-500/20 text-rose-300 animate-pulse' 
                           : isDueToday 
                           ? 'bg-amber-500/20 text-amber-300' 
-                          : 'bg-blue-500/20 text-blue-300'
+                          : 'bg-[#759BC8]/20 text-[#759BC8]'
                       }`}>
                         {isOverdue 
                           ? (isRtl ? `متأخر ${Math.abs(diffDays)} يوم` : `${Math.abs(diffDays)}d overdue`)
@@ -916,7 +916,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
             <button
               onClick={() => setStatusFilter('active')}
               className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 ${
-                statusFilter === 'active' ? 'bg-blue-500 text-white' : 'bg-[#0A0D10] text-blue-400 border border-white/10'
+                statusFilter === 'active' ? 'bg-[#759BC8] text-[#0A0D10]' : 'bg-[#0A0D10] text-[#759BC8] border border-white/10'
               }`}
             >
               {t.activeList} ({stats.activeCount})
@@ -1014,7 +1014,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                               ? 'bg-rose-500/20 text-rose-300 animate-pulse' 
                               : calc.status === 'partial' 
                               ? 'bg-[#D9B978]/20 text-[#D9B978]' 
-                              : 'bg-blue-500/20 text-blue-300'
+                              : 'bg-[#759BC8]/20 text-[#759BC8]'
                           }`}>
                             {calc.statusLabel}
                           </span>
@@ -2306,7 +2306,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     <button
                       type="button"
                       onClick={handleAddToCalendar}
-                      className="py-2.5 px-3 bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                      className="py-2.5 px-3 bg-[#759BC8]/15 hover:bg-[#759BC8]/25 text-[#759BC8] border border-[#759BC8]/30 rounded-xl font-bold text-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
                     >
                       <Calendar size={14} />
                       <span>{isRtl ? 'إضافة موعد في التقويم 📅' : 'Add to Calendar'}</span>

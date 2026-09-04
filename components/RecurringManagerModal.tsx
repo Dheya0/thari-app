@@ -283,7 +283,7 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
                     onClick={() => setType('transfer')}
                     className={`py-2 text-xs font-bold rounded-xl border transition-all ${
                       type === 'transfer'
-                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                        ? 'bg-[#759BC8]/20 border-[#759BC8]/50 text-[#759BC8]'
                         : 'bg-slate-900 border-slate-800 text-slate-400'
                     }`}
                   >
@@ -426,7 +426,7 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
                         rule.type === 'income' 
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : rule.type === 'transfer'
-                          ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                          ? 'bg-[#759BC8]/10 text-[#759BC8] border border-[#759BC8]/20'
                           : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                       }`}>
                         {rule.type === 'income' ? <ArrowDownLeft size={16} /> : rule.type === 'transfer' ? <ArrowLeftRight size={16} /> : <ArrowUpRight size={16} />}

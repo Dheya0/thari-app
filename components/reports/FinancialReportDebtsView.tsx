@@ -79,20 +79,20 @@ export const FinancialReportDebtsView: React.FC<DebtsViewProps> = ({ model }) =>
 
         {/* Net Debt Position: صافي المركز المالي للديون */}
         <div className={`border rounded-2xl p-4.5 flex flex-col justify-between ${
-          netDebtPosition >= 0 ? 'bg-blue-50/80 border-blue-200' : 'bg-amber-50/80 border-amber-200'
+          netDebtPosition >= 0 ? 'bg-emerald-50/80 border-emerald-200' : 'bg-amber-50/80 border-amber-200'
         }`}>
           <div className="flex justify-between items-start mb-2">
-            <span className={`text-[11px] font-bold uppercase tracking-wider ${netDebtPosition >= 0 ? 'text-blue-900' : 'text-amber-900'}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider ${netDebtPosition >= 0 ? 'text-emerald-900' : 'text-amber-900'}`}>
               صافي مركز الذمم المالية
             </span>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-              netDebtPosition >= 0 ? 'bg-blue-100 text-blue-950' : 'bg-amber-100 text-amber-950'
+              netDebtPosition >= 0 ? 'bg-emerald-100 text-emerald-950' : 'bg-amber-100 text-amber-950'
             }`}>
               {netDebtPosition >= 0 ? 'مركز إيجابي (فائض)' : 'مركز سلبي (التزام)'}
             </span>
           </div>
           <div className="mt-1">
-            <div className={`text-2xl font-black dir-ltr text-right ${netDebtPosition >= 0 ? 'text-blue-950' : 'text-amber-950'}`}>
+            <div className={`text-2xl font-black dir-ltr text-right ${netDebtPosition >= 0 ? 'text-emerald-950' : 'text-amber-950'}`}>
               {netDebtPosition >= 0 ? '+' : ''}{Math.round(netDebtPosition).toLocaleString()} <span className="text-sm font-bold text-slate-800">{baseCurrency.symbol}</span>
             </div>
             <p className="text-[10.5px] text-slate-600 font-medium mt-1">
@@ -178,7 +178,7 @@ export const FinancialReportDebtsView: React.FC<DebtsViewProps> = ({ model }) =>
                             ? 'bg-rose-100 text-rose-800 border-rose-300'
                             : d.status === 'partial'
                             ? 'bg-amber-100 text-amber-900 border-amber-300'
-                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                            : 'bg-[#759BC8]/20 text-[#2C4875] border-[#759BC8]/40'
                         }`}>
                           {d.statusLabelAr}
                         </span>

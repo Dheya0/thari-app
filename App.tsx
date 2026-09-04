@@ -73,8 +73,8 @@ const INITIAL_STATE: AppState = {
   subscriptions: [],
   categories: INITIAL_CATEGORIES,
   wallets: [
-    { id: 'w-yer-1', name: 'الراتب', currencyCode: 'YER_SANAA', color: '#f59e0b' },
-    { id: 'w-sar-1', name: 'كاش سعودي', currencyCode: 'SAR', color: '#10b981' }
+    { id: 'w-yer-1', name: 'الراتب', currencyCode: 'YER_SANAA', color: '#D9B978' },
+    { id: 'w-sar-1', name: 'كاش سعودي', currencyCode: 'SAR', color: '#8EB9A7' }
   ],
   goals: [],
   debts: [],
