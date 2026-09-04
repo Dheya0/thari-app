@@ -160,6 +160,8 @@ function normalizeStoredState(parsed: any): AppState {
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const isHydratedRef = useRef(false);
   const stateRevisionRef = useRef(0);
 
   useEffect(() => {
@@ -180,6 +182,7 @@ const App: React.FC = () => {
           // Instantly set normalized state so UI paints without waiting for migration
           setState(normalizeStoredState(parsed));
           isHydratedRef.current = true;
+          setIsHydrated(true);
           const initialRevision = stateRevisionRef.current;
 
           // Run non-critical receipt migration in background with revision check
@@ -217,11 +220,13 @@ const App: React.FC = () => {
           }, 500);
         } else {
           isHydratedRef.current = true;
+          setIsHydrated(true);
         }
       } catch (error) {
         console.warn('App hydrate error:', error);
         if (!cancelled) {
           isHydratedRef.current = true;
+          setIsHydrated(true);
         }
       }
     };
@@ -254,7 +259,6 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [isLoadingSplash, setIsLoadingSplash] = useState(false);
-  const isHydratedRef = useRef(false);
 
   // Instant Launch: Remove artificial splash delay so UI paints immediately
   useEffect(() => {
@@ -521,13 +525,14 @@ const App: React.FC = () => {
 
   // Single Save Pipeline with 400ms debounce, generation counter, and coalescing
   useEffect(() => {
+    if (!isHydrated) return;
     queueSecureStateSave(STORAGE_KEY, state);
-  }, [state]);
+  }, [state, isHydrated]);
 
   // Flush state immediately on page unload / pagehide using sync recovery snapshot + async flush
   useEffect(() => {
     const handleImmediateFlush = () => {
-      if (stateRef.current) {
+      if (isHydratedRef.current && stateRef.current) {
         saveSecureStateSync(STORAGE_KEY, stateRef.current);
         void flushSecureStateSave(STORAGE_KEY);
       }
@@ -1297,7 +1302,7 @@ const App: React.FC = () => {
     return <AboutAndPrivacy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} initialTab="privacy" />;
   }
 
-  if (!isHydratedRef.current && !state.hasAcceptedTerms) {
+  if (!isHydrated && !state.hasAcceptedTerms) {
     return (
       <div className="fixed inset-0 bg-[#0A0D10] text-[#F4F1EA] z-[9999] flex items-center justify-center">
         <div className="text-center">
