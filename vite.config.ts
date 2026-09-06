@@ -33,34 +33,13 @@ export default defineConfig(({ mode }) => {
       minify: 'esbuild',
       target: 'es2020',
       cssMinify: true,
-      cssCodeSplit: true,
       reportCompressedSize: false,
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
-          assetFileNames: 'assets/[name]-[hash].[ext]',
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom')) {
-                return 'vendor-react';
-              }
-              if (id.includes('motion')) {
-                return 'vendor-motion';
-              }
-              if (id.includes('lucide-react')) {
-                return 'vendor-lucide';
-              }
-              if (id.includes('recharts') || id.includes('d3-')) {
-                return 'vendor-charts';
-              }
-              if (id.includes('xlsx')) {
-                return 'vendor-xlsx';
-              }
-              return 'vendor-libs';
-            }
-          }
+          assetFileNames: 'assets/[name]-[hash].[ext]'
         }
       }
     }
