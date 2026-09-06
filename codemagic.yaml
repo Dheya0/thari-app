@@ -44,7 +44,7 @@ workflows:
       - name: Install Node dependencies
         script: |
           set -e
-          npm ci
+          npm install
 
       - name: Code quality linting, regression tests, and TypeScript validation
         script: |
@@ -189,7 +189,7 @@ workflows:
       - name: Install Node dependencies
         script: |
           set -e
-          npm ci
+          npm install
 
       - name: Code quality linting, regression tests, and TypeScript validation
         script: |
@@ -310,7 +310,7 @@ workflows:
       - name: Install Node dependencies
         script: |
           set -e
-          npm ci
+          npm install
 
       - name: Generate Assets and Build Web Assets for Capacitor
         script: |
