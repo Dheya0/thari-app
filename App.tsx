@@ -6,8 +6,6 @@ import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringR
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
-import { generateFinancialReportSync } from './services/reports/reportService';
-import { printOrShareFinancialReport } from './services/reports/reportExportService';
 import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
 import { processDueRecurringRules } from './services/recurringService';
@@ -807,6 +805,11 @@ const App: React.FC = () => {
     setPrintEndDate(endDate || null);
 
     try {
+      const [{ generateFinancialReportSync }, { printOrShareFinancialReport }] = await Promise.all([
+        import('./services/reports/reportService'),
+        import('./services/reports/reportExportService')
+      ]);
+
       const model = generateFinancialReportSync({
         transactions: state.transactions,
         categories: state.categories,
@@ -857,6 +860,11 @@ const App: React.FC = () => {
     setPrintEndDate(endDate || null);
     
     try {
+      const [{ generateFinancialReportSync }, { printOrShareFinancialReport }] = await Promise.all([
+        import('./services/reports/reportService'),
+        import('./services/reports/reportExportService')
+      ]);
+
       const model = generateFinancialReportSync({
         transactions: state.transactions,
         categories: state.categories,
@@ -896,6 +904,11 @@ const App: React.FC = () => {
     isExportingInAppRef.current = true;
 
     try {
+      const [{ generateFinancialReportSync }, { printOrShareFinancialReport }] = await Promise.all([
+        import('./services/reports/reportService'),
+        import('./services/reports/reportExportService')
+      ]);
+
       const model = generateFinancialReportSync({
         transactions: state.transactions,
         categories: state.categories,
