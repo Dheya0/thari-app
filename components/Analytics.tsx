@@ -185,8 +185,8 @@ const Analytics: React.FC<AnalyticsProps> = ({
   if (transactions.length === 0) {
     return (
       <div className="space-y-4 animate-fade">
-        <div className="text-center py-16 bg-slate-900/40 rounded-3xl border border-white/5">
-          <Layers className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+        <div className="text-center py-16 bg-[#11161C] rounded-3xl border border-white/10">
+          <Layers className="w-12 h-12 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400 text-xs font-bold">لا توجد بيانات مالية مسجلة للتحليل حالياً.</p>
         </div>
       </div>
@@ -200,15 +200,15 @@ const Analytics: React.FC<AnalyticsProps> = ({
     <div className="space-y-6 pb-8 animate-fade">
       
       {/* Executive Quick Stats Strip */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-950 p-5 rounded-3xl border border-white/10 shadow-xl space-y-4">
-        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20">
-              <Sparkles size={16} />
+      <div className="bg-[#11161C] p-5 sm:p-6 rounded-3xl border border-white/10 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-white/5 pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-[#D9B978]/15 flex items-center justify-center text-[#D9B978] border border-[#D9B978]/30">
+              <Sparkles size={18} />
             </div>
             <div>
-              <p className="text-xs font-black text-white">المركز المالي والمؤشرات التنفيذية</p>
-              <p className="text-[10px] text-slate-400 font-bold">
+              <p className="text-xs sm:text-sm font-black text-[#F4F1EA]">المركز المالي والمؤشرات التنفيذية</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-0.5">
                 {reportMode === 'merged' 
                   ? `كافة المحافظ مدمجة • التقييم المعياري بـ ${currentCurrencyCode}`
                   : reportMode === 'by-wallet' 
@@ -218,7 +218,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
             </div>
           </div>
           <div className="text-left">
-            <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+            <span className="text-[10px] font-black text-[#D9B978] bg-[#D9B978]/15 px-3 py-1 rounded-full border border-[#D9B978]/30">
               وفر {stats.savingsRatio}%
             </span>
           </div>
@@ -226,31 +226,31 @@ const Analytics: React.FC<AnalyticsProps> = ({
 
         <div className="grid grid-cols-2 gap-3 pt-1">
           {/* MoM Income */}
-          <div className="bg-slate-950/60 p-4 rounded-2xl border border-white/5">
+          <div className="bg-[#0A0D10] p-4 rounded-2xl border border-white/5">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                <TrendingUp size={13} className="text-emerald-400" /> واردات الشهر
+                <TrendingUp size={13} className="text-[#8EB9A7]" /> واردات الشهر
               </span>
-              <div className={`flex items-center text-[9px] font-black px-1.5 py-0.5 rounded ${momStats.incomeChange >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
+              <div className={`flex items-center text-[9px] font-black px-1.5 py-0.5 rounded ${momStats.incomeChange >= 0 ? 'bg-[#8EB9A7]/15 text-[#8EB9A7]' : 'bg-[#C98387]/15 text-[#C98387]'}`}>
                 {momStats.incomeChange > 0 ? '+' : ''}{momStats.incomeChange.toFixed(1)}%
               </div>
             </div>
-            <p className="text-base sm:text-lg font-black text-white dir-ltr text-right">
+            <p className="text-base sm:text-lg font-black text-[#F4F1EA] dir-ltr text-right">
               +{Math.round(momStats.curInc).toLocaleString()} <span className="text-xs text-slate-400">{currencySymbol}</span>
             </p>
           </div>
 
           {/* MoM Expense */}
-          <div className="bg-slate-950/60 p-4 rounded-2xl border border-white/5">
+          <div className="bg-[#0A0D10] p-4 rounded-2xl border border-white/5">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                <TrendingDown size={13} className="text-rose-400" /> منصرفات الشهر
+                <TrendingDown size={13} className="text-[#C98387]" /> منصرفات الشهر
               </span>
-              <div className={`flex items-center text-[9px] font-black px-1.5 py-0.5 rounded ${momStats.expenseChange <= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'}`}>
+              <div className={`flex items-center text-[9px] font-black px-1.5 py-0.5 rounded ${momStats.expenseChange <= 0 ? 'bg-[#8EB9A7]/15 text-[#8EB9A7]' : 'bg-[#C98387]/15 text-[#C98387]'}`}>
                 {momStats.expenseChange > 0 ? '+' : ''}{momStats.expenseChange.toFixed(1)}%
               </div>
             </div>
-            <p className="text-base sm:text-lg font-black text-white dir-ltr text-right">
+            <p className="text-base sm:text-lg font-black text-[#F4F1EA] dir-ltr text-right">
               -{Math.round(momStats.curExp).toLocaleString()} <span className="text-xs text-slate-400">{currencySymbol}</span>
             </p>
           </div>
@@ -258,11 +258,11 @@ const Analytics: React.FC<AnalyticsProps> = ({
       </div>
 
       {/* Report Generator Controls Deck (دمج المحافظ وفصل العملات في التقارير) */}
-      <div className="bg-slate-900/90 p-4 sm:p-5 rounded-3xl border border-white/10 shadow-xl space-y-4">
+      <div className="bg-[#11161C] p-4 sm:p-5 rounded-3xl border border-white/10 shadow-xl space-y-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <FileText size={16} className="text-amber-400" />
-            <h3 className="text-sm font-black text-white">إعدادات ونطاق التقرير المالي وكشف الحساب</h3>
+            <FileText size={16} className="text-[#D9B978]" />
+            <h3 className="text-sm font-black text-[#F4F1EA]">إعدادات ونطاق التقرير المالي وكشف الحساب</h3>
           </div>
           <p className="text-[10px] text-slate-400 font-bold">
             اختر خيار دمج كافة المحافظ والعملات معاً، أو فصل كل محفظة وعملة بشكل مستقل في التقارير
@@ -270,12 +270,12 @@ const Analytics: React.FC<AnalyticsProps> = ({
         </div>
 
         {/* Mode Selector Tabs */}
-        <div className="grid grid-cols-3 gap-1.5 bg-slate-950 p-1 rounded-2xl border border-white/5">
+        <div className="grid grid-cols-3 gap-1.5 bg-[#0A0D10] p-1.5 rounded-2xl border border-white/5">
           <button
             onClick={() => { setReportMode('merged'); onFilterChange(null); }}
             className={`py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 transition-all ${
               reportMode === 'merged' 
-                ? 'bg-amber-500 text-slate-950 shadow-md' 
+                ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-black' 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -293,7 +293,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
             }}
             className={`py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 transition-all ${
               reportMode === 'by-wallet' 
-                ? 'bg-amber-500 text-slate-950 shadow-md' 
+                ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-black' 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -310,7 +310,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
             }}
             className={`py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 transition-all ${
               reportMode === 'by-currency' 
-                ? 'bg-amber-500 text-slate-950 shadow-md' 
+                ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-black' 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -321,8 +321,8 @@ const Analytics: React.FC<AnalyticsProps> = ({
 
         {/* Sub-selector based on active mode */}
         {reportMode === 'by-wallet' && (
-          <div className="bg-slate-950/80 p-3 rounded-2xl border border-white/5 flex items-center gap-3">
-            <WalletIcon size={16} className="text-amber-400 shrink-0" />
+          <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/5 flex items-center gap-3">
+            <WalletIcon size={16} className="text-[#D9B978] shrink-0" />
             <div className="flex-1 min-w-0">
               <label className="text-[9px] font-black text-slate-400 block mb-0.5">اختر المحفظة المستهدفة في التقرير:</label>
               <select
@@ -331,10 +331,10 @@ const Analytics: React.FC<AnalyticsProps> = ({
                   setSelectedReportWallet(e.target.value);
                   onFilterChange(e.target.value || null);
                 }}
-                className="w-full bg-transparent text-white font-bold outline-none text-xs cursor-pointer"
+                className="w-full bg-transparent text-[#F4F1EA] font-bold outline-none text-xs cursor-pointer"
               >
                 {wallets.map(w => (
-                  <option key={w.id} value={w.id} className="bg-slate-900 text-white">
+                  <option key={w.id} value={w.id} className="bg-[#11161C] text-white">
                     {w.name} (عملتها الأساسية: {w.currencyCode})
                   </option>
                 ))}
@@ -344,19 +344,19 @@ const Analytics: React.FC<AnalyticsProps> = ({
         )}
 
         {reportMode === 'by-currency' && (
-          <div className="bg-slate-950/80 p-3 rounded-2xl border border-white/5 flex items-center gap-3">
-            <Coins size={16} className="text-amber-400 shrink-0" />
+          <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/5 flex items-center gap-3">
+            <Coins size={16} className="text-[#D9B978] shrink-0" />
             <div className="flex-1 min-w-0">
               <label className="text-[9px] font-black text-slate-400 block mb-0.5">اختر العملة المراد استخراج تقريرها المستقل:</label>
               <select
                 value={selectedReportCurrency}
                 onChange={(e) => setSelectedReportCurrency(e.target.value)}
-                className="w-full bg-transparent text-white font-bold outline-none text-xs cursor-pointer"
+                className="w-full bg-transparent text-[#F4F1EA] font-bold outline-none text-xs cursor-pointer"
               >
                 {uniqueCurrenciesInTx.map(code => {
                   const cObj = (currencies || DEFAULT_CURRENCIES).find(c => c.code === code);
                   return (
-                    <option key={code} value={code} className="bg-slate-900 text-white">
+                    <option key={code} value={code} className="bg-[#11161C] text-white">
                       {cObj?.name || code} ({code})
                     </option>
                   );
@@ -370,48 +370,48 @@ const Analytics: React.FC<AnalyticsProps> = ({
         <div className="grid grid-cols-2 gap-3 pt-1">
           <button 
             onClick={() => handleTriggerPrint('summary')}
-            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-amber-500 text-slate-950 font-black rounded-2xl text-xs uppercase transition-all active:scale-95 shadow-lg shadow-amber-500/20 hover:bg-amber-400"
+            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-[#D9B978] text-[#0A0D10] font-black rounded-2xl text-xs uppercase transition-all active:scale-95 shadow-lg shadow-[#D9B978]/10 hover:bg-[#c9a764]"
           >
             <Printer size={16} /> <span>طباعة ملخص تنفيذي</span>
           </button>
           
           <button 
             onClick={() => handleTriggerPrint('detailed')}
-            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-slate-800 text-white font-bold rounded-2xl text-xs uppercase transition-all active:scale-95 border border-white/10 hover:bg-slate-700"
+            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-[#1A222C] text-[#F4F1EA] font-bold rounded-2xl text-xs uppercase transition-all active:scale-95 border border-white/10 hover:bg-[#232D3A]"
           >
-            <FileText size={16} className="text-amber-400" /> <span>كشف حساب تفصيلي</span>
+            <FileText size={16} className="text-[#D9B978]" /> <span>كشف حساب تفصيلي</span>
           </button>
         </div>
 
         <button 
           onClick={handleExportCSV}
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-950/80 border border-white/10 text-slate-300 rounded-2xl text-xs font-bold uppercase transition-all active:scale-95 hover:text-white hover:border-emerald-500/40"
+          className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#0A0D10] border border-white/10 text-slate-300 rounded-2xl text-xs font-bold uppercase transition-all active:scale-95 hover:text-white hover:border-[#8EB9A7]/40"
         >
-          <Download size={15} className="text-emerald-400" /> <span>تصدير كشف حساب جدول البيانات Excel (CSV)</span>
+          <Download size={15} className="text-[#8EB9A7]" /> <span>تصدير كشف حساب جدول البيانات Excel (CSV)</span>
         </button>
       </div>
 
       {/* Spending Distribution Breakdown Section */}
-      <div className="bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
+      <div className="bg-[#11161C] border border-white/10 p-5 sm:p-6 rounded-3xl shadow-xl space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm sm:text-base font-black text-white">
+            <h3 className="text-sm sm:text-base font-black text-[#F4F1EA]">
               هيكل توزيع المصروفات
             </h3>
             <p className="text-[10px] text-slate-400 font-bold mt-0.5">مقيمة بـ {currentCurrencyCode}</p>
           </div>
 
-          <div className="flex bg-slate-950 p-1 rounded-xl border border-white/10">
+          <div className="flex bg-[#0A0D10] p-1 rounded-xl border border-white/10">
             <button 
               onClick={() => setChartView('donut')}
-              className={`p-1.5 rounded-lg transition-all ${chartView === 'donut' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
+              className={`p-1.5 rounded-lg transition-all ${chartView === 'donut' ? 'bg-[#D9B978] text-[#0A0D10] font-black' : 'text-slate-400 hover:text-white'}`}
               title="رسم بياني دائري"
             >
               <PieChartIcon size={16} />
             </button>
             <button 
               onClick={() => setChartView('bar')}
-              className={`p-1.5 rounded-lg transition-all ${chartView === 'bar' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'}`}
+              className={`p-1.5 rounded-lg transition-all ${chartView === 'bar' ? 'bg-[#D9B978] text-[#0A0D10] font-black' : 'text-slate-400 hover:text-white'}`}
               title="رسم بياني عمودي"
             >
               <BarChart3 size={16} />
@@ -421,7 +421,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
 
         {/* Chart View */}
         {!chartsReady ? (
-          <div className="h-60 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-center text-[11px] font-bold text-slate-400">
+          <div className="h-60 rounded-2xl bg-[#0A0D10] border border-white/5 flex items-center justify-center text-[11px] font-bold text-slate-400">
             جاري تحميل التحليلات...
           </div>
         ) : chartView === 'donut' ? (
@@ -438,20 +438,20 @@ const Analytics: React.FC<AnalyticsProps> = ({
                   dataKey="value"
                 >
                   {expenseData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#0f172a" strokeWidth={2} />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#0A0D10" strokeWidth={2} />
                   ))}
                 </Pie>
                 <Tooltip 
                   formatter={(value: any) => [`${Number(value).toLocaleString()} ${currencySymbol}`, 'المصروف']}
-                  contentStyle={{ background: '#090d16', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                  contentStyle={{ background: '#11161C', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)', color: '#F4F1EA', fontSize: '11px', fontWeight: 'bold' }}
                 />
               </PieChart>
             </ResponsiveContainer>
             
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">إجمالي المصروفات</span>
-              <span className="text-lg sm:text-xl font-black text-white mt-0.5">
-                {Math.round(stats.totalExpense).toLocaleString()} <span className="text-xs text-amber-400">{currencySymbol}</span>
+              <span className="text-lg sm:text-xl font-black text-[#F4F1EA] mt-0.5">
+                {Math.round(stats.totalExpense).toLocaleString()} <span className="text-xs text-[#D9B978]">{currencySymbol}</span>
               </span>
             </div>
           </div>
@@ -464,7 +464,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
                 <YAxis stroke="#64748b" tick={{ fontSize: 9, fill: '#94a3b8' }} hide />
                 <Tooltip 
                   formatter={(value: any) => [`${Number(value).toLocaleString()} ${currencySymbol}`, 'المصروف']}
-                  contentStyle={{ background: '#090d16', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                  contentStyle={{ background: '#11161C', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.15)', color: '#F4F1EA', fontSize: '11px', fontWeight: 'bold' }}
                 />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   {expenseData.slice(0, 6).map((entry, index) => (
@@ -481,12 +481,12 @@ const Analytics: React.FC<AnalyticsProps> = ({
           {expenseData.slice(0, 6).map((item, idx) => {
             const pct = stats.totalExpense > 0 ? ((item.value / stats.totalExpense) * 100).toFixed(0) : '0';
             return (
-              <div key={idx} className="bg-slate-950/60 p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
+              <div key={idx} className="bg-[#0A0D10] p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                   <span className="text-[11px] font-bold text-slate-200 truncate">{item.name}</span>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-amber-400 shrink-0">{pct}%</span>
+                <span className="text-[10px] font-mono font-bold text-[#D9B978] shrink-0">{pct}%</span>
               </div>
             );
           })}

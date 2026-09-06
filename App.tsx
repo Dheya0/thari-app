@@ -1358,7 +1358,7 @@ const App: React.FC = () => {
       <div className="flex flex-col flex-1 print:hidden relative z-20 overflow-hidden">
         {/* Top Header - Displayed exclusively on Dashboard (الرئيسية) */}
         {activeTab === 'dashboard' && (
-          <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90 animate-fade" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
+          <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90 animate-fade" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.85rem)' }}>
             <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-2 min-w-0">
               {/* App Branding & Quick Add Long Press */}
               <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
@@ -1460,7 +1460,10 @@ const App: React.FC = () => {
           </header>
         )}
 
-        <main className="flex-1 overflow-y-auto no-scrollbar smooth-scroll overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full">
+        <main 
+          className="flex-1 overflow-y-auto no-scrollbar smooth-scroll overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full"
+          style={{ paddingTop: activeTab === 'dashboard' ? '0px' : 'calc(env(safe-area-inset-top, 0px) + 1.15rem)' }}
+        >
           <div className="py-4 sm:py-6 max-w-7xl mx-auto w-full">
             {isUpdateAvailable && (
               <motion.div

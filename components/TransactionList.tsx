@@ -505,36 +505,6 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
                           <span className="text-[8.5px] text-slate-500 font-mono sm:hidden">{tx.date}</span>
                         </div>
-
-                        {/* Direct desktop action buttons */}
-                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                          <motion.button
-                            type="button"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEdit(tx);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-[#D9B978] transition-colors bg-white/5 rounded-xl border border-white/5"
-                            title="تعديل المعاملة"
-                          >
-                            <Edit2 size={13} />
-                          </motion.button>
-                          <motion.button
-                            type="button"
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDelete(tx.id);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-[#C98387] transition-colors bg-white/5 rounded-xl border border-white/5"
-                            title="حذف"
-                          >
-                            <Trash2 size={13} />
-                          </motion.button>
-                        </div>
                       </div>
                     </div>
                   </SwipeableRow>
