@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X } from 'lucide-react';
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
@@ -1462,6 +1462,50 @@ const App: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto no-scrollbar smooth-scroll overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full">
           <div className="py-4 sm:py-6 max-w-7xl mx-auto w-full">
+            {isUpdateAvailable && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-4 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 p-4 rounded-3xl border border-amber-500/30 flex items-center justify-between gap-4 shadow-xl backdrop-blur-md"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30 animate-pulse">
+                    <RefreshCw size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                      <span>يتوفر تحديث جديد للتطبيق (إصدار جديد)</span>
+                      <span className="text-[9px] bg-amber-500 text-slate-950 px-2 py-0.5 rounded-full font-black">متاح الآن</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-300 font-bold leading-relaxed mt-0.5">
+                      تم إصدار تحديث جديد يتضمن تحسينات على الأداء والأمان وميزات إضافية. انقر للتحديث الفوري.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      if (swRegistration && swRegistration.waiting) {
+                        swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        window.location.reload();
+                      } else {
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-[#D9B978] hover:bg-[#c9a764] text-slate-950 font-black text-xs rounded-xl shadow-lg active:scale-95 transition-all cursor-pointer"
+                  >
+                    تحديث الآن
+                  </button>
+                  <button
+                    onClick={() => setIsUpdateAvailable(false)}
+                    className="p-2 text-slate-400 hover:text-white transition-colors"
+                    title="إخفاء التنبيه"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </motion.div>
+            )}
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={activeTab}
