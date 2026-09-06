@@ -1363,19 +1363,21 @@ const App: React.FC = () => {
     >
       
       {/* Hidden Print Report */}
-      <FinancialReport 
-        transactions={state.transactions} 
-        categories={state.categories} 
-        currency={state.currency} 
-        userName={state.userName} 
-        wallets={state.wallets} 
-        type={printType} 
-        exchangeRates={state.exchangeRates}
-        filterWalletId={printWalletFilter} 
-        filterCurrency={printCurrencyFilter}
-        startDate={printStartDate}
-        endDate={printEndDate}
-      />
+      <React.Suspense fallback={null}>
+        <FinancialReport 
+          transactions={state.transactions} 
+          categories={state.categories} 
+          currency={state.currency} 
+          userName={state.userName} 
+          wallets={state.wallets} 
+          type={printType} 
+          exchangeRates={state.exchangeRates}
+          filterWalletId={printWalletFilter} 
+          filterCurrency={printCurrencyFilter}
+          startDate={printStartDate}
+          endDate={printEndDate}
+        />
+      </React.Suspense>
       
       <div className="flex flex-col flex-1 print:hidden relative z-20 overflow-hidden">
         {/* Top Header - Displayed exclusively on Dashboard (الرئيسية) */}

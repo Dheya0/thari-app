@@ -11,7 +11,7 @@ import { sanitizeNumericInput } from '../utils/formatters';
 import { encryptData, decryptData } from '../services/encryptionService';
 import { authenticateBiometrics, checkBiometricAvailable, isNativeCapacitorEnvironment, isStandalonePwaMode } from '../services/biometricService';
 import { getIcon, DEFAULT_EXCHANGE_RATES, convertCurrency } from '../constants';
-import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
+import { exportAndShareExecutiveCSV } from '../utils/exportHelper';
 import { exportAndShareNativeFile, buildModernExcelWorkbook, exportAndShareXlsxFile } from '../services/reports/reportExportService';
 import { generateFinancialReportSync } from '../services/reports/reportService';
 import { ReportModal } from './reports/ReportModal';

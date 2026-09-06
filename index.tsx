@@ -11,7 +11,13 @@ const mountApp = () => {
   const root = createRoot(rootElement);
   root.render(
     <ErrorBoundary>
-      <App />
+      <React.Suspense fallback={
+        <div className="fixed inset-0 bg-[#0A0D10] text-[#F4F1EA] flex items-center justify-center font-bold text-sm dir-rtl">
+          جاري تحضير التطبيق...
+        </div>
+      }>
+        <App />
+      </React.Suspense>
     </ErrorBoundary>
   );
 
