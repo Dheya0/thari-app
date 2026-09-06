@@ -22,19 +22,20 @@ import { appLifecycleService } from './services/appLifecycleService';
 import { backNavigationManager, useBackNavigation } from './utils/backNavigation';
 import BalanceCard from './components/BalanceCard';
 import ElegantDashboard from './components/ElegantDashboard';
+import TransactionList from './components/TransactionList';
+import Analytics from './components/Analytics';
+import DebtManager from './components/DebtManager';
+import SubscriptionManager from './components/SubscriptionManager';
+import BudgetManager from './components/BudgetManager';
+import GoalTracker from './components/GoalTracker';
+import Settings from './components/Settings';
+import ZakatCalculator from './components/ZakatCalculator';
 import Logo from './components/Logo';
 import { GlobalToast, ToastData } from './components/GlobalToast';
 
 const TransactionForm = React.lazy(() => import('./components/TransactionForm'));
-const TransactionList = React.lazy(() => import('./components/TransactionList'));
 const WelcomeScreen = React.lazy(() => import('./components/WelcomeScreen'));
 const LockScreen = React.lazy(() => import('./components/LockScreen'));
-const Analytics = React.lazy(() => import('./components/Analytics'));
-const DebtManager = React.lazy(() => import('./components/DebtManager'));
-const SubscriptionManager = React.lazy(() => import('./components/SubscriptionManager'));
-const BudgetManager = React.lazy(() => import('./components/BudgetManager'));
-const GoalTracker = React.lazy(() => import('./components/GoalTracker'));
-const Settings = React.lazy(() => import('./components/Settings'));
 const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
 const FinancialReport = React.lazy(() => import('./components/FinancialReport'));
 const ReportModal = React.lazy(() => import('./components/reports/ReportModal').then(m => ({ default: m.ReportModal })));
@@ -44,7 +45,6 @@ const ToolsHubModal = React.lazy(() => import('./components/ToolsHubModal').then
 const CurrencySelectorModal = React.lazy(() => import('./components/CurrencySelectorModal'));
 const WalletSelectorModal = React.lazy(() => import('./components/WalletSelectorModal'));
 const SmartAlerts = React.lazy(() => import('./components/SmartAlerts'));
-const ZakatCalculator = React.lazy(() => import('./components/ZakatCalculator'));
 const ExecutiveInsights = React.lazy(() => import('./components/ExecutiveInsights'));
 const CashflowSankey = React.lazy(() => import('./components/CashflowSankey'));
 
@@ -1546,7 +1546,14 @@ const App: React.FC = () => {
                 transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full will-change-transform"
               >
-                <React.Suspense fallback={<div className="min-h-[300px] flex items-center justify-center text-slate-500 font-bold text-sm">جاري التحميل...</div>}>
+                <React.Suspense fallback={
+                  <div className="min-h-[350px] flex flex-col items-center justify-center p-8 gap-3 text-slate-400 font-bold text-xs animate-pulse">
+                    <div className="w-10 h-10 rounded-2xl bg-[#171D24] border border-white/10 flex items-center justify-center text-[#D9B978]">
+                      <Sparkles size={18} className="animate-spin" />
+                    </div>
+                    <span>{state.language === 'en' ? 'Preparing view...' : 'جاري التحميل...'}</span>
+                  </div>
+                }>
                 {activeTab === 'dashboard' && (
                   <ElegantDashboard
                     userName={state.userName}
