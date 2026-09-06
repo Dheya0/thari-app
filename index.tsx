@@ -33,10 +33,40 @@ if (document.readyState === 'loading') {
 // Progressive Web App (PWA) Service Worker Registration (Only on standard http/https standalone)
 if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
   try {
+    const notifyWorkerToCacheAssets = () => {
+      try {
+        if (!navigator.serviceWorker.controller) return;
+        const assetElements = Array.from(
+          document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="modulepreload"]')
+        );
+        const assetUrls = assetElements
+          .map((el) => el.getAttribute('src') || el.getAttribute('href'))
+          .filter((url): url is string => Boolean(url && url.startsWith('/assets/')));
+
+        if (assetUrls.length > 0) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'CACHE_ASSETS',
+            assets: Array.from(new Set(assetUrls)),
+          });
+        }
+      } catch (err) {
+        console.warn('Could not post assets to service worker:', err);
+      }
+    };
+
     navigator.serviceWorker.register('/sw.js')
       .then((reg) => {
         // Proactively check for service worker updates on page load
         reg.update().catch(() => {});
+
+        // Warm-up current page assets in the service worker cache
+        if (navigator.serviceWorker.controller) {
+          notifyWorkerToCacheAssets();
+        } else {
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            notifyWorkerToCacheAssets();
+          });
+        }
 
         reg.onupdatefound = () => {
           const installingWorker = reg.installing;

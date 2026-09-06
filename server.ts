@@ -93,7 +93,19 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath, { index: false }));
+    app.use(express.static(distPath, {
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Service-Worker-Allowed', '/');
+        } else if (filePath.includes('/assets/') || filePath.includes('\\assets\\')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (filePath.endsWith('manifest.json')) {
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+      }
+    }));
     app.get('*all', (req: any, res: any) => {
       const indexPath = path.join(distPath, 'index.html');
       fs.readFile(indexPath, 'utf8', (err, htmlData) => {
@@ -102,6 +114,8 @@ async function startServer() {
         }
         const nonce = res.locals.cspNonce || '';
         const injectedHtml = htmlData.replace(/%CSP_NONCE%/g, nonce);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
         res.send(injectedHtml);
       });
     });
