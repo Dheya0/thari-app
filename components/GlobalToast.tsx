@@ -43,7 +43,7 @@ export const GlobalToast: React.FC<GlobalToastProps> = ({ toast, onDismiss }) =>
       {toast && (
         <div 
           dir="rtl"
-          className="fixed top-5 left-0 right-0 z-[300] flex justify-center pointer-events-none px-4 no-print"
+          className="fixed top-5 left-0 right-0 z-[9999999] flex justify-center pointer-events-none px-4 no-print"
         >
           <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.94 }}
@@ -79,9 +79,15 @@ export const GlobalToast: React.FC<GlobalToastProps> = ({ toast, onDismiss }) =>
               {toast.action && (
                 <button
                   type="button"
-                  onClick={() => {
-                    toast.action?.onClick();
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const actionFn = toast.action?.onClick;
                     onDismiss();
+                    if (actionFn) {
+                      setTimeout(() => {
+                        actionFn();
+                      }, 15);
+                    }
                   }}
                   className="px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/30 text-xs font-black transition-all active:scale-95 shadow-xs"
                 >

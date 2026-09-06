@@ -33,6 +33,7 @@ import ZakatCalculator from './components/ZakatCalculator';
 import Logo from './components/Logo';
 import { GlobalToast, ToastData } from './components/GlobalToast';
 import TransactionForm from './components/TransactionForm';
+import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import WelcomeScreen from './components/WelcomeScreen';
 import LockScreen from './components/LockScreen';
 const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
@@ -326,6 +327,8 @@ const App: React.FC = () => {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const lastDeletedTransactionRef = useRef<Transaction | null>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   useEffect(() => {
@@ -530,6 +533,7 @@ const App: React.FC = () => {
   }, []);
 
   const isAnyModalActive = Boolean(
+    transactionToDelete ||
     showPrivacyPolicy ||
     showTrashModal ||
     showToolsHub ||
@@ -542,6 +546,10 @@ const App: React.FC = () => {
 
   // Register top-level modals in centralized back navigation stack with priority 5
   useBackNavigation(() => {
+    if (transactionToDelete) {
+      setTransactionToDelete(null);
+      return true;
+    }
     if (showPrivacyPolicy) {
       setShowPrivacyPolicy(false);
       return true;
@@ -1070,10 +1078,60 @@ const App: React.FC = () => {
     setShowAddForm(true);
   };
 
-  // Soft Delete Handler
-  const handleDeleteTransaction = (id: string) => {
+  // Trigger modern confirmation modal for list/dashboard deletions
+  const handleRequestDeleteTransaction = useCallback((idOrTx: string | Transaction) => {
+    const target = typeof idOrTx === 'string'
+      ? state.transactions.find(t => t.id === idOrTx)
+      : idOrTx;
+    if (!target) return;
+    setTransactionToDelete(target);
+  }, [state.transactions]);
+
+  // Execute deletion after user confirms in the modern modal
+  const handleConfirmDeleteTransaction = useCallback(() => {
+    if (!transactionToDelete) return;
+    const target = transactionToDelete;
+    setTransactionToDelete(null);
+
+    // Save target transaction in ref for instant undo restoration
+    lastDeletedTransactionRef.current = target;
+
+    const deletedItem: Transaction = {
+      ...target,
+      isDeleted: true,
+      deletedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setState(p => ({
+      ...p,
+      transactions: p.transactions.filter(t => t.id !== target.id),
+      trashTransactions: [deletedItem, ...(p.trashTransactions || []).filter(t => t.id !== target.id)],
+    }));
+
+    if (editingTransaction?.id === target.id) {
+      setEditingTransaction(null);
+      setShowAddForm(false);
+    }
+
+    NativeHaptics.notification('WARNING').catch(() => {});
+
+    showToast(
+      activeLanguage === 'en' ? 'Transaction moved to recycle bin' : 'تم نقل المعاملة إلى سلة المحذوفات',
+      'info',
+      {
+        label: activeLanguage === 'en' ? 'Undo' : 'تراجع',
+        onClick: () => handleRestoreTransaction(target.id, target)
+      }
+    );
+  }, [transactionToDelete, editingTransaction, activeLanguage]);
+
+  // Soft Delete Handler (used directly or by form)
+  const handleDeleteTransaction = useCallback((id: string) => {
     const target = state.transactions.find(t => t.id === id);
     if (!target) return;
+
+    lastDeletedTransactionRef.current = target;
 
     const deletedItem: Transaction = {
       ...target,
@@ -1085,41 +1143,64 @@ const App: React.FC = () => {
     setState(p => ({
       ...p,
       transactions: p.transactions.filter(t => t.id !== id),
-      trashTransactions: [deletedItem, ...(p.trashTransactions || [])],
+      trashTransactions: [deletedItem, ...(p.trashTransactions || []).filter(t => t.id !== id)],
     }));
+
+    if (editingTransaction?.id === id) {
+      setEditingTransaction(null);
+      setShowAddForm(false);
+    }
+
+    NativeHaptics.notification('WARNING').catch(() => {});
 
     showToast(
       activeLanguage === 'en' ? 'Transaction moved to recycle bin' : 'تم نقل المعاملة إلى سلة المحذوفات',
       'info',
       {
         label: activeLanguage === 'en' ? 'Undo' : 'تراجع',
-        onClick: () => handleRestoreTransaction(target.id)
+        onClick: () => handleRestoreTransaction(target.id, target)
       }
     );
-  };
+  }, [state.transactions, editingTransaction, activeLanguage]);
 
-  const handleRestoreTransaction = (id: string) => {
-    const target = state.trashTransactions?.find(t => t.id === id);
-    if (!target) return;
+  const handleRestoreTransaction = useCallback((id?: string, directTarget?: Transaction) => {
+    const cachedTarget = directTarget || lastDeletedTransactionRef.current;
+    const targetId = id || cachedTarget?.id;
+    if (!targetId && !cachedTarget) return;
 
-    const restoredItem: Transaction = {
-      ...target,
-      isDeleted: false,
-      deletedAt: undefined,
-      updatedAt: new Date().toISOString(),
-    };
+    setState(p => {
+      const foundInTrash = (p.trashTransactions || []).find(t => t.id === targetId);
+      const toRestore = cachedTarget || foundInTrash;
+      if (!toRestore) return p;
 
-    setState(p => ({
-      ...p,
-      trashTransactions: (p.trashTransactions || []).filter(t => t.id !== id),
-      transactions: [restoredItem, ...p.transactions],
-    }));
+      const restoredItem: Transaction = {
+        ...toRestore,
+        isDeleted: false,
+        deletedAt: undefined,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const remainingTrash = (p.trashTransactions || []).filter(t => t.id !== toRestore.id);
+      const alreadyInList = p.transactions.some(t => t.id === toRestore.id);
+      const updatedTransactions = alreadyInList 
+        ? p.transactions 
+        : [restoredItem, ...p.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      return {
+        ...p,
+        trashTransactions: remainingTrash,
+        transactions: updatedTransactions,
+      };
+    });
+
+    lastDeletedTransactionRef.current = null;
+    NativeHaptics.notification('SUCCESS').catch(() => {});
 
     showToast(
       activeLanguage === 'en' ? 'Transaction restored successfully' : 'تمت استعادة المعاملة بنجاح',
       'success'
     );
-  };
+  }, [activeLanguage]);
 
   const handlePermanentDelete = (id: string) => {
     const target = state.trashTransactions?.find(t => t.id === id);
@@ -1687,7 +1768,7 @@ const App: React.FC = () => {
                     onOpenDebts={() => setActiveTab('debts')}
                     onOpenAllTransactions={() => setActiveTab('transactions')}
                     onEditTransaction={handleEditTransaction}
-                    onDeleteTransaction={handleDeleteTransaction}
+                    onDeleteTransaction={handleRequestDeleteTransaction}
                     language={activeLanguage}
                   />
                 )}
@@ -1755,7 +1836,7 @@ const App: React.FC = () => {
                               transactions={filteredTransactions} 
                               categories={state.categories} 
                               wallets={state.wallets} 
-                              onDelete={handleDeleteTransaction} 
+                              onDelete={handleRequestDeleteTransaction} 
                               onEdit={handleEditTransaction} 
                               currencySymbol={localizedCurrency.symbol}
                               currentCurrencyCode={state.currency.code}
@@ -1984,6 +2065,16 @@ const App: React.FC = () => {
               t={t}
             />
           )}
+
+          <ConfirmDeleteModal
+            isOpen={Boolean(transactionToDelete)}
+            transaction={transactionToDelete}
+            onClose={() => setTransactionToDelete(null)}
+            onConfirm={handleConfirmDeleteTransaction}
+            walletName={state.wallets.find(w => w.id === transactionToDelete?.walletId)?.name}
+            categoryName={state.categories.find(c => c.id === transactionToDelete?.categoryId)?.name}
+            language={activeLanguage}
+          />
         </AnimatePresence>
         </React.Suspense>
 

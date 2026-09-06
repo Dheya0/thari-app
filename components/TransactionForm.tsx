@@ -25,6 +25,7 @@ import { safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { NativeKeyboard, NativeHaptics } from '../services/nativeServices';
 import { saveReceiptToStorage, loadReceiptDataUrl } from '../services/receiptStorage';
 import { useBackNavigation } from '../utils/backNavigation';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface TransactionFormProps {
   categories: Category[];
@@ -2024,36 +2025,33 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
               {(initialData || (isEditingExisting && selectedTxForEdit)) && onDelete && (
                 <div>
-                  {!showDeleteConfirm ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="w-full py-3 px-4 rounded-2xl font-bold text-xs text-[#C98387] bg-[#C98387]/10 hover:bg-[#C98387]/20 border border-[#C98387]/30 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={16} />
-                      <span>{t.deleteTransaction}</span>
-                    </button>
-                  ) : (
-                    <div className="p-3 bg-[#C98387]/15 border border-[#C98387]/40 rounded-2xl space-y-2 text-center animate-fade">
-                      <p className="text-xs font-bold text-[#C98387]">{t.confirmDeleteTransaction}</p>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleDeleteCurrent}
-                          className="flex-1 py-2 rounded-xl bg-[#C98387] text-white font-black text-xs hover:bg-[#C98387]/90 active:scale-95 transition-all"
-                        >
-                          {t.confirm}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowDeleteConfirm(false)}
-                          className="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:text-white active:scale-95 transition-all"
-                        >
-                          {t.cancel}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-[#C98387] bg-[#C98387]/10 hover:bg-[#C98387]/20 border border-[#C98387]/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <Trash2 size={16} />
+                    <span>{t.deleteTransaction}</span>
+                  </button>
+
+                  <ConfirmDeleteModal
+                    isOpen={showDeleteConfirm}
+                    transaction={(initialData || transactions?.find(t => t.id === selectedTxForEdit) || {
+                      id: selectedTxForEdit || '',
+                      amount: parseArabicNumber(amount) || 0,
+                      currency: inputCurrency || 'SAR',
+                      type: (selectedEvent === 'income' ? 'income' : selectedEvent === 'transfer' ? 'transfer' : 'expense') as any,
+                      date,
+                      note,
+                      walletId: walletId,
+                      categoryId: categoryId,
+                    }) as Transaction}
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={handleDeleteCurrent}
+                    walletName={wallets.find(w => w.id === walletId)?.name}
+                    categoryName={categories.find(c => c.id === categoryId)?.name}
+                    language={language}
+                  />
                 </div>
               )}
             </div>

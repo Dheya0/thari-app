@@ -120,21 +120,10 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!showDeleteConfirm) {
-      setShowDeleteConfirm(true);
-      setSwipeOffset(116);
-    } else {
-      setSwipeOffset(0);
-      setShowDeleteConfirm(false);
-      setDragDirection(null);
-      if (onDelete) onDelete();
-    }
-  };
-
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    setSwipeOffset(0);
     setShowDeleteConfirm(false);
-    setSwipeOffset(88);
+    setDragDirection(null);
+    if (onDelete) onDelete();
   };
 
   const showRightEdit = (swipeOffset < 0) || (isDragging && dragDirection === 'left');
@@ -167,43 +156,21 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
 
       {/* Left Action Layer (Delete) - Revealed when swiping from Left to Right (x > 0) */}
       <div 
-        className={`absolute top-0 bottom-0 left-0 ${showDeleteConfirm ? 'w-[116px]' : 'w-[88px]'} flex items-center justify-center z-0 bg-[#161D26] border-r border-white/5 rounded-l-2xl sm:rounded-l-3xl transition-all duration-150 ${
+        className={`absolute top-0 bottom-0 left-0 w-[88px] flex items-center justify-center z-0 bg-[#161D26] border-r border-white/5 rounded-l-2xl sm:rounded-l-3xl transition-all duration-150 ${
           showLeftDelete ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         aria-hidden={!showLeftDelete}
       >
         {onDelete && (
-          !showDeleteConfirm ? (
-            <button
-              type="button"
-              onClick={handleDeleteClick}
-              className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-rose-600 text-white font-black text-xs active:scale-95 transition-all shadow-md"
-              title={deleteLabel}
-            >
-              <Trash2 size={14} />
-              <span className="text-xs font-black">{deleteLabel}</span>
-            </button>
-          ) : (
-            <div className="flex items-center gap-1 bg-rose-950 p-1 rounded-xl border border-rose-500/50">
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-rose-600 text-white font-black text-xs hover:bg-rose-500 active:scale-95 transition-all"
-                title={confirmDeleteText}
-              >
-                <Check size={13} strokeWidth={3} />
-                <span>تأكيد</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleCancelDelete}
-                className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs active:scale-95 transition-all"
-                title="إلغاء"
-              >
-                <X size={13} />
-              </button>
-            </div>
-          )
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-[#C98387] to-[#B3686D] text-white font-black text-xs active:scale-95 transition-all shadow-md shadow-[#C98387]/20"
+            title={deleteLabel}
+          >
+            <Trash2 size={14} />
+            <span className="text-xs font-black">{deleteLabel}</span>
+          </button>
         )}
       </div>
 
