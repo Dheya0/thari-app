@@ -81,12 +81,12 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
 
     // Determine snap state from closed initial position
     if (x < -10 || velocity < -30) {
-      // Swiped Left (reveal right actions - Delete)
-      setSwipeOffset(-96);
+      // Swiped from Right to Left (reveals right action: Edit)
+      setSwipeOffset(-88);
       setDragDirection('left');
     } else if (x > 10 || velocity > 30) {
-      // Swiped Right (reveal left actions - Edit)
-      setSwipeOffset(96);
+      // Swiped from Left to Right (reveals left action: Delete)
+      setSwipeOffset(88);
       setDragDirection('right');
     } else {
       // Snap closed
@@ -122,6 +122,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
     e.stopPropagation();
     if (!showDeleteConfirm) {
       setShowDeleteConfirm(true);
+      setSwipeOffset(116);
     } else {
       setSwipeOffset(0);
       setShowDeleteConfirm(false);
@@ -133,6 +134,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   const handleCancelDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowDeleteConfirm(false);
+    setSwipeOffset(88);
   };
 
   const showRightEdit = (swipeOffset < 0) || (isDragging && dragDirection === 'left');
@@ -141,20 +143,20 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   return (
     <div 
       id={`swipe-container-${id}`} 
-      className={`relative overflow-hidden select-none rounded-2xl sm:rounded-3xl touch-pan-y bg-[#0A0D10] ${className}`}
+      className={`relative overflow-hidden select-none rounded-2xl sm:rounded-3xl touch-pan-y bg-[#0A0D10] h-full ${className}`}
     >
-      {/* Right Action Layer (Edit) - Revealed when swiping Right-to-Left (x < 0) */}
+      {/* Right Action Layer (Edit) - Revealed when swiping from Right to Left (x < 0) */}
       <div 
-        className={`absolute top-0 bottom-0 right-0 w-[110px] flex items-center justify-end px-3.5 z-0 bg-[#161D26] border-l border-white/5 rounded-r-2xl sm:rounded-r-3xl transition-opacity duration-150 ${
+        className={`absolute top-0 bottom-0 right-0 w-[88px] flex items-center justify-center z-0 bg-[#161D26] border-l border-white/5 rounded-r-2xl sm:rounded-r-3xl transition-opacity duration-150 ${
           showRightEdit ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
-        aria-hidden="true"
+        aria-hidden={!showRightEdit}
       >
         {onEdit && (
           <button
             type="button"
             onClick={handleEditClick}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#D9B978] text-[#0A0D10] font-black text-xs active:scale-95 transition-all shadow-md"
+            className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-[#D9B978] text-[#0A0D10] font-black text-xs active:scale-95 transition-all shadow-md"
             title={editLabel}
           >
             <Edit2 size={14} />
@@ -163,33 +165,33 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
         )}
       </div>
 
-      {/* Left Action Layer (Delete) - Revealed when swiping Left-to-Right (x > 0) */}
+      {/* Left Action Layer (Delete) - Revealed when swiping from Left to Right (x > 0) */}
       <div 
-        className={`absolute top-0 bottom-0 left-0 w-[110px] flex items-center justify-start px-3.5 z-0 bg-[#161D26] border-r border-white/5 rounded-l-2xl sm:rounded-l-3xl transition-opacity duration-150 ${
+        className={`absolute top-0 bottom-0 left-0 ${showDeleteConfirm ? 'w-[116px]' : 'w-[88px]'} flex items-center justify-center z-0 bg-[#161D26] border-r border-white/5 rounded-l-2xl sm:rounded-l-3xl transition-all duration-150 ${
           showLeftDelete ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
-        aria-hidden="true"
+        aria-hidden={!showLeftDelete}
       >
         {onDelete && (
           !showDeleteConfirm ? (
             <button
               type="button"
               onClick={handleDeleteClick}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rose-600 text-white font-black text-xs active:scale-95 transition-all shadow-md"
+              className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-rose-600 text-white font-black text-xs active:scale-95 transition-all shadow-md"
               title={deleteLabel}
             >
               <Trash2 size={14} />
               <span className="text-xs font-black">{deleteLabel}</span>
             </button>
           ) : (
-            <div className="flex items-center gap-1 bg-rose-950 p-1 rounded-xl border border-rose-500/50 animate-fade">
+            <div className="flex items-center gap-1 bg-rose-950 p-1 rounded-xl border border-rose-500/50">
               <button
                 type="button"
                 onClick={handleDeleteClick}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600 text-white font-black text-xs hover:bg-rose-500 active:scale-95 transition-all"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-rose-600 text-white font-black text-xs hover:bg-rose-500 active:scale-95 transition-all"
                 title={confirmDeleteText}
               >
-                <Check size={14} strokeWidth={3} />
+                <Check size={13} strokeWidth={3} />
                 <span>تأكيد</span>
               </button>
               <button
@@ -198,7 +200,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
                 className="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs active:scale-95 transition-all"
                 title="إلغاء"
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             </div>
           )
@@ -209,15 +211,15 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       <motion.div
         drag={disabled ? false : 'x'}
         dragDirectionLock={true}
-        dragConstraints={{ left: -110, right: 110 }}
-        dragElastic={0.06}
+        dragConstraints={{ left: -88, right: showDeleteConfirm ? 116 : 88 }}
+        dragElastic={0.05}
         onDragStart={handleDragStart}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         animate={{ x: swipeOffset }}
-        transition={{ type: 'spring', stiffness: 800, damping: 22, mass: 0.2 }}
+        transition={{ type: 'spring', stiffness: 800, damping: 24, mass: 0.2 }}
         onClick={handleRowClick}
-        className="relative z-10 w-full cursor-grab active:cursor-grabbing touch-pan-y will-change-transform bg-[#11161C] rounded-2xl sm:rounded-3xl"
+        className="relative z-10 w-full cursor-grab active:cursor-grabbing touch-pan-y will-change-transform bg-[#11161C] rounded-2xl sm:rounded-3xl shadow-sm"
       >
         {children}
       </motion.div>

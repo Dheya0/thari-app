@@ -360,9 +360,10 @@ const TransactionList: React.FC<TransactionListProps> = ({
                       onClick={() => onEdit(tx)}
                       editLabel="تعديل"
                       deleteLabel="حذف"
+                      className="h-full"
                     >
                     <div
-                      className="group bg-[#11161C] p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-[#D9B978]/30 hover:bg-[#151C24] transition-colors duration-200 gap-2.5 cursor-pointer"
+                      className="group bg-[#11161C] p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-[#D9B978]/30 hover:bg-[#151C24] transition-colors duration-200 gap-2.5 cursor-pointer h-full"
                       title="اسحب لليمين/اليسار للحذف والتعديل، أو انقر للتفاصيل"
                     >
                       {/* Left / Primary Info */}
@@ -482,7 +483,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                             }`}
                           >
                             {isTransfer ? '↔ ' : isIncome ? '+' : '-'}
-                            {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            {Math.abs(tx.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             <span className="text-[11px] font-bold text-slate-300 ml-1">{txSymbol}</span>
                           </p>
 

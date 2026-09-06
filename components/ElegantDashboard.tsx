@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   ArrowUpRight, 
@@ -9,7 +9,9 @@ import {
   ArrowUp, 
   ArrowDown,
   Edit2,
-  Trash2
+  Trash2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Wallet, Transaction, Category, Currency, Debt } from '../types';
 import { convertCurrency } from '../constants';
@@ -119,6 +121,32 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
     return calculateDateBasedGrowth(transactions, currency.code, exchangeRates);
   }, [transactions, currency.code, exchangeRates]);
 
+  const [hideBalances, setHideBalances] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('thari_hide_balances') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleHideBalances = () => {
+    setHideBalances(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('thari_hide_balances', String(next));
+      } catch {}
+      if (typeof window !== 'undefined' && window.navigator.vibrate) {
+        window.navigator.vibrate(15);
+      }
+      return next;
+    });
+  };
+
+  const displayFinancialValue = (val: number, useCompact = false): string => {
+    if (hideBalances) return '••••••';
+    return formatFinancialNumber(val, useCompact);
+  };
+
   const calculatedBalances = useMemo(() => {
     return calculateWalletBalances(wallets, transactions, exchangeRates);
   }, [wallets, transactions, exchangeRates]);
@@ -190,9 +218,21 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       >
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-              {t.netWorth}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                {t.netWorth}
+              </span>
+              <button
+                type="button"
+                onClick={toggleHideBalances}
+                className="p-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-[#D9B978] transition-colors flex items-center gap-1 text-[11px] touch-manipulation cursor-pointer"
+                title={hideBalances ? (isEn ? 'Show figures' : 'إظهار الأرقام') : (isEn ? 'Hide figures' : 'إخفاء الأرقام')}
+                aria-label={hideBalances ? 'إظهار الأرقام' : 'إخفاء الأرقام'}
+              >
+                {hideBalances ? <EyeOff size={13} className="text-[#D9B978]" /> : <Eye size={13} />}
+                <span className="text-[10px] hidden sm:inline">{hideBalances ? (isEn ? 'Hidden' : 'مخفي') : (isEn ? 'Hide' : 'إخفاء')}</span>
+              </button>
+            </div>
             {growthInfo.rate !== 0 && (
               <div className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
                 growthInfo.rate > 0 
@@ -214,7 +254,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                 ? 'text-3xl sm:text-4xl md:text-5xl'
                 : 'text-4xl sm:text-5xl md:text-6xl'
             }`}>
-              {formatFinancialNumber(netWorth)}
+              {displayFinancialValue(netWorth)}
             </span>
             <span className="text-lg sm:text-2xl font-normal text-[#D9B978]">
               {currency.symbol}
@@ -230,7 +270,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
               {t.availableNow}
             </span>
             <p className="text-base sm:text-xl font-medium text-[#F4F1EA] font-numeric tracking-tight truncate">
-              {formatFinancialNumber(availableBalance)}
+              {displayFinancialValue(availableBalance)}
               <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{currency.symbol}</span>
             </p>
           </div>
@@ -243,7 +283,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
               {t.youOweOthers}
             </span>
             <p className="text-base sm:text-xl font-medium text-[#8EB9A7] font-numeric tracking-tight truncate">
-              {formatFinancialNumber(debtsOwedToMe)}
+              {displayFinancialValue(debtsOwedToMe)}
               <span className="text-[10px] sm:text-xs text-[#8EB9A7]/70 ms-1 font-normal">{currency.symbol}</span>
             </p>
           </button>
@@ -256,7 +296,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
               {t.othersOweYou}
             </span>
             <p className="text-base sm:text-xl font-medium text-[#C98387] font-numeric tracking-tight truncate">
-              {formatFinancialNumber(debtsIOwe)}
+              {displayFinancialValue(debtsIOwe)}
               <span className="text-[10px] sm:text-xs text-[#C98387]/70 ms-1 font-normal">{currency.symbol}</span>
             </p>
           </button>
@@ -345,14 +385,14 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
 
                 <div className="text-end">
                   <div className={`text-sm sm:text-base font-medium font-numeric tracking-tight ${w.nativeBalance < 0 ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
-                    {formatFinancialNumber(w.nativeBalance, true)}
+                    {displayFinancialValue(w.nativeBalance, true)}
                     <span className="text-xs text-slate-400 ms-1.5 font-normal">
                       {w.currencyObj.symbol}
                     </span>
                   </div>
                   {w.currencyCode !== currency.code && (
                     <span className={`text-[10px] block font-numeric ${w.balanceInBase < 0 ? 'text-[#C98387]' : 'text-slate-400'}`}>
-                      ≈ {formatFinancialNumber(w.balanceInBase, true)} {currency.symbol}
+                      ≈ {displayFinancialValue(w.balanceInBase, true)} {currency.symbol}
                     </span>
                   )}
                 </div>
@@ -379,7 +419,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           <div className="space-y-1">
             <span className="text-xs text-slate-400 block font-normal">{t.income}</span>
             <div className="text-sm sm:text-base font-semibold text-[#8EB9A7] font-numeric tracking-tight">
-              {formatFinancialNumber(monthlyIncome, true)}
+              {displayFinancialValue(monthlyIncome, true)}
               <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-normal">{currency.symbol}</span>
             </div>
           </div>
@@ -387,7 +427,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           <div className="space-y-1">
             <span className="text-xs text-slate-400 block font-normal">{t.expenses}</span>
             <div className="text-sm sm:text-base font-semibold text-[#C98387] font-numeric tracking-tight">
-              {formatFinancialNumber(monthlyExpense, true)}
+              {displayFinancialValue(monthlyExpense, true)}
               <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-normal">{currency.symbol}</span>
             </div>
           </div>
@@ -397,7 +437,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             <div className={`text-sm sm:text-base font-semibold font-numeric tracking-tight ${
               monthlyNet >= 0 ? 'text-[#D9B978]' : 'text-[#C98387]'
             }`}>
-              {monthlyNet >= 0 ? '+' : ''}{formatFinancialNumber(monthlyNet, true)}
+              {hideBalances ? '••••••' : (monthlyNet >= 0 ? '+' : '') + formatFinancialNumber(monthlyNet, true)}
               <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{currency.symbol}</span>
             </div>
           </div>
@@ -480,7 +520,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0 ms-2">
+                    <div className="flex items-center gap-2 shrink-0 ms-2">
                       <div className="text-end font-numeric">
                         <span className={`text-sm sm:text-base font-semibold ${
                           isIncome 
@@ -495,32 +535,6 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                         <span className="text-xs text-slate-400 ms-1 font-normal">
                           {tx.currency || currency.symbol}
                         </span>
-                      </div>
-
-                      {/* Quick action icons (always visible for smooth 1-tap access) */}
-                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditTransaction(tx);
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-[#D9B978] transition-colors"
-                          title="تعديل"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteTransaction(tx.id);
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800/80 text-slate-400 hover:text-[#C98387] transition-colors"
-                          title="حذف"
-                        >
-                          <Trash2 size={13} />
-                        </button>
                       </div>
                     </div>
                   </div>

@@ -303,11 +303,31 @@ export async function validateAndInspectBackupAsync(rawJson: string): Promise<Re
 }
 
 /**
+ * Recursively sanitizes backup payload to prevent Prototype Pollution
+ * Strips dangerous prototype modification keys (__proto__, constructor, prototype).
+ */
+export function deepSanitizePayload<T = any>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepSanitizePayload(item)) as any;
+  }
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(obj as any)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
+    clean[key] = deepSanitizePayload((obj as any)[key]);
+  }
+  return clean as T;
+}
+
+/**
  * Strict Schema & Referential Integrity Validation Layer
  */
 export function validateAndInspectBackup(rawJson: string): RestorePreview {
   try {
-    const parsed = JSON.parse(rawJson);
+    const rawParsed = JSON.parse(rawJson);
+    const parsed = deepSanitizePayload(rawParsed);
 
     // 1. Standard THARI_BACKUP format
     if (parsed && parsed.format === 'THARI_BACKUP' && parsed.payload) {

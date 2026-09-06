@@ -134,47 +134,77 @@ const LockScreen: React.FC<LockScreenProps> = ({
 
   // Removed auto-resume biometric triggers to ensure user intent and strict security (no automatic scanning without explicit user tap).
 
-  const handleKeyPress = async (num: string) => {
-    if (cooldownRemaining > 0 || !hasPinConfigured) return;
+  const handleKeyPress = useCallback(async (num: string) => {
+    if (cooldownRemaining > 0 || !hasPinConfigured || isUnlockedRef.current) return;
 
-    if (input.length < 4) {
-      const newInput = input + num;
-      setInput(newInput);
+    setInput((prev) => {
+      if (prev.length >= 4) return prev;
+      const nextInput = prev + num;
       setErrorMessage('');
       
-      if (newInput.length === 4) {
-        const verification = await verifyPinDetailed(newInput, savedPin, pinSalt);
-        if (verification.isValid) {
-          if (verification.needsRehash && verification.upgradedHash && verification.upgradedSalt && onRehashPin) {
-            onRehashPin(verification.upgradedHash, verification.upgradedSalt);
-          }
-          setBioStatus('success');
-          clearRateLimit();
-          if (typeof window !== 'undefined' && window.navigator.vibrate) {
-            window.navigator.vibrate([20, 40, 20]);
-          }
-          setTimeout(onUnlock, 150);
-        } else {
-          const limit = recordFailedAttempt();
-          setError(true);
-          if (limit.isLocked) {
-            setCooldownRemaining(limit.remainingSeconds);
-            setErrorMessage(`تم تجاوز عدد المحاولات المسموحة. تم قفل الإدخال لمدة ${limit.remainingSeconds} ثانية.`);
+      if (nextInput.length === 4) {
+        // Execute verification
+        void (async () => {
+          const verification = await verifyPinDetailed(nextInput, savedPin, pinSalt);
+          if (verification.isValid) {
+            isUnlockedRef.current = true;
+            if (verification.needsRehash && verification.upgradedHash && verification.upgradedSalt && onRehashPin) {
+              onRehashPin(verification.upgradedHash, verification.upgradedSalt);
+            }
+            setBioStatus('success');
+            clearRateLimit();
+            if (typeof window !== 'undefined' && window.navigator.vibrate) {
+              window.navigator.vibrate([20, 40, 20]);
+            }
+            setTimeout(onUnlock, 150);
           } else {
-            setErrorMessage(`رمز الدخول غير صحيح (${limit.failedAttempts}/5 محاولات)`);
+            const limit = recordFailedAttempt();
+            setError(true);
+            if (limit.isLocked) {
+              setCooldownRemaining(limit.remainingSeconds);
+              setErrorMessage(`تم تجاوز عدد المحاولات المسموحة. تم قفل الإدخال لمدة ${limit.remainingSeconds} ثانية.`);
+            } else {
+              setErrorMessage(`رمز الدخول غير صحيح (${limit.failedAttempts}/5 محاولات)`);
+            }
+            
+            if (typeof window !== 'undefined' && window.navigator.vibrate) {
+              window.navigator.vibrate(150);
+            }
+            setTimeout(() => {
+              setInput('');
+              setError(false);
+            }, 600);
           }
-          
-          if (typeof window !== 'undefined' && window.navigator.vibrate) {
-            window.navigator.vibrate(150);
-          }
-          setTimeout(() => {
-            setInput('');
-            setError(false);
-          }, 600);
+        })();
+      }
+      return nextInput;
+    });
+  }, [cooldownRemaining, hasPinConfigured, savedPin, pinSalt, onRehashPin, onUnlock]);
+
+  // Physical Keyboard Listener (0-9, Backspace, Enter for biometric/unlock)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isUnlockedRef.current) return;
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        handleKeyPress(e.key);
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        setInput(p => p.slice(0, -1));
+        setErrorMessage('');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (biometricAvailable && bioStatus === 'idle') {
+          triggerBiometricAuth(false);
         }
       }
-    }
-  };
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyPress, biometricAvailable, bioStatus, triggerBiometricAuth]);
 
   const BiometricIcon = isFaceId ? ScanFace : Fingerprint;
 
@@ -411,9 +441,13 @@ const LockScreen: React.FC<LockScreenProps> = ({
                       onClick={() => {
                         setInput(p => p.slice(0, -1));
                         setErrorMessage('');
+                        if (typeof window !== 'undefined' && window.navigator.vibrate) {
+                          window.navigator.vibrate(10);
+                        }
                       }}
                       title="مسح"
-                      className="w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center text-slate-400 active:bg-[#11161C] active:scale-90 transition-all mx-auto disabled:opacity-30"
+                      aria-label="مسح آخر رقم"
+                      className="w-16 h-16 sm:w-18 sm:h-18 rounded-full flex items-center justify-center text-slate-400 hover:text-white active:bg-[#11161C] active:scale-90 transition-all mx-auto disabled:opacity-30 touch-manipulation cursor-pointer"
                     >
                       <ChevronLeft size={26} />
                     </button>
@@ -424,8 +458,14 @@ const LockScreen: React.FC<LockScreenProps> = ({
                     key={idx}
                     type="button"
                     disabled={cooldownRemaining > 0}
-                    onClick={() => handleKeyPress(key)}
-                    className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-[#11161C] border border-white/[0.08] flex items-center justify-center text-2xl font-bold text-[#F4F1EA] hover:border-[#D9B978]/40 active:bg-[#D9B978] active:text-[#0A0D10] transition-all active:scale-90 shadow-sm mx-auto disabled:opacity-30"
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.navigator.vibrate) {
+                        window.navigator.vibrate(10);
+                      }
+                      handleKeyPress(key);
+                    }}
+                    aria-label={`الرقم ${key}`}
+                    className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-[#11161C] border border-white/[0.08] flex items-center justify-center text-2xl font-bold text-[#F4F1EA] hover:border-[#D9B978]/40 active:bg-[#D9B978] active:text-[#0A0D10] transition-all active:scale-90 shadow-sm mx-auto disabled:opacity-30 touch-manipulation cursor-pointer"
                   >
                     {key}
                   </button>

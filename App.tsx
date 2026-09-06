@@ -6,7 +6,7 @@ import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringR
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
-import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave } from './utils/secureStorage';
+import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave, deobfuscateData } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
 import { processDueRecurringRules } from './services/recurringService';
 import { isNativeCapacitorEnvironment } from './services/biometricService';
@@ -32,10 +32,9 @@ import Settings from './components/Settings';
 import ZakatCalculator from './components/ZakatCalculator';
 import Logo from './components/Logo';
 import { GlobalToast, ToastData } from './components/GlobalToast';
-
-const TransactionForm = React.lazy(() => import('./components/TransactionForm'));
-const WelcomeScreen = React.lazy(() => import('./components/WelcomeScreen'));
-const LockScreen = React.lazy(() => import('./components/LockScreen'));
+import TransactionForm from './components/TransactionForm';
+import WelcomeScreen from './components/WelcomeScreen';
+import LockScreen from './components/LockScreen';
 const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
 const FinancialReport = React.lazy(() => import('./components/FinancialReport'));
 const ReportModal = React.lazy(() => import('./components/reports/ReportModal').then(m => ({ default: m.ReportModal })));
@@ -142,7 +141,17 @@ function normalizeStoredState(parsed: any): AppState {
     currencies,
     categories,
     wallets,
-    transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
+    transactions: Array.isArray(parsed.transactions)
+      ? parsed.transactions
+          .filter((t: any) => t && typeof t === 'object')
+          .map((t: any) => ({
+            ...t,
+            amount: t.type === 'adjustment' ? Number(t.amount) || 0 : Math.abs(Number(t.amount) || 0),
+            convertedAmountInWalletCurrency: t.convertedAmountInWalletCurrency !== undefined ? Math.abs(Number(t.convertedAmountInWalletCurrency) || 0) : undefined,
+            destinationAmount: t.destinationAmount !== undefined ? Math.abs(Number(t.destinationAmount) || 0) : undefined,
+          }))
+          .filter((t: any) => t.type === 'adjustment' || t.amount > 0)
+      : [],
     trashTransactions: Array.isArray(parsed.trashTransactions) ? parsed.trashTransactions : [],
     recurringRules: Array.isArray(parsed.recurringRules) ? parsed.recurringRules : [],
     subscriptions: Array.isArray(parsed.subscriptions) ? parsed.subscriptions : [],
@@ -157,10 +166,71 @@ function normalizeStoredState(parsed: any): AppState {
   };
 }
 
+/**
+ * Synchronous Fast-Boot Hydration:
+ * Instantly recovers persisted state from synchronous storage in <1ms or recognizes
+ * a first-time launch so the app renders immediately without any artificial splash delays.
+ */
+function getInitialFastState(): { state: AppState; isHydrated: boolean } {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      // 1. Check synchronous fast snapshot
+      const syncGuard = localStorage.getItem(`${STORAGE_KEY}_sync_guard`);
+      if (syncGuard) {
+        const raw = deobfuscateData(syncGuard);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            return { state: normalizeStoredState(parsed), isHydrated: true };
+          }
+        }
+      }
+
+      // 2. Check direct local store
+      const rawDirect = localStorage.getItem(STORAGE_KEY);
+      if (rawDirect) {
+        if (rawDirect.startsWith('{') || rawDirect.startsWith('[')) {
+          const parsed = JSON.parse(rawDirect);
+          if (parsed && typeof parsed === 'object') {
+            return { state: normalizeStoredState(parsed), isHydrated: true };
+          }
+        } else if (rawDirect.startsWith('THR4_') || rawDirect.startsWith('RAW_')) {
+          const deobf = deobfuscateData(rawDirect);
+          if (deobf) {
+            const parsed = JSON.parse(deobf);
+            if (parsed && typeof parsed === 'object') {
+              return { state: normalizeStoredState(parsed), isHydrated: true };
+            }
+          }
+        }
+      }
+
+      // 3. Detect first-time launch: No Thari keys present in storage
+      let hasAnyThariKey = false;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('thari_') || k === STORAGE_KEY)) {
+          hasAnyThariKey = true;
+          break;
+        }
+      }
+
+      if (!hasAnyThariKey) {
+        // Confirmed first launch: render WelcomeScreen instantly!
+        return { state: INITIAL_STATE, isHydrated: true };
+      }
+    }
+  } catch (e) {
+    console.warn('Fast state init fallback:', e);
+  }
+  return { state: INITIAL_STATE, isHydrated: false };
+}
+
 const App: React.FC = () => {
-  const [state, setState] = useState<AppState>(INITIAL_STATE);
-  const [isHydrated, setIsHydrated] = useState(false);
-  const isHydratedRef = useRef(false);
+  const initialBoot = useMemo(() => getInitialFastState(), []);
+  const [state, setState] = useState<AppState>(initialBoot.state);
+  const [isHydrated, setIsHydrated] = useState(initialBoot.isHydrated);
+  const isHydratedRef = useRef(initialBoot.isHydrated);
   const stateRevisionRef = useRef(0);
 
   useEffect(() => {
@@ -257,12 +327,6 @@ const App: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
-  const [isLoadingSplash, setIsLoadingSplash] = useState(false);
-
-  // Instant Launch: Remove artificial splash delay so UI paints immediately
-  useEffect(() => {
-    setIsLoadingSplash(false);
-  }, []);
 
   useEffect(() => {
     // Configure Native Keyboard defaults
@@ -404,18 +468,77 @@ const App: React.FC = () => {
 
   // Android Hardware Back Button & Keyboard Hierarchy Handler
   const isKeyboardOpenRef = useRef(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
   useEffect(() => {
     let showSub: any = null;
     let hideSub: any = null;
     if (NativeKeyboard.isAvailable()) {
-      NativeKeyboard.addListener('keyboardWillShow', () => { isKeyboardOpenRef.current = true; }).then(s => { showSub = s; }).catch(() => {});
-      NativeKeyboard.addListener('keyboardWillHide', () => { isKeyboardOpenRef.current = false; }).then(s => { hideSub = s; }).catch(() => {});
+      NativeKeyboard.addListener('keyboardWillShow', () => { 
+        isKeyboardOpenRef.current = true; 
+        setIsKeyboardVisible(true);
+      }).then(s => { showSub = s; }).catch(() => {});
+      NativeKeyboard.addListener('keyboardWillHide', () => { 
+        isKeyboardOpenRef.current = false; 
+        setIsKeyboardVisible(false);
+      }).then(s => { hideSub = s; }).catch(() => {});
     }
+
+    const handleViewport = () => {
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        const diff = window.innerHeight - window.visualViewport.height;
+        const active = diff > 130;
+        setIsKeyboardVisible(active);
+        isKeyboardOpenRef.current = active;
+      }
+    };
+
+    if (typeof window !== 'undefined' && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewport);
+    }
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+        setIsKeyboardVisible(true);
+        isKeyboardOpenRef.current = true;
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea' && activeTag !== 'select') {
+          setIsKeyboardVisible(false);
+          isKeyboardOpenRef.current = false;
+        }
+      }, 150);
+    };
+
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
+
     return () => {
       if (showSub?.remove) showSub.remove();
       if (hideSub?.remove) hideSub.remove();
+      if (typeof window !== 'undefined' && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewport);
+      }
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
     };
   }, []);
+
+  const isAnyModalActive = Boolean(
+    showPrivacyPolicy ||
+    showTrashModal ||
+    showToolsHub ||
+    showCurrencySelector ||
+    showWalletSelector ||
+    showReportModal ||
+    showRecurringModal ||
+    showAddForm
+  );
 
   // Register top-level modals in centralized back navigation stack with priority 5
   useBackNavigation(() => {
@@ -454,16 +577,7 @@ const App: React.FC = () => {
       return true;
     }
     return false;
-  }, Boolean(
-    showPrivacyPolicy ||
-    showTrashModal ||
-    showToolsHub ||
-    showCurrencySelector ||
-    showWalletSelector ||
-    showReportModal ||
-    showRecurringModal ||
-    showAddForm
-  ), 5);
+  }, isAnyModalActive, 5);
 
   // Tab back navigation: step back ONE level in history stack (priority 2)
   useBackNavigation(() => {
@@ -601,7 +715,6 @@ const App: React.FC = () => {
         backgroundedAtRef.current = null;
         try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
       } else if (event === 'QUICK_ACTION') {
-        setIsLoadingSplash(false);
         setShowAddForm(true);
         setEditingTransaction(null);
         setFormDefaultType('expense');
@@ -1124,17 +1237,34 @@ const App: React.FC = () => {
   };
 
   const handleSubmitTransaction = (txData: any) => {
-    const targetId = editingTransaction?.id || txData.id;
+    // Strictly forbid negative or zero values in transactions (except adjustments which can have negative/positive balance diffs)
+    const isAdjustment = txData.type === 'adjustment';
+    const rawAmount = Number(txData.amount);
+
+    if (!isAdjustment && (isNaN(rawAmount) || rawAmount <= 0)) {
+      showToast(activeLanguage === 'en' ? 'Transaction amount must be greater than zero' : 'ممنوع إدخال قيمة سالبة أو صفر في أي معاملة', 'error');
+      return;
+    }
+
+    const cleanTx = {
+      ...txData,
+      amount: isAdjustment ? rawAmount : Math.abs(rawAmount),
+      convertedAmountInWalletCurrency: txData.convertedAmountInWalletCurrency !== undefined ? Math.abs(Number(txData.convertedAmountInWalletCurrency) || 0) : undefined,
+      destinationAmount: txData.destinationAmount !== undefined ? Math.abs(Number(txData.destinationAmount) || 0) : undefined,
+      foreignAmount: txData.foreignAmount !== undefined ? Math.abs(Number(txData.foreignAmount) || 0) : undefined,
+    };
+
+    const targetId = editingTransaction?.id || cleanTx.id;
     if (targetId) {
         setState(p => ({
             ...p,
-            transactions: p.transactions.map(t => t.id === targetId ? { ...txData, id: t.id, updatedAt: new Date().toISOString() } : t)
+            transactions: p.transactions.map(t => t.id === targetId ? { ...cleanTx, id: t.id, updatedAt: new Date().toISOString() } : t)
         }));
         showToast(activeLanguage === 'en' ? 'Transaction updated successfully' : 'تم تحديث المعاملة بنجاح', 'success');
     } else {
         setState(p => ({ 
             ...p, 
-            transactions: [{ ...txData, id: 'tx-' + Date.now(), createdAt: new Date().toISOString() }, ...p.transactions] 
+            transactions: [{ ...cleanTx, id: 'tx-' + Date.now(), createdAt: new Date().toISOString() }, ...p.transactions] 
         }));
         showToast(activeLanguage === 'en' ? 'Transaction recorded successfully' : 'تم تسجيل المعاملة بنجاح', 'success');
     }
@@ -1290,28 +1420,6 @@ const App: React.FC = () => {
     handlePayDebt(id, remaining, walletId, "سداد كامل");
   };
 
-  if (isLoadingSplash) {
-    return (
-      <div className="fixed inset-0 bg-[#0A0D10] text-[#F4F1EA] z-[9999] flex flex-col items-center justify-center p-6 select-none">
-        <div className="absolute top-0 right-1/4 w-80 h-80 bg-[#D9B978]/10 blur-[140px] rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-[#759BC8]/10 blur-[140px] rounded-full pointer-events-none" />
-        
-        <div className="flex flex-col items-center space-y-4 relative z-10">
-          <div className="p-3 rounded-3xl bg-white/[0.03] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
-            <Logo size={80} />
-          </div>
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-[#F4F1EA]">ثري <span className="text-[#D9B978] font-light">— THARI</span></h1>
-            <p className="text-xs text-slate-400 font-medium">نظامك المالي الهادئ للثروة والمحافظ</p>
-          </div>
-          <div className="w-32 h-1 bg-white/10 rounded-full overflow-hidden mt-6">
-            <div className="w-full h-full bg-[#D9B978] rounded-full animate-pulse" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (showPrivacyPolicy) {
     return <AboutAndPrivacy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} initialTab="privacy" />;
   }
@@ -1329,26 +1437,23 @@ const App: React.FC = () => {
 
   if (!state.hasAcceptedTerms) {
     return (
-      <React.Suspense fallback={<div className="fixed inset-0 bg-[#0A0D10] flex items-center justify-center text-slate-400 font-bold text-sm">جاري التحميل...</div>}>
-        <WelcomeScreen onAccept={() => setState(p => ({ ...p, hasAcceptedTerms: true }))} onShowPrivacy={() => setShowPrivacyPolicy(true)} />
-      </React.Suspense>
+      <WelcomeScreen onAccept={() => setState(p => ({ ...p, hasAcceptedTerms: true }))} onShowPrivacy={() => setShowPrivacyPolicy(true)} />
     );
   }
+
   if (state.isLocked && (!!state.pin || state.isBiometricEnabled === true)) {
     return (
-      <React.Suspense fallback={<div className="fixed inset-0 bg-[#0A0D10] flex items-center justify-center text-slate-400 font-bold text-sm">جاري التحميل...</div>}>
-        <LockScreen 
-          savedPin={state.pin || ''} 
-          pinSalt={state.pinSalt}
-          isBiometricEnabled={state.isBiometricEnabled === true} 
-          onUnlock={() => {
-            justUnlockedRef.current = Date.now() + 5000;
-            try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
-            setState(p => ({ ...p, isLocked: false }));
-          }} 
-          onRehashPin={(newPinHash, newSalt) => setState(p => ({ ...p, pin: newPinHash, pinSalt: newSalt }))}
-        />
-      </React.Suspense>
+      <LockScreen 
+        savedPin={state.pin || ''} 
+        pinSalt={state.pinSalt}
+        isBiometricEnabled={state.isBiometricEnabled === true} 
+        onUnlock={() => {
+          justUnlockedRef.current = Date.now() + 5000;
+          try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
+          setState(p => ({ ...p, isLocked: false }));
+        }} 
+        onRehashPin={(newPinHash, newSalt) => setState(p => ({ ...p, pin: newPinHash, pinSalt: newSalt }))}
+      />
     );
   }
 
@@ -1709,7 +1814,11 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        <div className="fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-4 md:px-0 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent">
+        <div className={`fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-4 md:px-0 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent transition-all duration-300 ${
+          isAnyModalActive || isKeyboardVisible
+            ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
+            : 'opacity-100 translate-y-0'
+        }`}>
             <nav className="pointer-events-auto w-full md:max-w-xl bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2 py-2 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
                 <NavButton icon={<LayoutDashboard />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
                 <NavButton icon={<History />} label={activeLanguage === 'en' ? 'Transactions' : 'المعاملات'} active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
@@ -1734,7 +1843,11 @@ const App: React.FC = () => {
 
         {/* Floating Quick Action Buttons */}
         {activeTab === 'dashboard' && (
-          <div className="fixed left-3 sm:left-4 bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-32 md:bottom-36 z-40 flex flex-col gap-2.5 pointer-events-none no-print">
+          <div className={`fixed left-3 sm:left-4 bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-32 md:bottom-36 z-40 flex flex-col gap-2.5 pointer-events-none no-print transition-all duration-300 ${
+            isAnyModalActive || isKeyboardVisible
+              ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
+              : 'opacity-100 translate-y-0'
+          }`}>
             <motion.button 
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.9 }}

@@ -94,42 +94,21 @@ async function tryLoadNativeSecureSecret(): Promise<string | null> {
       return null;
     }
 
-    const dynamicImport = (m: string) => (new Function('m', 'return import(m)'))(m);
-
-    const pluginCandidates = [
-      ['@capacitor-community/secure-storage', 'secureStorage'],
-      ['@capacitor/keychain', 'keychain'],
-    ];
-
-    for (const [moduleName, pluginName] of pluginCandidates) {
-      try {
-        const mod = await dynamicImport(moduleName);
-        const plugin: any = mod && (mod[pluginName] || mod.default || mod.SecureStorage || mod.Keychain || mod);
-        if (plugin && typeof plugin.get === 'function') {
-          const result = await plugin.get({ key: 'thari_device_secret' });
-          const value = result && (result.value ?? result.secret ?? result.data ?? result);
-          if (typeof value === 'string' && value.length > 0) {
-            return value;
+    const plugins = (Capacitor as any)?.Plugins || (typeof window !== 'undefined' && (window as any)?.Capacitor?.Plugins);
+    if (plugins) {
+      for (const pluginName of ['SecureStorage', 'Keychain', 'Preferences']) {
+        try {
+          const plugin = plugins[pluginName];
+          if (plugin && typeof plugin.get === 'function') {
+            const result = await plugin.get({ key: 'thari_device_secret' });
+            const value = result && (result.value ?? result.secret ?? result.data ?? result);
+            if (typeof value === 'string' && value.length > 0) {
+              return value;
+            }
           }
+        } catch {
+          // Continue searching safely
         }
-      } catch {
-        // Plugin is not installed or absent - handle gracefully
-      }
-    }
-
-    const plugins = (Capacitor as any).Plugins || Capacitor;
-    for (const pluginName of ['SecureStorage', 'Keychain', 'Preferences']) {
-      try {
-        const plugin: any = plugins && plugins[pluginName];
-        if (plugin && typeof plugin.get === 'function') {
-          const result = await plugin.get({ key: 'thari_device_secret' });
-          const value = result && (result.value ?? result.secret ?? result.data ?? result);
-          if (typeof value === 'string' && value.length > 0) {
-            return value;
-          }
-        }
-      } catch {
-        // Keep searching gracefully
       }
     }
   } catch {
@@ -219,7 +198,14 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
   return result;
 }
 
+const derivedKeyCache = new Map<string, CryptoKey>();
+
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+  const cacheKey = `${password}:${saltHex}`;
+  const cached = derivedKeyCache.get(cacheKey);
+  if (cached) return cached;
+
   const cryptoImpl = getCrypto();
   if (!cryptoImpl) {
     throw new Error('Web Crypto API unavailable');
@@ -237,11 +223,11 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   saltCopy.set(salt);
   const saltBuffer = saltCopy.buffer as ArrayBuffer;
 
-  return cryptoImpl.subtle.deriveKey(
+  const derived = await cryptoImpl.subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: saltBuffer,
-      iterations: 100000,
+      iterations: 50000,
       hash: 'SHA-256',
     },
     keyMaterial,
@@ -249,6 +235,13 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
     false,
     ['encrypt', 'decrypt']
   );
+
+  if (derivedKeyCache.size > 20) {
+    const firstKey = derivedKeyCache.keys().next().value;
+    if (firstKey) derivedKeyCache.delete(firstKey);
+  }
+  derivedKeyCache.set(cacheKey, derived);
+  return derived;
 }
 
 async function encryptWithAesGcm(dataString: string): Promise<string> {

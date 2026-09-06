@@ -190,8 +190,9 @@ export function normalizeDigits(input: string | null | undefined): string {
 /**
  * Sanitizes numeric user input across Arabic/English keyboards.
  * Accepts Arabic digits, Persian digits, Arabic decimal separators, and comma.
+ * By default disallows negative numbers (allowNegative = false) to ensure strict financial integrity.
  */
-export function sanitizeNumericInput(raw: string, allowNegative = true): string {
+export function sanitizeNumericInput(raw: string, allowNegative = false): string {
   if (raw === null || raw === undefined) return '';
 
   let str = normalizeDigits(String(raw)).trim();
@@ -209,7 +210,7 @@ export function sanitizeNumericInput(raw: string, allowNegative = true): string 
     str = str.replace(/,/g, '.');
   }
 
-  // Allow only digits, one leading minus, and single dot.
+  // Allow only digits, one leading minus (only if allowNegative is true), and single dot.
   let cleaned = str.replace(/[^0-9.\-]/g, '');
 
   if (allowNegative) {
@@ -259,7 +260,7 @@ export function parseArabicNumber(input: string | number | null | undefined): nu
 export function handleNumericInputChange(
   e: React.ChangeEvent<HTMLInputElement>,
   setValue: (val: string) => void,
-  allowNegative = true
+  allowNegative = false
 ) {
   const input = e.target;
   const start = input.selectionStart;

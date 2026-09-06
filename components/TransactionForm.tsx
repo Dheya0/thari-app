@@ -142,36 +142,21 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const primaryInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const typingScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Helper to reliably center the active input in the available visible viewport
+  // Helper to gently ensure the active input is within view without jarring viewport shakes
   const centerActiveInput = (targetElement?: HTMLElement | null) => {
     const el = targetElement || (typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null);
     if (!el || !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
 
     try {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
     } catch {
       try {
         el.scrollIntoView(false);
       } catch {}
-    }
-
-    // Explicitly adjust form container scroll for nested scroll contexts
-    if (formRef.current) {
-      const container = formRef.current;
-      const elRect = el.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const relativeTop = elRect.top - containerRect.top + container.scrollTop;
-      const targetScrollTop = relativeTop - (container.clientHeight / 2) + (elRect.height / 2);
-      container.scrollTo({
-        top: Math.max(0, targetScrollTop),
-        behavior: 'smooth'
-      });
     }
   };
 
@@ -188,28 +173,21 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     const registerNativeKeyboard = async () => {
       try {
-        const willShow = await NativeKeyboard.addListener('keyboardWillShow', (info) => {
+        const willShow = await NativeKeyboard.addListener('keyboardWillShow', () => {
           if (!isSubscribed) return;
-          const h = info?.keyboardHeight || 0;
-          setKeyboardHeight(h);
+          setIsKeyboardOpen(true);
+        });
+        const didShow = await NativeKeyboard.addListener('keyboardDidShow', () => {
+          if (!isSubscribed) return;
           setIsKeyboardOpen(true);
           setTimeout(() => centerActiveInput(), 100);
         });
-        const didShow = await NativeKeyboard.addListener('keyboardDidShow', (info) => {
-          if (!isSubscribed) return;
-          const h = info?.keyboardHeight || 0;
-          setKeyboardHeight(h);
-          setIsKeyboardOpen(true);
-          setTimeout(() => centerActiveInput(), 150);
-        });
         const willHide = await NativeKeyboard.addListener('keyboardWillHide', () => {
           if (!isSubscribed) return;
-          setKeyboardHeight(0);
           setIsKeyboardOpen(false);
         });
         const didHide = await NativeKeyboard.addListener('keyboardDidHide', () => {
           if (!isSubscribed) return;
-          setKeyboardHeight(0);
           setIsKeyboardOpen(false);
         });
 
@@ -226,27 +204,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     registerNativeKeyboard();
 
-    // 2. Web Visual Viewport Fallback for Browser / PWA
-    const handleViewportChange = () => {
+    // 2. Web Visual Viewport Fallback for Browser / PWA (Only resize, NO scroll listeners)
+    const handleViewportResize = () => {
       if (!isSubscribed) return;
       if (typeof window !== 'undefined' && window.visualViewport) {
         const diff = window.innerHeight - window.visualViewport.height;
-        const keyboardActive = diff > 110;
+        const keyboardActive = diff > 130;
         setIsKeyboardOpen(keyboardActive);
-        if (!NativeKeyboard.isAvailable()) {
-          setKeyboardHeight(keyboardActive ? Math.max(0, diff) : 0);
-        }
-        if (keyboardActive) {
-          setTimeout(() => {
-            centerActiveInput();
-          }, 80);
-        }
       }
     };
 
     if (typeof window !== 'undefined' && window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportChange);
-      window.visualViewport.addEventListener('scroll', handleViewportChange);
+      window.visualViewport.addEventListener('resize', handleViewportResize);
     }
 
     return () => {
@@ -255,8 +224,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         try { fn(); } catch {}
       });
       if (typeof window !== 'undefined' && window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportChange);
-        window.visualViewport.removeEventListener('scroll', handleViewportChange);
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
       }
     };
   }, []);
@@ -287,30 +255,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     if (typeof document !== 'undefined') {
       (document.activeElement as HTMLElement)?.blur();
     }
-    setKeyboardHeight(0);
     setIsKeyboardOpen(false);
   };
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setIsKeyboardOpen(true);
     const target = e.target;
-    centerActiveInput(target);
     setTimeout(() => {
       centerActiveInput(target);
-    }, 120);
-    setTimeout(() => {
-      centerActiveInput(target);
-    }, 320);
-  };
-
-  const handleInputTyping = (e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    if (typingScrollTimeoutRef.current) {
-      clearTimeout(typingScrollTimeoutRef.current);
-    }
-    const target = e.currentTarget;
-    typingScrollTimeoutRef.current = setTimeout(() => {
-      centerActiveInput(target);
-    }, 90);
+    }, 150);
   };
 
   const handleInputBlur = () => {
@@ -585,13 +538,23 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     e.preventDefault();
     setErrorMessage('');
 
-    const numAmount = parseArabicNumber(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      NativeHaptics.notification('ERROR').catch(() => {});
-      setErrorMessage('الرجاء إدخال مبلغ صحيح أكبر من الصفر');
-      return;
+    if (selectedEvent !== 'balance_adjustment') {
+      const rawClean = typeof amount === 'string' ? amount.trim() : String(amount || '');
+      if (rawClean.includes('-')) {
+        NativeHaptics.notification('ERROR').catch(() => {});
+        setErrorMessage(language === 'en' ? 'Negative values are forbidden in transactions' : 'ممنوع إدخال القيم السالبة في المعاملات المالية');
+        return;
+      }
+
+      const numAmount = parseArabicNumber(amount);
+      if (isNaN(numAmount) || numAmount <= 0) {
+        NativeHaptics.notification('ERROR').catch(() => {});
+        setErrorMessage(language === 'en' ? 'Transaction amount must be greater than zero' : 'ممنوع إدخال قيمة سالبة أو صفر. يرجى إدخال مبلغ موجب أكبر من الصفر');
+        return;
+      }
     }
 
+    const numAmount = Math.abs(parseArabicNumber(amount));
     setIsSubmitting(true);
 
     try {
@@ -746,6 +709,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           setIsSubmitting(false);
           return;
         }
+        if (adjustmentCalc.actual < 0) {
+          setErrorMessage(language === 'en' ? 'Actual wallet balance cannot be negative' : 'ممنوع إدخال رصيد فعلي سالب. يجب أن يكون الرصيد صفراً أو موجباً');
+          setIsSubmitting(false);
+          return;
+        }
         onSubmit({
           type: 'adjustment',
           amount: adjustmentCalc.diff,
@@ -771,9 +739,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[99999] flex flex-col justify-center items-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
-      style={{
-        paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined,
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           if (isKeyboardOpen) {
@@ -788,12 +753,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        style={{
-          maxHeight: keyboardHeight > 0 ? `calc(100dvh - ${keyboardHeight + 12}px)` : undefined,
-        }}
-        className={`w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto transition-[max-height] duration-150 ${
-          keyboardHeight > 0 ? 'max-h-[calc(100dvh-12px)]' : 'max-h-[90dvh] sm:max-h-[90vh]'
-        }`}
+        className="w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] sm:max-h-[90vh]"
       >
         {/* TOP BAR / NAVIGATION */}
         <div className="p-4 sm:p-5 border-b border-[#D9B978]/10 flex items-center justify-between bg-[#11161C] shrink-0">
@@ -1099,11 +1059,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <form 
             ref={formRef}
             onSubmit={handleSubmit} 
-            style={{ 
-              scrollPaddingBottom: isKeyboardOpen ? `${Math.max(keyboardHeight, 140)}px` : '4rem',
-              scrollPaddingTop: '2rem' 
-            }}
-            className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10] pb-28 sm:pb-8"
+            className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10] pb-8"
           >
             {/* Travel Mode Prominent Exchange Rate Banner */}
             {isTravelMode && (() => {
@@ -1152,7 +1108,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#C98387] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1257,7 +1212,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1407,7 +1361,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     value={amount}
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
-                    onInput={handleInputTyping}
                     onKeyDown={handleKeyDownPreventEnter}
                     onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                     className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1451,7 +1404,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={destinationAmount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setDestinationAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-sm text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978] font-numeric"
@@ -1478,7 +1430,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     value={personName}
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
-                    onInput={handleInputTyping}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#8EB9A7]"
                   />
@@ -1510,7 +1461,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1582,7 +1532,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={debtDueDate}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onChange={(e) => setDebtDueDate(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1596,7 +1545,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={personPhone}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setPersonPhone(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
@@ -1623,7 +1571,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     value={personName}
                     onFocus={handleInputFocus}
                     onBlur={handleInputBlur}
-                    onInput={handleInputTyping}
                     onChange={(e) => setPersonName(e.target.value)}
                     className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
                   />
@@ -1655,7 +1602,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={amount}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1730,7 +1676,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={debtDueDate}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onChange={(e) => setDebtDueDate(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                     />
@@ -1744,7 +1689,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       value={personPhone}
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
-                      onInput={handleInputTyping}
                       onKeyDown={handleKeyDownPreventEnter}
                       onChange={(e) => setPersonPhone(e.target.value)}
                       className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
@@ -1820,7 +1764,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         value={amount}
                         onFocus={handleInputFocus}
                         onBlur={handleInputBlur}
-                        onInput={handleInputTyping}
                         onKeyDown={handleKeyDownPreventEnter}
                         onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                         className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
@@ -1933,7 +1876,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         value={actualRealBalance}
                         onFocus={handleInputFocus}
                         onBlur={handleInputBlur}
-                        onInput={handleInputTyping}
                         onKeyDown={handleKeyDownPreventEnter}
                         onChange={(e) => setActualRealBalance(sanitizeNumericInput(e.target.value))}
                         className="w-full bg-[#0A0D10] border border-[#D9B978]/40 rounded-xl px-3.5 py-2.5 text-xl font-black text-[#F4F1EA] focus:outline-none focus:border-[#D9B978] font-numeric"
@@ -1970,7 +1912,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   value={date}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
-                  onInput={handleInputTyping}
                   onChange={(e) => setDate(e.target.value)}
                   className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                 />
@@ -1987,7 +1928,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   value={time}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
-                  onInput={handleInputTyping}
                   onChange={(e) => setTime(e.target.value)}
                   className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
                 />
@@ -2005,7 +1945,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 value={note}
                 onFocus={handleInputFocus}
                 onBlur={handleInputBlur}
-                onInput={handleInputTyping}
                 onKeyDown={handleKeyDownPreventEnter}
                 onChange={(e) => setNote(e.target.value)}
                 className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2 text-xs text-[#F4F1EA] font-medium focus:outline-none focus:border-[#D9B978]"
@@ -2118,46 +2057,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 </div>
               )}
             </div>
-
-            {/* STICKY BOTTOM KEYBOARD TOOLBAR */}
-            <AnimatePresence>
-              {isKeyboardOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  transition={{ duration: 0.15 }}
-                  className="sticky bottom-0 inset-x-0 z-30 p-2.5 bg-[#11161C]/95 backdrop-blur-md border-t border-[#D9B978]/30 flex items-center justify-between gap-2 shadow-2xl rounded-t-2xl mt-auto"
-                >
-                  <button
-                    type="button"
-                    onClick={dismissKeyboard}
-                    className="px-3 py-2 rounded-xl bg-[#171D24] text-[#F4F1EA] hover:bg-[#D9B978]/20 border border-[#D9B978]/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
-                  >
-                    <X size={14} />
-                    <span>إخفاء الكيبورد</span>
-                  </button>
-
-                  <div className="text-center font-numeric text-xs font-black text-[#D9B978] truncate max-w-[120px]">
-                    {amount ? `${parseFloat(amount) ? parseFloat(amount).toLocaleString() : amount} ${inputCurrency}` : ''}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      dismissKeyboard();
-                      if (formRef.current) {
-                        formRef.current.requestSubmit();
-                      }
-                    }}
-                    className="px-4 py-2 rounded-xl bg-[#D9B978] text-[#0A0D10] font-black text-xs flex items-center gap-1.5 active:scale-95 shadow-md transition-all hover:bg-[#D9B978]/90"
-                  >
-                    <Check size={15} strokeWidth={3} />
-                    <span>تسجيل</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </form>
         )}
 
