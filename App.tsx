@@ -26,28 +26,29 @@ import BalanceCard from './components/BalanceCard';
 import ElegantDashboard from './components/ElegantDashboard';
 import TransactionForm from './components/TransactionForm';
 import TransactionList from './components/TransactionList';
-import Analytics from './components/Analytics';
-import DebtManager from './components/DebtManager';
-import SubscriptionManager from './components/SubscriptionManager';
-import BudgetManager from './components/BudgetManager';
-import GoalTracker from './components/GoalTracker';
-import Settings from './components/Settings';
-import { AboutAndPrivacy } from './components/AboutAndPrivacy';
 import WelcomeScreen from './components/WelcomeScreen';
 import LockScreen from './components/LockScreen';
 import Logo from './components/Logo';
-import FinancialReport from './components/FinancialReport';
-import { ReportModal } from './components/reports/ReportModal';
-import { TrashModal } from './components/TrashModal';
-import { RecurringManagerModal } from './components/RecurringManagerModal';
-import { ToolsHubModal } from './components/ToolsHubModal';
 import { GlobalToast, ToastData } from './components/GlobalToast';
-import CurrencySelectorModal from './components/CurrencySelectorModal';
-import WalletSelectorModal from './components/WalletSelectorModal';
-import SmartAlerts from './components/SmartAlerts';
-import ZakatCalculator from './components/ZakatCalculator';
-import ExecutiveInsights from './components/ExecutiveInsights';
-import CashflowSankey from './components/CashflowSankey';
+
+const Analytics = React.lazy(() => import('./components/Analytics'));
+const DebtManager = React.lazy(() => import('./components/DebtManager'));
+const SubscriptionManager = React.lazy(() => import('./components/SubscriptionManager'));
+const BudgetManager = React.lazy(() => import('./components/BudgetManager'));
+const GoalTracker = React.lazy(() => import('./components/GoalTracker'));
+const Settings = React.lazy(() => import('./components/Settings'));
+const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
+const FinancialReport = React.lazy(() => import('./components/FinancialReport'));
+const ReportModal = React.lazy(() => import('./components/reports/ReportModal').then(m => ({ default: m.ReportModal })));
+const TrashModal = React.lazy(() => import('./components/TrashModal').then(m => ({ default: m.TrashModal })));
+const RecurringManagerModal = React.lazy(() => import('./components/RecurringManagerModal').then(m => ({ default: m.RecurringManagerModal })));
+const ToolsHubModal = React.lazy(() => import('./components/ToolsHubModal').then(m => ({ default: m.ToolsHubModal })));
+const CurrencySelectorModal = React.lazy(() => import('./components/CurrencySelectorModal'));
+const WalletSelectorModal = React.lazy(() => import('./components/WalletSelectorModal'));
+const SmartAlerts = React.lazy(() => import('./components/SmartAlerts'));
+const ZakatCalculator = React.lazy(() => import('./components/ZakatCalculator'));
+const ExecutiveInsights = React.lazy(() => import('./components/ExecutiveInsights'));
+const CashflowSankey = React.lazy(() => import('./components/CashflowSankey'));
 
 const STORAGE_KEY = 'thari_app_v4';
 
@@ -1522,6 +1523,7 @@ const App: React.FC = () => {
                 transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full will-change-transform"
               >
+                <React.Suspense fallback={<div className="min-h-[300px] flex items-center justify-center text-slate-500 font-bold text-sm">جاري التحميل...</div>}>
                 {activeTab === 'dashboard' && (
                   <ElegantDashboard
                     userName={state.userName}
@@ -1671,6 +1673,7 @@ const App: React.FC = () => {
                         swRegistration={swRegistration}
                     />
                 )}
+                </React.Suspense>
               </motion.div>
             </AnimatePresence>
           </div>
@@ -1725,6 +1728,7 @@ const App: React.FC = () => {
           </div>
         )}
 
+        <React.Suspense fallback={null}>
         <AnimatePresence>
           {showToolsHub && (
             <ToolsHubModal
@@ -1838,6 +1842,7 @@ const App: React.FC = () => {
             />
           )}
         </AnimatePresence>
+        </React.Suspense>
 
         <GlobalToast toast={globalToast} onDismiss={() => setGlobalToast(null)} />
       </div>

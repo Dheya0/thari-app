@@ -8,7 +8,6 @@ import {
   printOrShareFinancialReport 
 } from '../services/reports/reportExportService';
 import { formatLocalDateOnly } from './formatters';
-import * as XLSX from 'xlsx';
 
 export const generateAndSharePDF = async (
   transactionsOrElementId: any,
@@ -90,13 +89,14 @@ export const exportAndShareExecutiveCSV = async (
 ) => {
   const actualName = fileName ? fileName.replace(/\.(csv|xls)$/, '.xlsx') : `THARI_Report_${formatLocalDateOnly(new Date())}.xlsx`;
   if (model) {
-    const wb = buildModernExcelWorkbook(model);
+    const wb = await buildModernExcelWorkbook(model);
     await exportAndShareXlsxFile(wb, actualName, 'تقرير ثري المالي (Excel XLSX)');
     return;
   }
   // If only string content was provided (CSV or HTML table), parse into modern XLSX
   try {
-    let wb: XLSX.WorkBook;
+    const XLSX = await import('xlsx');
+    let wb: any;
     if (content.includes('<html') || content.includes('<table')) {
       wb = XLSX.read(content, { type: 'string' });
     } else {
@@ -136,7 +136,7 @@ export const generateAndShareCSV = async (
     },
   });
 
-  const wb = buildModernExcelWorkbook(model);
+  const wb = await buildModernExcelWorkbook(model);
   const fileName = `Thari_Transactions_${formatLocalDateOnly(new Date())}.xlsx`;
   await exportAndShareXlsxFile(wb, fileName, 'سجل معاملات ثـري (Excel XLSX)');
 };

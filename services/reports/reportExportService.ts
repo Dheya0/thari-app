@@ -1,10 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import * as XLSX from 'xlsx';
 import { ReportModel, ReportType } from './reportTypes';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import { formatLocalDateOnly } from '../../utils/formatters';
 
 function escapeCSV(val: any): string {
@@ -193,7 +190,8 @@ export function buildExcelReportCSV(model: ReportModel): string {
  * Generates an authentic, modern Microsoft Excel (.xlsx) workbook (Office Open XML / 2016-365 format)
  * with dedicated multi-sheet structure, numeric cell types, and RTL orientation.
  */
-export function buildModernExcelWorkbook(model: ReportModel): XLSX.WorkBook {
+export async function buildModernExcelWorkbook(model: ReportModel): Promise<any> {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const {
     metadata,
@@ -1292,6 +1290,9 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
       }
     });
 
+    const html2canvas = (await import('html2canvas')).default;
+    const { jsPDF } = await import('jspdf');
+
     masterCanvas = await html2canvas(container, {
       scale,
       useCORS: true,
@@ -1393,7 +1394,7 @@ export async function printOrShareFinancialReport(
     const typeKey = model.reportType || 'summary';
 
     if (preferredAction === 'excel') {
-      const workbook = buildModernExcelWorkbook(model);
+      const workbook = await buildModernExcelWorkbook(model);
       const fileName = `THARI_${typeKey.toUpperCase()}_${dateStr}.xlsx`;
       await exportAndShareXlsxFile(
         workbook,
@@ -1512,10 +1513,11 @@ export async function exportAndSharePdfFile(
  * (Capacitor Filesystem & Native Share Sheet), Web Share API with files, and browser downloads.
  */
 export async function exportAndShareXlsxFile(
-  workbook: XLSX.WorkBook,
+  workbook: any,
   fileName: string,
   dialogTitle = 'تصدير كشف حساب Excel (XLSX)'
 ): Promise<void> {
+  const XLSX = await import('xlsx');
   const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
   // 1. Native iOS / Android Platform (Capacitor Filesystem + Share Sheet)

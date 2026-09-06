@@ -723,7 +723,7 @@ export default function Settings({
           targetCurrencyCode: (currency || appState.currency)?.code || 'SAR',
         }
       });
-      const wb = buildModernExcelWorkbook(model);
+      const wb = await buildModernExcelWorkbook(model);
       const fileName = `Thari_Financial_Report_${type}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       await exportAndShareXlsxFile(wb, fileName, 'تقرير ثـري المالي (Excel XLSX)');
       showToast(t.excelExportSuccess);
