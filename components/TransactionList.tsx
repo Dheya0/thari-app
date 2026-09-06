@@ -161,8 +161,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
         animate={{ opacity: 1, y: 0 }}
         className="text-center py-12 sm:py-16"
       >
-        <div className="bg-slate-900 w-16 h-16 sm:w-20 sm:h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-4 shadow-inner border border-white/5">
-          <WalletIcon className="text-slate-700" size={32} />
+        <div className="bg-[#11161C] w-16 h-16 sm:w-20 sm:h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-4 shadow-inner border border-white/5">
+          <WalletIcon className="text-slate-600" size={32} />
         </div>
         <p className="text-slate-400 text-xs sm:text-sm font-bold">لا توجد أي معاملات مسجلة بعد</p>
       </motion.div>
@@ -249,7 +249,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   onChange={(e) => setCurrencyFilter(e.target.value)}
                   className="w-full bg-transparent text-[#F4F1EA] text-xs font-bold outline-none cursor-pointer truncate text-right"
                 >
-                  <option value="all" className="bg-slate-900 text-white">
+                  <option value="all" className="bg-[#11161C] text-white">
                     كافة العملات المسجلة
                   </option>
                   {uniqueCurrenciesInTx.map(code => {
@@ -257,7 +257,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                       currencies.find(c => c.code === code) ||
                       DEFAULT_CURRENCIES.find(c => c.code === code);
                     return (
-                      <option key={code} value={code} className="bg-slate-900 text-white">
+                      <option key={code} value={code} className="bg-[#11161C] text-white">
                         عملة: {cObj?.name || code} ({code})
                       </option>
                     );
@@ -270,7 +270,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
           {/* Active filter count status */}
           <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-1 font-bold">
             <span>
-              عدد العمليات المطابقة: <strong className="text-amber-400 font-black">{sortedTransactions.length}</strong>
+              عدد العمليات المطابقة: <strong className="text-[#D9B978] font-black">{sortedTransactions.length}</strong>
             </span>
             {(typeFilter !== 'all' || walletFilter !== 'all' || currencyFilter !== 'all' || searchQuery) && (
               <button
@@ -280,7 +280,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   setCurrencyFilter('all');
                   setSearchQuery('');
                 }}
-                className="text-amber-400 hover:underline font-black cursor-pointer"
+                className="text-[#D9B978] hover:underline font-black cursor-pointer"
               >
                 إعادة ضبط الفلاتر
               </button>
@@ -297,7 +297,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
         style={{ willChange: 'transform' }}
       >
         {totalCount === 0 ? (
-          <div className="text-center py-10 bg-slate-900/40 rounded-2xl border border-white/5">
+          <div className="text-center py-10 bg-[#11161C]/60 rounded-2xl border border-white/5">
             <p className="text-xs text-slate-400 font-bold">لا توجد عمليات تطابق معايير التصفية المختارة.</p>
           </div>
         ) : (
@@ -556,7 +556,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
             className="fixed inset-0 bg-black/95 z-[300] flex flex-col items-center justify-center p-4"
           >
             <div className="flex justify-between items-center w-full max-w-lg mb-3">
-              <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-[#D9B978] flex items-center gap-1.5">
                 <Paperclip size={14} /> الفاتورة / السند المرفق
               </span>
               <button

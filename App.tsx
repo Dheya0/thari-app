@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X } from 'lucide-react';
+import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3 } from 'lucide-react';
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
@@ -1573,7 +1573,7 @@ const App: React.FC = () => {
                 {activeTab === 'transactions' && (
                     <div className="space-y-6">
                         {/* View Switcher: List vs Analytics */}
-                        <div className="flex items-center justify-center p-1 bg-slate-900/80 rounded-2xl border border-white/10 max-w-md mx-auto shadow-inner">
+                        <div className="flex items-center justify-center p-1 bg-[#11161C] rounded-2xl border border-white/10 max-w-md mx-auto shadow-inner">
                           <button
                             type="button"
                             onClick={() => {
@@ -1601,7 +1601,7 @@ const App: React.FC = () => {
                                 : 'text-slate-400 hover:text-white'
                             }`}
                           >
-                            <Scale size={16} />
+                            <BarChart3 size={16} />
                             <span>{activeLanguage === 'en' ? 'Analytics & Charts' : 'الرسوم والتحليلات'}</span>
                           </button>
                         </div>
