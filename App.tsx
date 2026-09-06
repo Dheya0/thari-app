@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3 } from 'lucide-react';
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
-import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from './utils/exportHelper';
+import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
 import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
@@ -22,13 +22,13 @@ import { appLifecycleService } from './services/appLifecycleService';
 import { backNavigationManager, useBackNavigation } from './utils/backNavigation';
 import BalanceCard from './components/BalanceCard';
 import ElegantDashboard from './components/ElegantDashboard';
-import TransactionForm from './components/TransactionForm';
-import TransactionList from './components/TransactionList';
-import WelcomeScreen from './components/WelcomeScreen';
-import LockScreen from './components/LockScreen';
 import Logo from './components/Logo';
 import { GlobalToast, ToastData } from './components/GlobalToast';
 
+const TransactionForm = React.lazy(() => import('./components/TransactionForm'));
+const TransactionList = React.lazy(() => import('./components/TransactionList'));
+const WelcomeScreen = React.lazy(() => import('./components/WelcomeScreen'));
+const LockScreen = React.lazy(() => import('./components/LockScreen'));
 const Analytics = React.lazy(() => import('./components/Analytics'));
 const DebtManager = React.lazy(() => import('./components/DebtManager'));
 const SubscriptionManager = React.lazy(() => import('./components/SubscriptionManager'));
@@ -932,7 +932,7 @@ const App: React.FC = () => {
       await printOrShareFinancialReport(model, 'excel');
     } catch (e) {
       console.warn('Excel export report error:', e);
-      const csvContent = buildExecutiveCSVContent({
+      const csvContent = await buildExecutiveCSVContentAsync({
         transactions: state.transactions,
         categories: state.categories,
         wallets: state.wallets,
@@ -1327,20 +1327,28 @@ const App: React.FC = () => {
     );
   }
 
-  if (!state.hasAcceptedTerms) return <WelcomeScreen onAccept={() => setState(p => ({ ...p, hasAcceptedTerms: true }))} onShowPrivacy={() => setShowPrivacyPolicy(true)} />;
+  if (!state.hasAcceptedTerms) {
+    return (
+      <React.Suspense fallback={<div className="fixed inset-0 bg-[#0A0D10] flex items-center justify-center text-slate-400 font-bold text-sm">جاري التحميل...</div>}>
+        <WelcomeScreen onAccept={() => setState(p => ({ ...p, hasAcceptedTerms: true }))} onShowPrivacy={() => setShowPrivacyPolicy(true)} />
+      </React.Suspense>
+    );
+  }
   if (state.isLocked && (!!state.pin || state.isBiometricEnabled === true)) {
     return (
-      <LockScreen 
-        savedPin={state.pin || ''} 
-        pinSalt={state.pinSalt}
-        isBiometricEnabled={state.isBiometricEnabled === true} 
-        onUnlock={() => {
-          justUnlockedRef.current = Date.now() + 5000;
-          try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
-          setState(p => ({ ...p, isLocked: false }));
-        }} 
-        onRehashPin={(newPinHash, newSalt) => setState(p => ({ ...p, pin: newPinHash, pinSalt: newSalt }))}
-      />
+      <React.Suspense fallback={<div className="fixed inset-0 bg-[#0A0D10] flex items-center justify-center text-slate-400 font-bold text-sm">جاري التحميل...</div>}>
+        <LockScreen 
+          savedPin={state.pin || ''} 
+          pinSalt={state.pinSalt}
+          isBiometricEnabled={state.isBiometricEnabled === true} 
+          onUnlock={() => {
+            justUnlockedRef.current = Date.now() + 5000;
+            try { sessionStorage.removeItem('thari_bg_ts'); } catch (e) {}
+            setState(p => ({ ...p, isLocked: false }));
+          }} 
+          onRehashPin={(newPinHash, newSalt) => setState(p => ({ ...p, pin: newPinHash, pinSalt: newSalt }))}
+        />
+      </React.Suspense>
     );
   }
 

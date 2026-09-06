@@ -1,12 +1,4 @@
 import { Transaction, Category, Wallet, Currency } from '../types';
-import { generateFinancialReportSync } from '../services/reports/reportService';
-import { 
-  buildModernExcelWorkbook, 
-  buildExcelReportHTML, 
-  exportAndShareXlsxFile, 
-  exportAndShareNativeFile, 
-  printOrShareFinancialReport 
-} from '../services/reports/reportExportService';
 import { formatLocalDateOnly } from './formatters';
 
 export const generateAndSharePDF = async (
@@ -17,6 +9,10 @@ export const generateAndSharePDF = async (
   exchangeRates?: Record<string, number>
 ) => {
   if (Array.isArray(transactionsOrElementId)) {
+    const [{ generateFinancialReportSync }, { printOrShareFinancialReport }] = await Promise.all([
+      import('../services/reports/reportService'),
+      import('../services/reports/reportExportService')
+    ]);
     const model = generateFinancialReportSync({
       transactions: transactionsOrElementId,
       categories: Array.isArray(fileNameOrCategories) ? fileNameOrCategories : [],
@@ -37,7 +33,7 @@ export const generateAndSharePDF = async (
   }
 };
 
-export const buildExecutiveCSVContent = ({
+export const buildExecutiveCSVContentAsync = async ({
   transactions,
   categories,
   wallets,
@@ -61,7 +57,11 @@ export const buildExecutiveCSVContent = ({
   filterCurrency?: string | null;
   startDate?: string | null;
   endDate?: string | null;
-}): string => {
+}): Promise<string> => {
+  const [{ generateFinancialReportSync }, { buildExcelReportHTML }] = await Promise.all([
+    import('../services/reports/reportService'),
+    import('../services/reports/reportExportService')
+  ]);
   const model = generateFinancialReportSync({
     transactions,
     categories,
@@ -87,6 +87,9 @@ export const exportAndShareExecutiveCSV = async (
   fileName?: string,
   model?: any
 ) => {
+  const [{ buildModernExcelWorkbook, exportAndShareXlsxFile, exportAndShareNativeFile }] = await Promise.all([
+    import('../services/reports/reportExportService')
+  ]);
   const actualName = fileName ? fileName.replace(/\.(csv|xls)$/, '.xlsx') : `THARI_Report_${formatLocalDateOnly(new Date())}.xlsx`;
   if (model) {
     const wb = await buildModernExcelWorkbook(model);
@@ -121,6 +124,10 @@ export const generateAndShareCSV = async (
   currency?: Currency,
   exchangeRates?: Record<string, number>
 ) => {
+  const [{ generateFinancialReportSync }, { buildModernExcelWorkbook, exportAndShareXlsxFile }] = await Promise.all([
+    import('../services/reports/reportService'),
+    import('../services/reports/reportExportService')
+  ]);
   const model = generateFinancialReportSync({
     transactions,
     categories,

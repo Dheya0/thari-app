@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Printer, FileText, TrendingUp, TrendingDown, Minus, Filter, Sparkles, PieChart as PieChartIcon, BarChart3, Wallet as WalletIcon, Layers, Coins, Merge, Split } from 'lucide-react';
 import { Transaction, Category, Wallet, Currency } from '../types';
 import { convertCurrency, DEFAULT_CURRENCIES } from '../constants';
-import { buildExecutiveCSVContent, exportAndShareExecutiveCSV } from '../utils/exportHelper';
+import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from '../utils/exportHelper';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { formatLocalDateOnly } from '../utils/formatters';
 
@@ -162,11 +162,11 @@ const Analytics: React.FC<AnalyticsProps> = ({
     onPrint(type, walletId, currencyCode);
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     const walletId = reportMode === 'by-wallet' ? (selectedReportWallet || null) : null;
     const currencyCode = reportMode === 'by-currency' ? (selectedReportCurrency || null) : null;
 
-    const csvContent = buildExecutiveCSVContent({
+    const csvContent = await buildExecutiveCSVContentAsync({
       transactions,
       categories,
       wallets,

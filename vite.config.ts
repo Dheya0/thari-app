@@ -45,7 +45,7 @@ export default defineConfig(({ mode }) => {
               if (id.includes('lucide-react')) return 'vendor-icons';
               if (id.includes('motion')) return 'vendor-motion';
               if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
-              if (id.includes('xlsx') || id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-exports';
+              if (id.includes('xlsx') || id.includes('jspdf') || id.includes('html2canvas') || id.includes('jspdf-autotable')) return 'vendor-exports';
               if (id.includes('@capacitor')) return 'vendor-capacitor';
             }
           }
