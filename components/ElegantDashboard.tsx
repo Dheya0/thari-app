@@ -452,7 +452,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                   className="rounded-2xl"
                 >
                   <div
-                    className="flex items-center justify-between py-3.5 px-3.5 bg-[#171D24]/80 hover:bg-[#171D24] border border-white/[0.05] hover:border-[#D9B978]/30 transition-all duration-200 rounded-2xl cursor-pointer group min-h-[56px]"
+                    className="flex items-center justify-between py-3.5 px-3.5 bg-[#171D24] hover:bg-[#1C242E] border border-white/[0.05] hover:border-[#D9B978]/30 transition-all duration-200 rounded-2xl cursor-pointer group min-h-[56px]"
                     title="اسحب لليمين/اليسار لتعديل أو حذف المعاملة"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
