@@ -82,7 +82,7 @@ const FeatureItem = ({ icon, title, desc }: { icon: React.ReactNode, title: stri
       {icon}
     </div>
     <div className="space-y-0.5 min-w-0">
-      <h4 className="font-semibold text-[#F4F1EA] text-xs leading-tight">{title}</h4>
+      <h2 className="font-semibold text-[#F4F1EA] text-xs leading-tight">{title}</h2>
       <p className="text-[10px] text-slate-400 leading-snug font-normal line-clamp-1">{desc}</p>
     </div>
   </div>

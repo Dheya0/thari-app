@@ -39,7 +39,17 @@ export default defineConfig(({ mode }) => {
         output: {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
-          assetFileNames: 'assets/[name]-[hash].[ext]'
+          assetFileNames: 'assets/[name]-[hash].[ext]',
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('motion')) return 'vendor-motion';
+              if (id.includes('recharts') || id.includes('d3')) return 'vendor-charts';
+              if (id.includes('xlsx') || id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-exports';
+              if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+              return 'vendor-core';
+            }
+          }
         }
       }
     }
