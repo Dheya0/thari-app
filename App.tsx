@@ -1403,6 +1403,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowWalletSelector(true)}
+                  aria-label="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
                   className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[100px] sm:max-w-[140px]"
                   title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
                 >
@@ -1422,6 +1423,7 @@ const App: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setShowCurrencySelector(true)}
+                      aria-label={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
                       className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
                       title={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
                     >
@@ -1438,6 +1440,7 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowToolsHub(true)}
+                  aria-label="مركز الأدوات والتقارير"
                   className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
                   title="مركز الأدوات والتقارير"
                 >
@@ -1450,6 +1453,7 @@ const App: React.FC = () => {
                 {/* Settings Shortcut (Tablet & Desktop only; on mobile it is in bottom bar) */}
                 <button 
                   onClick={() => setActiveTab('settings')} 
+                  aria-label="الإعدادات"
                   className="hidden sm:flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl border transition-all shrink-0 active:scale-95 backdrop-blur-md bg-white/5 border-white/10 text-slate-400 hover:text-[#D9B978] hover:border-[#D9B978]/50" 
                   title="الإعدادات"
                 >
@@ -1848,6 +1852,7 @@ const NavButton = ({ icon, label, active, onClick }: { icon: any, label: string,
       NativeHaptics.selection().catch(() => {});
       onClick();
     }} 
+    aria-label={label}
     className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 min-w-[60px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
   >
     <div className={`p-2 rounded-xl transition-all duration-300 relative ${active ? 'bg-[#D9B978]/10 text-[#D9B978]' : 'group-hover:bg-white/5'}`}>
