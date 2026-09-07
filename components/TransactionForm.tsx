@@ -147,13 +147,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Helper to gently ensure the active input is within view without jarring viewport shakes
+  // Helper to smoothly and reliably bring the active input to the optical center above the keyboard
   const centerActiveInput = (targetElement?: HTMLElement | null) => {
     const el = targetElement || (typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null);
     if (!el || !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
 
     try {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     } catch {
       try {
         el.scrollIntoView(false);
@@ -162,10 +162,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   useEffect(() => {
-    // 1. Configure Capacitor Native Keyboard
+    // 1. Configure Capacitor Native Keyboard with native resize mode
     if (NativeKeyboard.isAvailable()) {
       NativeKeyboard.setStyle('DARK').catch(() => {});
-      NativeKeyboard.setResizeMode('body').catch(() => {});
+      NativeKeyboard.setResizeMode('native').catch(() => {});
       NativeKeyboard.setAccessoryBarVisible(false).catch(() => {});
     }
 
@@ -174,18 +174,24 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     const registerNativeKeyboard = async () => {
       try {
-        const willShow = await NativeKeyboard.addListener('keyboardWillShow', () => {
+        const willShow = await NativeKeyboard.addListener('keyboardWillShow', (info) => {
           if (!isSubscribed) return;
           setIsKeyboardOpen(true);
+          const kh = info?.keyboardHeight || 280;
+          document.documentElement.style.setProperty('--keyboard-inset', `${kh}px`);
+          document.documentElement.style.setProperty('--keyboard-active', '1');
         });
         const didShow = await NativeKeyboard.addListener('keyboardDidShow', () => {
           if (!isSubscribed) return;
           setIsKeyboardOpen(true);
-          setTimeout(() => centerActiveInput(), 100);
+          setTimeout(() => centerActiveInput(), 80);
+          setTimeout(() => centerActiveInput(), 260);
         });
         const willHide = await NativeKeyboard.addListener('keyboardWillHide', () => {
           if (!isSubscribed) return;
           setIsKeyboardOpen(false);
+          document.documentElement.style.setProperty('--keyboard-inset', '0px');
+          document.documentElement.style.setProperty('--keyboard-active', '0');
         });
         const didHide = await NativeKeyboard.addListener('keyboardDidHide', () => {
           if (!isSubscribed) return;
@@ -205,13 +211,18 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     registerNativeKeyboard();
 
-    // 2. Web Visual Viewport Fallback for Browser / PWA (Only resize, NO scroll listeners)
+    // 2. Web Visual Viewport Fallback for Browser / PWA
     const handleViewportResize = () => {
       if (!isSubscribed) return;
       if (typeof window !== 'undefined' && window.visualViewport) {
         const diff = window.innerHeight - window.visualViewport.height;
         const keyboardActive = diff > 130;
         setIsKeyboardOpen(keyboardActive);
+        document.documentElement.style.setProperty('--keyboard-inset', `${Math.max(0, diff)}px`);
+        document.documentElement.style.setProperty('--keyboard-active', keyboardActive ? '1' : '0');
+        if (keyboardActive) {
+          setTimeout(() => centerActiveInput(), 100);
+        }
       }
     };
 
@@ -739,7 +750,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[99999] flex flex-col justify-center items-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
+      className={`fixed inset-0 z-[99999] flex flex-col ${isKeyboardOpen ? 'justify-start pt-2 sm:pt-4' : 'justify-center'} items-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden`}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           if (isKeyboardOpen) {
@@ -754,7 +765,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className="w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92dvh] sm:max-h-[90vh]"
+        className={`w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col ${isKeyboardOpen ? 'max-h-[calc(var(--vh,100dvh)-0.75rem)]' : 'my-auto max-h-[92dvh] sm:max-h-[90vh]'}`}
       >
         {/* TOP BAR / NAVIGATION */}
         <div className="p-4 sm:p-5 border-b border-[#D9B978]/10 flex items-center justify-between bg-[#11161C] shrink-0">
@@ -973,7 +984,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* SCREEN 1.5: PREVIOUS TRANSACTIONS LIST */}
         {!selectedEvent && navStep === 'previous_transactions_list' && (
-          <div ref={listScrollRef} className="p-4 sm:p-6 space-y-3 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar">
+          <div 
+            ref={listScrollRef} 
+            className="p-4 sm:p-6 space-y-3 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar"
+            style={{ paddingBottom: isKeyboardOpen ? 'calc(var(--keyboard-inset, 280px) + 2rem)' : '2rem' }}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <span className="text-xs font-bold text-[#D9B978]">
                 {language === 'ar' ? 'اختر معاملة للتعديل من السجل' : 'Select a transaction to edit'}
@@ -1060,7 +1075,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           <form 
             ref={formRef}
             onSubmit={handleSubmit} 
-            className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10] pb-8"
+            className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10]"
+            style={{
+              paddingBottom: isKeyboardOpen ? 'calc(var(--keyboard-inset, 280px) + 3rem)' : '3rem'
+            }}
           >
             {/* Travel Mode Prominent Exchange Rate Banner */}
             {isTravelMode && (() => {
@@ -2049,6 +2067,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     onClose={() => setShowDeleteConfirm(false)}
                     onConfirm={handleDeleteCurrent}
                     walletName={wallets.find(w => w.id === walletId)?.name}
+                    destWalletName={wallets.find(w => w.id === destinationWalletId)?.name}
                     categoryName={categories.find(c => c.id === categoryId)?.name}
                     language={language}
                   />

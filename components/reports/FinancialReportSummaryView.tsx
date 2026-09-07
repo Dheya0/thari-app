@@ -133,10 +133,10 @@ export const FinancialReportSummaryView: React.FC<SummaryViewProps> = ({ model }
             </span>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-slate-500 font-bold border-b border-slate-200 text-[10px]">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-xs print:text-[10px]">
+              <thead className="print:table-header-group">
+                <tr className="text-slate-500 font-bold border-b border-slate-200 text-[10px] print:text-slate-800">
                   <th className="py-2 text-right font-black">العملة والمنطقة</th>
                   <th className="py-2 text-center font-black">عدد الحركات</th>
                   <th className="py-2 text-left font-black">إجمالي المقبوضات</th>

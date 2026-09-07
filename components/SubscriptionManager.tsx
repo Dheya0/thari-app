@@ -101,11 +101,12 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
 
       {showAdd && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAdd(false); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 animate-slide-up max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 overflow-hidden my-auto" 
+            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 animate-slide-up flex flex-col min-h-0 overflow-hidden" 
+            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -113,7 +114,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 <h3 className="text-base sm:text-lg font-bold text-[#F4F1EA]">{t.addNewSubscription}</h3>
                 <button onClick={() => setShowAdd(false)} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white active:scale-90 transition-all"><X size={18} /></button>
              </div>
-             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-1 overscroll-contain">
+             <div 
+                className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 overscroll-contain"
+                style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)' }}
+             >
                 <div className="space-y-1">
                    <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t.subNamePlaceholder} className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 text-[#F4F1EA] font-medium text-xs focus:border-[#D9B978]/50 outline-none transition-colors" />
                 </div>

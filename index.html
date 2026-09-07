@@ -448,8 +448,11 @@
     <script nonce="%CSP_NONCE%">
         function updateViewportHeight() {
             var vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-            if (vh && vh > 200) {
+            if (vh && vh > 150) {
                 document.documentElement.style.setProperty('--vh', vh + 'px');
+                var keyboardHeight = Math.max(0, window.innerHeight - vh);
+                document.documentElement.style.setProperty('--keyboard-inset', keyboardHeight + 'px');
+                document.documentElement.style.setProperty('--keyboard-active', keyboardHeight > 120 ? '1' : '0');
             }
         }
         if (window.visualViewport) {
@@ -471,7 +474,12 @@
                     try {
                         target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
                     } catch (err) {}
-                }, 300);
+                }, 280);
+                setTimeout(function () {
+                    try {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    } catch (err) {}
+                }, 600);
             }
         });
     </script>

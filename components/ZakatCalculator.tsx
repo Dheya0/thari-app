@@ -1449,14 +1449,18 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       <AnimatePresence>
         {showNewProfileModal && typeof document !== 'undefined' && createPortal(
           <div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            className="fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
             onClick={(e) => { if (e.target === e.currentTarget) setShowNewProfileModal(false); }}
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-5 shadow-2xl text-start my-auto max-h-[88dvh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar"
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-5 shadow-2xl text-start overflow-y-auto custom-scrollbar"
+              style={{ 
+                maxHeight: 'calc(var(--vh, 100dvh) - 1rem)',
+                paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)'
+              }}
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
@@ -1508,14 +1512,18 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       <AnimatePresence>
         {showPaymentModal && typeof document !== 'undefined' && createPortal(
           <div 
-            className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            className="fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
             onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start my-auto max-h-[88dvh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar"
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start overflow-y-auto custom-scrollbar"
+              style={{ 
+                maxHeight: 'calc(var(--vh, 100dvh) - 1rem)',
+                paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)'
+              }}
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">

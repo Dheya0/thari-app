@@ -121,11 +121,12 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
 
       {showAdd && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAdd(false); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden my-auto" 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden" 
+            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -133,7 +134,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
               <h3 className="text-base sm:text-lg font-bold text-[#F4F1EA]">{t.newGoal}</h3>
               <button onClick={() => setShowAdd(false)} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all"><X size={18} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-1 overscroll-contain">
+            <div 
+              className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 overscroll-contain"
+              style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)' }}
+            >
                <div className="space-y-1.5">
                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.goalDreamPrompt}</label>
                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder={t.goalDreamPlaceholder} className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-medium text-xs border border-white/10 outline-none focus:border-[#D9B978]/50 transition-colors" />

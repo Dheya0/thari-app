@@ -130,11 +130,12 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
   const [scrollTop, setScrollTop] = useState(0);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
-  const ROW_HEIGHT = 86; // px per transaction card
+  const ROW_HEIGHT = 90; // px per transaction card in virtualized mode
   const overscan = 6;
   const containerHeight = 650;
 
   const totalCount = sortedTransactions.length;
+  const isLargeDataset = totalCount > 120;
   const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
   const endIndex = Math.min(totalCount, startIndex + Math.ceil(containerHeight / ROW_HEIGHT) + overscan * 2);
   const visibleSlice = sortedTransactions.slice(startIndex, endIndex);
@@ -152,6 +153,211 @@ const TransactionList: React.FC<TransactionListProps> = ({
       URL.revokeObjectURL(viewingReceipt);
     }
     setViewingReceipt(null);
+  };
+
+  const renderTransactionItem = (tx: Transaction, isVirtualized: boolean = false) => {
+    const category = categories.find(c => c.id === tx.categoryId);
+    const wallet = wallets.find(w => w.id === tx.walletId);
+    const destWallet = wallets.find(w => w.id === tx.destinationWalletId);
+
+    const isIncome = tx.type === 'income';
+    const isTransfer = tx.type === 'transfer';
+    const isAdjustment = tx.type === 'adjustment';
+
+    // Exact transaction currency details
+    const txCurrencyCode = tx.currency || wallet?.currencyCode || currentCurrencyCode;
+    const txCurrencyObj =
+      currencies.find(c => c.code === txCurrencyCode) ||
+      DEFAULT_CURRENCIES.find(c => c.code === txCurrencyCode);
+    const txLoc = getLocalizedCurrency(txCurrencyCode, txCurrencyObj?.name, txCurrencyObj?.symbol, language);
+    const txSymbol = txLoc.symbol;
+    const txCurrencyName = txLoc.name;
+
+    // Converted amount calculation for Base Currency
+    const isDiffCurrency = txCurrencyCode !== currentCurrencyCode;
+    const baseLoc = getLocalizedCurrency(currentCurrencyCode, undefined, currencySymbol, language);
+    const resolvedBaseSymbol = baseLoc.symbol;
+    const convertedAmount =
+      isDiffCurrency && !isTransfer
+        ? convertCurrency(tx.amount, txCurrencyCode, currentCurrencyCode, exchangeRates)
+        : null;
+
+    // Cross-Currency deduction relative to the specific Wallet's Primary Currency
+    const isDiffFromWallet = Boolean(wallet && txCurrencyCode !== wallet.currencyCode && !isTransfer);
+    const walletCurrencyCode = wallet?.currencyCode || currentCurrencyCode;
+    const walletLoc = getLocalizedCurrency(walletCurrencyCode, undefined, undefined, language);
+    const walletSymbol = walletLoc.symbol;
+    const amountInWallet = isDiffFromWallet
+      ? (tx.convertedAmountInWalletCurrency || convertCurrency(tx.amount, txCurrencyCode, walletCurrencyCode, exchangeRates))
+      : null;
+    const exchangeRateToWallet = isDiffFromWallet
+      ? (tx.exchangeRateUsed || convertCurrency(1, txCurrencyCode, walletCurrencyCode, exchangeRates))
+      : null;
+
+    return (
+      <div
+        key={tx.id}
+        className="w-full"
+        style={isVirtualized ? { minHeight: `${ROW_HEIGHT - 6}px` } : undefined}
+      >
+        <SwipeableRow
+          id={tx.id}
+          onEdit={() => onEdit(tx)}
+          onDelete={() => onDelete(tx.id)}
+          onClick={() => onEdit(tx)}
+          editLabel="تعديل"
+          deleteLabel="حذف"
+          className="w-full rounded-2xl sm:rounded-3xl"
+        >
+          <div
+            className="group bg-[#11161C] p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-[#D9B978]/30 hover:bg-[#151C24] transition-colors duration-200 gap-2.5 cursor-pointer min-h-[76px]"
+            title="اسحب لليمين/اليسار للحذف والتعديل، أو انقر للتفاصيل"
+          >
+            {/* Left / Primary Info */}
+            <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
+              <div
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-105 shrink-0 shadow-sm"
+                style={{
+                  backgroundColor: isTransfer
+                    ? 'rgba(117, 155, 200, 0.15)'
+                    : isAdjustment
+                    ? 'rgba(217, 185, 120, 0.15)'
+                    : `${category?.color || '#D9B978'}20`,
+                  color: isTransfer
+                    ? '#759BC8'
+                    : isAdjustment
+                    ? '#D9B978'
+                    : category?.color || '#D9B978',
+                }}
+              >
+                {isTransfer ? (
+                  <ArrowLeftRight size={20} />
+                ) : isAdjustment ? (
+                  <SlidersHorizontal size={20} />
+                ) : (
+                  getIcon(category?.icon || 'CreditCard', 20)
+                )}
+              </div>
+
+              <div className="space-y-1 min-w-0 flex-1 text-right">
+                {/* Title & Note */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-black text-xs sm:text-sm text-[#F4F1EA] tracking-tight truncate max-w-[150px] sm:max-w-[220px]">
+                    {isTransfer
+                      ? `تحويل: ${wallet?.name || 'محفظة'} ➔ ${destWallet?.name || 'محفظة'}`
+                      : isAdjustment
+                      ? 'تسوية / تعديل رصيد'
+                      : category?.name || 'غير مصنف'}
+                  </span>
+                  {tx.note && (
+                    <span className="text-[10px] text-slate-400 font-medium truncate max-w-[120px] sm:max-w-[180px]">
+                      ({tx.note})
+                    </span>
+                  )}
+                  {tx.receipt && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (tx.receipt) {
+                          const url = await loadReceiptDataUrl(tx.receipt);
+                          setViewingReceipt(url || null);
+                        }
+                      }}
+                      className="text-[#D9B978] hover:text-[#D9B978]/80 p-0.5"
+                      title="عرض الفاتورة المرفقة"
+                    >
+                      <Paperclip size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Badges Bar */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Wallet Badge */}
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-[#0A0D10] rounded-lg border border-white/5">
+                    <div
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: wallet?.color || '#8EB9A7' }}
+                    />
+                    <span className="text-[9px] font-bold text-slate-400 truncate max-w-[90px]">
+                      {wallet?.name || 'المحفظة العامة'}
+                    </span>
+                  </div>
+
+                  {/* Specific Currency Badge */}
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-[#D9B978]/10 rounded-lg border border-[#D9B978]/25 text-[#D9B978]">
+                    <Coins size={10} className="shrink-0" />
+                    <span className="text-[9px] font-black tracking-wide truncate max-w-[100px]" title={txCurrencyName}>
+                      {txCurrencyCode}
+                    </span>
+                  </div>
+
+                  {/* Date Badge */}
+                  <span className="hidden sm:inline-block text-[9px] font-bold text-slate-500 bg-white/5 px-1.5 py-0.5 rounded-md">
+                    {tx.date}
+                  </span>
+
+                  {/* Attachment indicator */}
+                  {tx.receipt && (
+                    <span className="text-[9px] font-bold text-[#D9B978] bg-[#D9B978]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                      <Paperclip size={9} /> مرفق
+                    </span>
+                  )}
+
+                  {/* Fraud/Security Verified Badge */}
+                  {tx.securityHash && (
+                    <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
+                      <span className="text-[9px] font-black text-emerald-400 tracking-tight">
+                        🔒 موثق
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right / Financial Info */}
+            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+              <div className="text-left flex flex-col items-end">
+                <p
+                  className={`font-black text-sm sm:text-base tracking-tight dir-ltr ${
+                    isTransfer
+                      ? 'text-[#759BC8]'
+                      : isIncome
+                      ? 'text-[#8EB9A7]'
+                      : 'text-[#C98387]'
+                  }`}
+                >
+                  {isTransfer ? '↔ ' : isIncome ? '+' : '-'}
+                  {Math.abs(tx.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  <span className="text-[11px] font-bold text-slate-300 ml-1">{txSymbol}</span>
+                </p>
+
+                {isDiffFromWallet && amountInWallet !== null && (
+                  <span className="text-[9px] font-bold text-[#D9B978]/90 dir-ltr text-right flex items-center gap-1 mt-0.5">
+                    <span>المخصوم: {amountInWallet.toLocaleString('en-US', { maximumFractionDigits: 1 })} {walletSymbol}</span>
+                    {exchangeRateToWallet && (
+                      <span className="text-slate-500 font-normal">
+                        (1 {txSymbol} = {exchangeRateToWallet.toLocaleString('en-US', { maximumFractionDigits: 2 })} {walletSymbol})
+                      </span>
+                    )}
+                  </span>
+                )}
+
+                {isDiffCurrency && convertedAmount !== null && (
+                  <span className="text-[9px] font-bold text-slate-400 dir-ltr">
+                    المعادل: ≈ {Math.round(convertedAmount).toLocaleString()} {resolvedBaseSymbol}
+                  </span>
+                )}
+
+                <span className="text-[8.5px] text-slate-500 font-mono sm:hidden">{tx.date}</span>
+              </div>
+            </div>
+          </div>
+        </SwipeableRow>
+      </div>
+    );
   };
 
   if (transactions.length === 0) {
@@ -293,225 +499,25 @@ const TransactionList: React.FC<TransactionListProps> = ({
       <div
         ref={scrollContainerRef}
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-        className="space-y-2.5 overflow-y-auto max-h-[68vh] relative pr-1"
-        style={{ willChange: 'transform' }}
+        className="space-y-2.5 overflow-y-auto relative pr-1 custom-scrollbar"
+        style={{ 
+          maxHeight: 'calc(var(--vh, 100dvh) - 240px)',
+          paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)',
+          willChange: 'transform' 
+        }}
       >
         {totalCount === 0 ? (
           <div className="text-center py-10 bg-[#11161C]/60 rounded-2xl border border-white/5">
             <p className="text-xs text-slate-400 font-bold">لا توجد عمليات تطابق معايير التصفية المختارة.</p>
           </div>
+        ) : !isLargeDataset ? (
+          <div className="space-y-2.5">
+            {sortedTransactions.map((tx) => renderTransactionItem(tx, false))}
+          </div>
         ) : (
           <div style={{ height: `${totalCount * ROW_HEIGHT}px`, position: 'relative' }}>
             <div style={{ transform: `translateY(${startIndex * ROW_HEIGHT}px)`, position: 'absolute', top: 0, left: 0, right: 0 }} className="space-y-2.5">
-              {visibleSlice.map((tx, idx) => {
-                const index = startIndex + idx;
-                const category = categories.find(c => c.id === tx.categoryId);
-                const wallet = wallets.find(w => w.id === tx.walletId);
-                const destWallet = wallets.find(w => w.id === tx.destinationWalletId);
-
-                const isIncome = tx.type === 'income';
-                const isTransfer = tx.type === 'transfer';
-                const isAdjustment = tx.type === 'adjustment';
-
-                // Exact transaction currency details
-                const txCurrencyCode = tx.currency || wallet?.currencyCode || currentCurrencyCode;
-                const txCurrencyObj =
-                  currencies.find(c => c.code === txCurrencyCode) ||
-                  DEFAULT_CURRENCIES.find(c => c.code === txCurrencyCode);
-                const txLoc = getLocalizedCurrency(txCurrencyCode, txCurrencyObj?.name, txCurrencyObj?.symbol, language);
-                const txSymbol = txLoc.symbol;
-                const txCurrencyName = txLoc.name;
-
-                // Converted amount calculation for Base Currency
-                const isDiffCurrency = txCurrencyCode !== currentCurrencyCode;
-                const baseLoc = getLocalizedCurrency(currentCurrencyCode, undefined, currencySymbol, language);
-                const resolvedBaseSymbol = baseLoc.symbol;
-                const convertedAmount =
-                  isDiffCurrency && !isTransfer
-                    ? convertCurrency(tx.amount, txCurrencyCode, currentCurrencyCode, exchangeRates)
-                    : null;
-
-                // Cross-Currency deduction relative to the specific Wallet's Primary Currency
-                const isDiffFromWallet = Boolean(wallet && txCurrencyCode !== wallet.currencyCode && !isTransfer);
-                const walletCurrencyCode = wallet?.currencyCode || currentCurrencyCode;
-                const walletLoc = getLocalizedCurrency(walletCurrencyCode, undefined, undefined, language);
-                const walletSymbol = walletLoc.symbol;
-                const amountInWallet = isDiffFromWallet
-                  ? (tx.convertedAmountInWalletCurrency || convertCurrency(tx.amount, txCurrencyCode, walletCurrencyCode, exchangeRates))
-                  : null;
-                const exchangeRateToWallet = isDiffFromWallet
-                  ? (tx.exchangeRateUsed || convertCurrency(1, txCurrencyCode, walletCurrencyCode, exchangeRates))
-                  : null;
-
-                return (
-                  <motion.div
-                    layout={false}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.15 }}
-                    key={tx.id}
-                    className="w-full"
-                    style={{ height: `${ROW_HEIGHT - 6}px` }}
-                  >
-                    <SwipeableRow
-                      id={tx.id}
-                      onEdit={() => onEdit(tx)}
-                      onDelete={() => onDelete(tx.id)}
-                      onClick={() => onEdit(tx)}
-                      editLabel="تعديل"
-                      deleteLabel="حذف"
-                      className="h-full"
-                    >
-                    <div
-                      className="group bg-[#11161C] p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-[#D9B978]/30 hover:bg-[#151C24] transition-colors duration-200 gap-2.5 cursor-pointer h-full"
-                      title="اسحب لليمين/اليسار للحذف والتعديل، أو انقر للتفاصيل"
-                    >
-                      {/* Left / Primary Info */}
-                      <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
-                        <div
-                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-all group-hover:scale-105 shrink-0 shadow-sm"
-                          style={{
-                            backgroundColor: isTransfer
-                              ? 'rgba(117, 155, 200, 0.15)'
-                              : isAdjustment
-                              ? 'rgba(217, 185, 120, 0.15)'
-                              : `${category?.color || '#D9B978'}20`,
-                            color: isTransfer
-                              ? '#759BC8'
-                              : isAdjustment
-                              ? '#D9B978'
-                              : category?.color || '#D9B978',
-                          }}
-                        >
-                          {isTransfer ? (
-                            <ArrowLeftRight size={20} />
-                          ) : isAdjustment ? (
-                            <SlidersHorizontal size={20} />
-                          ) : (
-                            getIcon(category?.icon || 'CreditCard', 20)
-                          )}
-                        </div>
-
-                        <div className="space-y-1 min-w-0 flex-1 text-right">
-                          {/* Title & Note */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-black text-xs sm:text-sm text-[#F4F1EA] tracking-tight truncate max-w-[150px] sm:max-w-[220px]">
-                              {isTransfer
-                                ? `تحويل: ${wallet?.name || 'محفظة'} ➔ ${destWallet?.name || 'محفظة'}`
-                                : isAdjustment
-                                ? 'تسوية / تعديل رصيد'
-                                : category?.name || 'غير مصنف'}
-                            </span>
-                            {tx.note && (
-                              <span className="text-[10px] text-slate-400 font-medium truncate max-w-[120px] sm:max-w-[180px]">
-                                ({tx.note})
-                              </span>
-                            )}
-                            {tx.receipt && (
-                              <button
-                                type="button"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (tx.receipt) {
-                                    const url = await loadReceiptDataUrl(tx.receipt);
-                                    setViewingReceipt(url || null);
-                                  }
-                                }}
-                                className="text-[#D9B978] hover:text-[#D9B978]/80 p-0.5"
-                                title="عرض الفاتورة المرفقة"
-                              >
-                                <Paperclip size={12} />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Badges Bar */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {/* Wallet Badge */}
-                            <div className="flex items-center gap-1 px-2 py-0.5 bg-[#0A0D10] rounded-lg border border-white/5">
-                              <div
-                                className="w-1.5 h-1.5 rounded-full shrink-0"
-                                style={{ backgroundColor: wallet?.color || '#8EB9A7' }}
-                              />
-                              <span className="text-[9px] font-bold text-slate-400 truncate max-w-[90px]">
-                                {wallet?.name || 'المحفظة العامة'}
-                              </span>
-                            </div>
-
-                            {/* Specific Currency Badge */}
-                            <div className="flex items-center gap-1 px-2 py-0.5 bg-[#D9B978]/10 rounded-lg border border-[#D9B978]/25 text-[#D9B978]">
-                              <Coins size={10} className="shrink-0" />
-                              <span className="text-[9px] font-black tracking-wide truncate max-w-[100px]" title={txCurrencyName}>
-                                {txCurrencyCode}
-                              </span>
-                            </div>
-
-                            {/* Date & Time */}
-                            <span className="text-[9px] text-slate-500 font-mono hidden sm:inline-block">
-                              {tx.date} {tx.time ? `• ${tx.time}` : ''}
-                            </span>
-                          </div>
-
-                          {/* Agreed Exchange Rate & Certified Foreign Currency Badge */}
-                          {(tx.conversionNote || (tx.foreignAmount && tx.exchangeRate)) && (
-                            <div 
-                              className="flex items-center gap-1.5 px-2 py-0.5 bg-[#D9B978]/10 rounded-lg border border-[#D9B978]/30 text-[#D9B978] text-[9px] font-bold max-w-fit truncate mt-1"
-                              title={tx.conversionNote || `تمت عملية ${tx.foreignAmount} ${tx.foreignCurrency || 'USD'} بسعر صرف ${tx.exchangeRate?.toLocaleString()}`}
-                            >
-                              <span className="shrink-0 text-[#D9B978]">💱</span>
-                              <span className="truncate">
-                                {tx.conversionNote || `عملية ${tx.foreignAmount} ${tx.foreignCurrency || 'USD'} بسعر صرف ${tx.exchangeRate?.toLocaleString()}`}
-                              </span>
-                              <span className="text-[8px] bg-[#D9B978]/25 text-[#D9B978] px-1 py-0.2 rounded font-black shrink-0">
-                                🔒 موثق
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right / Financial Info */}
-                      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-                        <div className="text-left flex flex-col items-end">
-                          <p
-                            className={`font-black text-sm sm:text-base tracking-tight dir-ltr ${
-                              isTransfer
-                                ? 'text-[#759BC8]'
-                                : isIncome
-                                ? 'text-[#8EB9A7]'
-                                : 'text-[#C98387]'
-                            }`}
-                          >
-                            {isTransfer ? '↔ ' : isIncome ? '+' : '-'}
-                            {Math.abs(tx.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                            <span className="text-[11px] font-bold text-slate-300 ml-1">{txSymbol}</span>
-                          </p>
-
-                          {isDiffFromWallet && amountInWallet !== null && (
-                            <span className="text-[9px] font-bold text-[#D9B978]/90 dir-ltr text-right flex items-center gap-1 mt-0.5">
-                              <span>المخصوم: {amountInWallet.toLocaleString('en-US', { maximumFractionDigits: 1 })} {walletSymbol}</span>
-                              {exchangeRateToWallet && (
-                                <span className="text-slate-500 font-normal">
-                                  (1 {txSymbol} = {exchangeRateToWallet.toLocaleString('en-US', { maximumFractionDigits: 2 })} {walletSymbol})
-                                </span>
-                              )}
-                            </span>
-                          )}
-
-                          {isDiffCurrency && convertedAmount !== null && (
-                            <span className="text-[9px] font-bold text-slate-400 dir-ltr">
-                              المعادل: ≈ {Math.round(convertedAmount).toLocaleString()} {resolvedBaseSymbol}
-                            </span>
-                          )}
-
-                          <span className="text-[8.5px] text-slate-500 font-mono sm:hidden">{tx.date}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </SwipeableRow>
-                </motion.div>
-                );
-              })}
+              {visibleSlice.map((tx) => renderTransactionItem(tx, true))}
             </div>
           </div>
         )}

@@ -82,11 +82,10 @@ export const GlobalToast: React.FC<GlobalToastProps> = ({ toast, onDismiss }) =>
                   onClick={(e) => {
                     e.stopPropagation();
                     const actionFn = toast.action?.onClick;
-                    onDismiss();
                     if (actionFn) {
-                      setTimeout(() => {
-                        actionFn();
-                      }, 15);
+                      actionFn();
+                    } else {
+                      onDismiss();
                     }
                   }}
                   className="px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/30 text-xs font-black transition-all active:scale-95 shadow-xs"

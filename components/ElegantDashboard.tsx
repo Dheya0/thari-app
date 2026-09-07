@@ -178,9 +178,16 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   }, [wallets, calculatedBalances, currencies, currency, exchangeRates]);
 
   const recentTransactions = useMemo(() => {
-    return transactions
+    return [...transactions]
       .filter(tx => !tx.isDeleted)
       .filter(tx => !selectedWalletId || tx.walletId === selectedWalletId || tx.destinationWalletId === selectedWalletId)
+      .sort((a, b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        const cmp = dateB.localeCompare(dateA);
+        if (cmp !== 0) return cmp;
+        return (b.createdAt || '').localeCompare(a.createdAt || '');
+      })
       .slice(0, 5);
   }, [transactions, selectedWalletId]);
 

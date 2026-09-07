@@ -1418,11 +1418,12 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       {/* MODAL 1: ADD / EDIT DEBT */}
       {showAddForm && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 no-print overflow-hidden"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAddForm(false); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl relative max-h-[88dvh] sm:max-h-[88vh] flex flex-col border border-white/10 overflow-hidden text-start my-auto" 
+            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl relative flex flex-col border border-white/10 overflow-hidden text-start" 
+            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -1439,7 +1440,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 pb-4 overscroll-contain">
+            <form 
+              onSubmit={handleSubmit} 
+              className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 overscroll-contain"
+              style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2.5rem)' }}
+            >
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">{isRtl ? 'نوع الدين والالتزام' : 'Debt Type'}</label>
                 <div className="grid grid-cols-2 gap-2 bg-[#0A0D10] p-1.5 rounded-2xl border border-white/10">
@@ -1834,11 +1839,12 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       {/* MODAL 2: RECORD PAYMENT */}
       {paymentModalData && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 no-print overflow-hidden"
           onClick={(e) => { if (e.target === e.currentTarget) setPaymentModalData(null); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 text-start my-auto" 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden flex flex-col min-h-0 text-start" 
+            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -1855,7 +1861,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleExecutePayment} className="flex-1 overflow-y-auto custom-scrollbar space-y-3.5 px-1 pb-4 overscroll-contain">
+            <form 
+              onSubmit={handleExecutePayment} 
+              className="flex-1 overflow-y-auto custom-scrollbar space-y-3.5 px-1 overscroll-contain"
+              style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2.5rem)' }}
+            >
               <div className="bg-[#0A0D10] p-3.5 rounded-2xl border border-white/10">
                 <div className="flex justify-between items-center">
                   <div>

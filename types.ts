@@ -123,6 +123,7 @@ export interface Transaction {
   time?: string;
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly';
   receipt?: ReceiptAttachment;
+  securityHash?: string;
   isDeleted?: boolean;
   deletedAt?: string;
   deviceId?: string;
@@ -340,6 +341,7 @@ export interface AppState {
   isBiometricEnabled?: boolean;
   isTravelMode: boolean;
   hasAcceptedTerms: boolean;
+  hasSeenWalkthrough?: boolean;
   showSeparateCurrencies: boolean; // Toggle for Travel Mode
   lastBackupDate?: string; // ISO date string of last backup taken
   autoLockTime?: 'instant' | '1min' | '5min' | 'never'; // Auto-lock timeout

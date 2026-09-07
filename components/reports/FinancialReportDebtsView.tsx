@@ -116,10 +116,10 @@ export const FinancialReportDebtsView: React.FC<DebtsViewProps> = ({ model }) =>
           </span>
         </div>
 
-        <div className="rounded-2xl border border-slate-300 overflow-hidden shadow-2xs">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-950 text-white break-avoid border-b border-slate-800 text-[10px]">
+        <div className="rounded-2xl border border-slate-300 overflow-hidden shadow-2xs print:overflow-visible print:border-none print:rounded-none print:shadow-none">
+          <table className="w-full text-xs border-collapse print:text-[10px]">
+            <thead className="print:table-header-group">
+              <tr className="bg-slate-950 text-white break-avoid border-b border-slate-800 text-[10px] print:bg-slate-900 print:text-white">
                 <th className="py-3 px-3 text-right font-black w-36">الطرف المقابل / الشخص</th>
                 <th className="py-3 px-3 text-center font-black w-28">النوع والصفة</th>
                 <th className="py-3 px-3 text-left font-black w-28">المبلغ الأصلي</th>

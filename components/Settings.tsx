@@ -191,6 +191,9 @@ interface SettingsProps {
   onRestore: (data: any) => void;
   onClearData: () => void;
   onShowPrivacyPolicy: () => void;
+  onOpenWalkthrough?: () => void;
+  onOpenTrash?: () => void;
+  trashCount?: number;
   onPrint?: (...args: any[]) => void;
   onShare?: (...args: any[]) => void;
   onExportExcel?: (...args: any[]) => void;
@@ -203,7 +206,7 @@ export default function Settings({
   userName = '', pin = '', currency, currencies, wallets, categories, exchangeRates = {}, appState = {}, onUpdateSettings, 
   onAddCurrency, onRemoveCurrency, onAddWallet, onUpdateWallet, onRemoveWallet,
   onAddCategory, onUpdateCategory, onRemoveCategory,
-  onRestore, onClearData, onShowPrivacyPolicy, onPrint, onShare, onExportExcel,
+  onRestore, onClearData, onShowPrivacyPolicy, onOpenWalkthrough, onOpenTrash, trashCount = 0, onPrint, onShare, onExportExcel,
   installPrompt = null, isUpdateAvailable = false, swRegistration = null,
 }: SettingsProps) {
   const safeCurrencies = currencies || [];
@@ -1773,6 +1776,42 @@ export default function Settings({
                     </button>
                 </div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+                {/* Dedicated Recycle Bin & Restore Link */}
+                {onOpenTrash && (
+                  <div className="pt-2 border-t border-white/5">
+                    <button 
+                      type="button" 
+                      onClick={onOpenTrash}
+                      className="w-full flex items-center justify-between p-3.5 bg-[#0A0D10] hover:bg-[#151C24] rounded-2xl active:scale-[0.99] border border-white/10 hover:border-[#D9B978]/40 text-start transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#C98387]/15 text-[#C98387] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          <Trash2 size={16} />
+                        </div>
+                        <div>
+                          <div className="text-xs font-black text-[#F4F1EA]">
+                            {localLanguage === 'en' ? 'Recycle Bin & Restores' : 'سلة المحذوفات والاسترجاع'}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            {localLanguage === 'en' 
+                              ? `${trashCount} deleted items recoverable` 
+                              : `${trashCount} معاملة محذوفة قابلة للاستعادة`}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {trashCount > 0 && (
+                          <span className="px-2 py-0.5 rounded-lg bg-[#C98387]/20 text-[#C98387] text-[10px] font-black">
+                            {trashCount}
+                          </span>
+                        )}
+                        <ChevronLeft size={16} className={`text-slate-500 ${localLanguage === 'en' ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+                  </div>
+                )}
             </div>
          </AccordionItem>
 
@@ -1820,6 +1859,33 @@ export default function Settings({
                         {t.aboutAppDesc}
                     </p>
                 </div>
+
+                {/* Interactive Onboarding / User Guide Button */}
+                {onOpenWalkthrough && (
+                  <button 
+                    type="button" 
+                    onClick={onOpenWalkthrough} 
+                    className="w-full flex items-center justify-between p-3.5 bg-gradient-to-r from-[#D9B978]/15 via-[#171D24] to-[#0A0D10] hover:border-[#D9B978]/50 rounded-2xl active:scale-[0.98] text-[#F4F1EA] border border-[#D9B978]/30 text-xs font-bold transition-all min-h-[52px] group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#D9B978]/20 text-[#D9B978] border border-[#D9B978]/30 flex items-center justify-center font-black group-hover:scale-105 transition-transform shrink-0">
+                        <Sparkles size={18} />
+                      </div>
+                      <div className="text-start">
+                        <p className="text-xs font-black text-[#F4F1EA]">
+                          {localLanguage === 'en' ? 'Interactive Guide & Tutorial' : 'دليل استخدام التطبيق والجولة التعليمية'}
+                        </p>
+                        <p className="text-[10px] text-[#D9B978] font-medium">
+                          {localLanguage === 'en' ? 'Learn wallets, transactions, debts, & features' : 'شرح إضافة المحافظ، العمليات، الديون، وسلة المحذوفات'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[#D9B978] text-[11px] font-bold shrink-0">
+                      <span>{localLanguage === 'en' ? 'Start Tour' : 'عرض الجولة'}</span>
+                      <ChevronLeft size={16} className={localLanguage === 'en' ? 'rotate-180' : ''} />
+                    </div>
+                  </button>
+                )}
 
                 {/* Primary Action Buttons */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

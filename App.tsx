@@ -35,6 +35,7 @@ import { GlobalToast, ToastData } from './components/GlobalToast';
 import TransactionForm from './components/TransactionForm';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import WelcomeScreen from './components/WelcomeScreen';
+import OnboardingGuideModal from './components/OnboardingGuideModal';
 import LockScreen from './components/LockScreen';
 const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
 const FinancialReport = React.lazy(() => import('./components/FinancialReport'));
@@ -90,6 +91,7 @@ const INITIAL_STATE: AppState = {
   isTravelMode: false,
   showSeparateCurrencies: false,
   hasAcceptedTerms: false,
+  hasSeenWalkthrough: false,
   autoLockTime: 'instant',
   autoBackupFrequency: 'daily',
   lastAutoBackupTime: '',
@@ -250,9 +252,19 @@ const App: React.FC = () => {
 
         if (parsed && typeof parsed === 'object') {
           // Instantly set normalized state so UI paints without waiting for migration
-          setState(normalizeStoredState(parsed));
+          const normalized = normalizeStoredState(parsed);
+          setState(normalized);
           isHydratedRef.current = true;
           setIsHydrated(true);
+
+          // Trigger walkthrough on first launch if not seen yet
+          if (normalized.hasAcceptedTerms && !normalized.hasSeenWalkthrough) {
+            try {
+              if (!localStorage.getItem('thari_walkthrough_seen_v1')) {
+                setShowWalkthroughModal(true);
+              }
+            } catch (e) {}
+          }
           const initialRevision = stateRevisionRef.current;
 
           // Run non-critical receipt migration in background with revision check
@@ -332,16 +344,21 @@ const App: React.FC = () => {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   useEffect(() => {
-    // Configure Native Keyboard defaults
+    // Configure Native Keyboard defaults with native resize mode so OS shrinks view above keyboard
     if (NativeKeyboard.isAvailable()) {
       NativeKeyboard.setStyle('DARK').catch(() => {});
-      NativeKeyboard.setResizeMode('body').catch(() => {});
+      NativeKeyboard.setResizeMode('native').catch(() => {});
       NativeKeyboard.setAccessoryBarVisible(false).catch(() => {});
     }
 
     const updateViewport = () => {
       const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      document.documentElement.style.setProperty('--vh', `${viewportHeight}px`);
+      if (viewportHeight && viewportHeight > 150) {
+        document.documentElement.style.setProperty('--vh', `${viewportHeight}px`);
+        const keyboardHeight = Math.max(0, window.innerHeight - viewportHeight);
+        document.documentElement.style.setProperty('--keyboard-inset', `${keyboardHeight}px`);
+        document.documentElement.style.setProperty('--keyboard-active', keyboardHeight > 120 ? '1' : '0');
+      }
     };
 
     updateViewport();
@@ -360,6 +377,7 @@ const App: React.FC = () => {
   const [printCurrencyFilter, setPrintCurrencyFilter] = useState<string | null>(null);
   const [printStartDate, setPrintStartDate] = useState<string | null>(null);
   const [printEndDate, setPrintEndDate] = useState<string | null>(null);
+  const [showWalkthroughModal, setShowWalkthroughModal] = useState<boolean>(false);
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
   const [showTrashModal, setShowTrashModal] = useState<boolean>(false);
   const [showRecurringModal, setShowRecurringModal] = useState<boolean>(false);
@@ -477,13 +495,18 @@ const App: React.FC = () => {
     let showSub: any = null;
     let hideSub: any = null;
     if (NativeKeyboard.isAvailable()) {
-      NativeKeyboard.addListener('keyboardWillShow', () => { 
+      NativeKeyboard.addListener('keyboardWillShow', (info) => { 
         isKeyboardOpenRef.current = true; 
         setIsKeyboardVisible(true);
+        const kh = info?.keyboardHeight || 280;
+        document.documentElement.style.setProperty('--keyboard-inset', `${kh}px`);
+        document.documentElement.style.setProperty('--keyboard-active', '1');
       }).then(s => { showSub = s; }).catch(() => {});
       NativeKeyboard.addListener('keyboardWillHide', () => { 
         isKeyboardOpenRef.current = false; 
         setIsKeyboardVisible(false);
+        document.documentElement.style.setProperty('--keyboard-inset', '0px');
+        document.documentElement.style.setProperty('--keyboard-active', '0');
       }).then(s => { hideSub = s; }).catch(() => {});
     }
 
@@ -493,6 +516,8 @@ const App: React.FC = () => {
         const active = diff > 130;
         setIsKeyboardVisible(active);
         isKeyboardOpenRef.current = active;
+        document.documentElement.style.setProperty('--keyboard-inset', `${Math.max(0, diff)}px`);
+        document.documentElement.style.setProperty('--keyboard-active', active ? '1' : '0');
       }
     };
 
@@ -535,6 +560,7 @@ const App: React.FC = () => {
   const isAnyModalActive = Boolean(
     transactionToDelete ||
     showPrivacyPolicy ||
+    showWalkthroughModal ||
     showTrashModal ||
     showToolsHub ||
     showCurrencySelector ||
@@ -552,6 +578,11 @@ const App: React.FC = () => {
     }
     if (showPrivacyPolicy) {
       setShowPrivacyPolicy(false);
+      return true;
+    }
+    if (showWalkthroughModal) {
+      setShowWalkthroughModal(false);
+      setState(p => ({ ...p, hasSeenWalkthrough: true }));
       return true;
     }
     if (showTrashModal) {
@@ -1087,6 +1118,51 @@ const App: React.FC = () => {
     setTransactionToDelete(target);
   }, [state.transactions]);
 
+  // Guaranteed Transaction Undo / Restoration Handler
+  const handleRestoreTransaction = useCallback((id?: string, directTarget?: Transaction) => {
+    const cachedTarget = directTarget || lastDeletedTransactionRef.current;
+    const targetId = id || cachedTarget?.id;
+    if (!targetId && !cachedTarget) return;
+
+    setState(p => {
+      const foundInTrash = (p.trashTransactions || []).find(t => t.id === targetId);
+      const toRestore = cachedTarget || foundInTrash;
+      if (!toRestore) return p;
+
+      const restoredItem: Transaction = {
+        ...toRestore,
+        isDeleted: false,
+        deletedAt: undefined,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const remainingTrash = (p.trashTransactions || []).filter(t => t.id !== toRestore.id);
+      // Guaranteed clean restoration: strip any existing copy and prepend restoredItem with stable chronological sort
+      const cleanTransactions = p.transactions.filter(t => t.id !== toRestore.id);
+      const updatedTransactions = [restoredItem, ...cleanTransactions].sort((a, b) => {
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      return {
+        ...p,
+        trashTransactions: remainingTrash,
+        transactions: updatedTransactions,
+      };
+    });
+
+    lastDeletedTransactionRef.current = null;
+    NativeHaptics.notification('SUCCESS').catch(() => {});
+
+    showToast(
+      activeLanguage === 'en' ? 'Transaction restored successfully' : 'تمت استعادة المعاملة بنجاح',
+      'success'
+    );
+  }, [activeLanguage, showToast]);
+
   // Execute deletion after user confirms in the modern modal
   const handleConfirmDeleteTransaction = useCallback(() => {
     if (!transactionToDelete) return;
@@ -1124,7 +1200,7 @@ const App: React.FC = () => {
         onClick: () => handleRestoreTransaction(target.id, target)
       }
     );
-  }, [transactionToDelete, editingTransaction, activeLanguage]);
+  }, [transactionToDelete, editingTransaction, activeLanguage, handleRestoreTransaction, showToast]);
 
   // Soft Delete Handler (used directly or by form)
   const handleDeleteTransaction = useCallback((id: string) => {
@@ -1161,46 +1237,7 @@ const App: React.FC = () => {
         onClick: () => handleRestoreTransaction(target.id, target)
       }
     );
-  }, [state.transactions, editingTransaction, activeLanguage]);
-
-  const handleRestoreTransaction = useCallback((id?: string, directTarget?: Transaction) => {
-    const cachedTarget = directTarget || lastDeletedTransactionRef.current;
-    const targetId = id || cachedTarget?.id;
-    if (!targetId && !cachedTarget) return;
-
-    setState(p => {
-      const foundInTrash = (p.trashTransactions || []).find(t => t.id === targetId);
-      const toRestore = cachedTarget || foundInTrash;
-      if (!toRestore) return p;
-
-      const restoredItem: Transaction = {
-        ...toRestore,
-        isDeleted: false,
-        deletedAt: undefined,
-        updatedAt: new Date().toISOString(),
-      };
-
-      const remainingTrash = (p.trashTransactions || []).filter(t => t.id !== toRestore.id);
-      const alreadyInList = p.transactions.some(t => t.id === toRestore.id);
-      const updatedTransactions = alreadyInList 
-        ? p.transactions 
-        : [restoredItem, ...p.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-      return {
-        ...p,
-        trashTransactions: remainingTrash,
-        transactions: updatedTransactions,
-      };
-    });
-
-    lastDeletedTransactionRef.current = null;
-    NativeHaptics.notification('SUCCESS').catch(() => {});
-
-    showToast(
-      activeLanguage === 'en' ? 'Transaction restored successfully' : 'تمت استعادة المعاملة بنجاح',
-      'success'
-    );
-  }, [activeLanguage]);
+  }, [state.transactions, editingTransaction, activeLanguage, handleRestoreTransaction, showToast]);
 
   const handlePermanentDelete = (id: string) => {
     const target = state.trashTransactions?.find(t => t.id === id);
@@ -1337,16 +1374,26 @@ const App: React.FC = () => {
 
     const targetId = editingTransaction?.id || cleanTx.id;
     if (targetId) {
-        setState(p => ({
-            ...p,
-            transactions: p.transactions.map(t => t.id === targetId ? { ...cleanTx, id: t.id, updatedAt: new Date().toISOString() } : t)
-        }));
+        setState(p => {
+          const updated = p.transactions.map(t => t.id === targetId ? { ...cleanTx, id: t.id, updatedAt: new Date().toISOString() } : t);
+          updated.sort((a, b) => {
+            const cmp = (b.date || '').localeCompare(a.date || '');
+            if (cmp !== 0) return cmp;
+            return (b.createdAt || '').localeCompare(a.createdAt || '');
+          });
+          return { ...p, transactions: updated };
+        });
         showToast(activeLanguage === 'en' ? 'Transaction updated successfully' : 'تم تحديث المعاملة بنجاح', 'success');
     } else {
-        setState(p => ({ 
-            ...p, 
-            transactions: [{ ...cleanTx, id: 'tx-' + Date.now(), createdAt: new Date().toISOString() }, ...p.transactions] 
-        }));
+        setState(p => {
+          const newTx = { ...cleanTx, id: 'tx-' + Date.now(), createdAt: new Date().toISOString() };
+          const updated = [newTx, ...p.transactions].sort((a, b) => {
+            const cmp = (b.date || '').localeCompare(a.date || '');
+            if (cmp !== 0) return cmp;
+            return (b.createdAt || '').localeCompare(a.createdAt || '');
+          });
+          return { ...p, transactions: updated };
+        });
         showToast(activeLanguage === 'en' ? 'Transaction recorded successfully' : 'تم تسجيل المعاملة بنجاح', 'success');
     }
     setShowAddForm(false);
@@ -1518,7 +1565,13 @@ const App: React.FC = () => {
 
   if (!state.hasAcceptedTerms) {
     return (
-      <WelcomeScreen onAccept={() => setState(p => ({ ...p, hasAcceptedTerms: true }))} onShowPrivacy={() => setShowPrivacyPolicy(true)} />
+      <WelcomeScreen 
+        onAccept={() => {
+          setState(p => ({ ...p, hasAcceptedTerms: true, hasSeenWalkthrough: true }));
+          setShowWalkthroughModal(true);
+        }} 
+        onShowPrivacy={() => setShowPrivacyPolicy(true)} 
+      />
     );
   }
 
@@ -1879,8 +1932,11 @@ const App: React.FC = () => {
                         onUpdateCategory={(id, updates) => setState(p => ({ ...p, categories: p.categories.map(c => c.id === id ? { ...c, ...updates } : c) }))}
                         onRemoveCategory={(id) => setState(p => ({ ...p, categories: p.categories.filter(c => c.id !== id) }))}
                         onRestore={handleRestoreState} 
-                        onClearData={() => setState(p => ({...p, transactions: [], debts: [], budgets: [], subscriptions: [], goals: []}))} 
+                        onClearData={() => setState(p => ({...p, transactions: [], trashTransactions: [], debts: [], budgets: [], subscriptions: [], goals: []}))} 
                         onShowPrivacyPolicy={() => setShowPrivacyPolicy(true)} 
+                        onOpenWalkthrough={() => setShowWalkthroughModal(true)}
+                        onOpenTrash={() => setShowTrashModal(true)}
+                        trashCount={state.trashTransactions?.length || 0}
                         onPrint={handlePrint}
                         onShare={handleShare}
                         onExportExcel={handleExportExcelReport}
@@ -2066,12 +2122,28 @@ const App: React.FC = () => {
             />
           )}
 
+          <OnboardingGuideModal
+            isOpen={showWalkthroughModal}
+            onClose={() => {
+              setShowWalkthroughModal(false);
+              setState(p => ({ ...p, hasSeenWalkthrough: true }));
+              try { localStorage.setItem('thari_walkthrough_seen_v1', 'true'); } catch (e) {}
+            }}
+            onFinish={() => {
+              setShowWalkthroughModal(false);
+              setState(p => ({ ...p, hasSeenWalkthrough: true }));
+              try { localStorage.setItem('thari_walkthrough_seen_v1', 'true'); } catch (e) {}
+              showToast(state.language === 'en' ? 'Welcome to Thari! Start by adding your first wallet or transaction.' : 'مرحباً بك في ثَـري! ابدأ الآن بإضافة محفظتك أو تسجيل أول عملية.', 'success');
+            }}
+          />
+
           <ConfirmDeleteModal
             isOpen={Boolean(transactionToDelete)}
             transaction={transactionToDelete}
             onClose={() => setTransactionToDelete(null)}
             onConfirm={handleConfirmDeleteTransaction}
             walletName={state.wallets.find(w => w.id === transactionToDelete?.walletId)?.name}
+            destWalletName={state.wallets.find(w => w.id === transactionToDelete?.destinationWalletId)?.name}
             categoryName={state.categories.find(c => c.id === transactionToDelete?.categoryId)?.name}
             language={activeLanguage}
           />
