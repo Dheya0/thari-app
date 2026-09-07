@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import Logo from './components/Logo';
 import './src/index.css';
 
 const mountApp = () => {
@@ -12,8 +13,9 @@ const mountApp = () => {
   root.render(
     <ErrorBoundary>
       <React.Suspense fallback={
-        <div className="fixed inset-0 bg-[#0A0D10] text-[#F4F1EA] flex items-center justify-center font-bold text-sm dir-rtl">
-          جاري تحضير التطبيق...
+        <div className="fixed inset-0 bg-[#0A0D10] text-[#F4F1EA] flex flex-col items-center justify-center p-6 text-center font-bold text-sm dir-rtl">
+          <Logo size={64} showText />
+          <div className="mt-4 text-xs text-slate-400 font-medium animate-pulse">جاري تحضير التطبيق...</div>
         </div>
       }>
         <App />
