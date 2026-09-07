@@ -1667,13 +1667,13 @@ const App: React.FC = () => {
                   type="button"
                   onClick={() => setShowWalletSelector(true)}
                   aria-label="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
-                  className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[100px] sm:max-w-[140px]"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[135px] sm:max-w-[180px]"
                   title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
                 >
                   <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
                     <WalletIcon size={11} />
                   </div>
-                  <span className="font-bold text-white tracking-wide truncate text-[10px] sm:text-xs">
+                  <span className="font-bold text-white tracking-wide truncate text-[11px] sm:text-xs">
                     {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
                   </span>
                   <ChevronDown size={12} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
@@ -1687,13 +1687,13 @@ const App: React.FC = () => {
                       type="button"
                       onClick={() => setShowCurrencySelector(true)}
                       aria-label={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
-                      className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
                       title={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
                     >
                       <div className="w-5 h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
                         {currentCurrLoc.symbol}
                       </div>
-                      <span className="font-bold text-white tracking-wide text-[10px] sm:text-xs">{state.currency.code}</span>
+                      <span className="font-bold text-white tracking-wide text-[11px] sm:text-xs">{state.currency.code}</span>
                       <ChevronDown size={12} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform shrink-0" />
                     </button>
                   );
@@ -1704,23 +1704,13 @@ const App: React.FC = () => {
                   type="button"
                   onClick={() => setShowToolsHub(true)}
                   aria-label="مركز الأدوات والتقارير"
-                  className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
+                  className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
                   title="مركز الأدوات والتقارير"
                 >
-                  <Sparkles size={15} />
+                  <Sparkles size={16} />
                   {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
                   )}
-                </button>
-
-                {/* Settings Shortcut (Tablet & Desktop only; on mobile it is in bottom bar) */}
-                <button 
-                  onClick={() => setActiveTab('settings')} 
-                  aria-label="الإعدادات"
-                  className="hidden sm:flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl border transition-all shrink-0 active:scale-95 backdrop-blur-md bg-white/5 border-white/10 text-slate-400 hover:text-[#D9B978] hover:border-[#D9B978]/50" 
-                  title="الإعدادات"
-                >
-                  <SettingsIcon size={15} />
                 </button>
               </div>
             </div>
