@@ -28,7 +28,7 @@ import {
 import { Wallet, Transaction, Debt, Currency, ZakatProfile, ZakatPaymentRecord } from '../types';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { getTranslation } from '../utils/translations';
-import { formatLocalDateOnly } from '../utils/formatters';
+import { formatLocalDateOnly, parseArabicNumber, sanitizeNumericInput } from '../utils/formatters';
 import { formatFinancialNumber } from './ElegantDashboard';
 import { StatsGrid } from './StatsGrid';
 import { AssetItemRow } from './AssetItemRow';
@@ -458,7 +458,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
   };
 
   const handleAddPayment = () => {
-    const amt = Number(paymentAmount);
+    const amt = parseArabicNumber(paymentAmount);
     if (!amt || amt <= 0) return;
 
     const newPayment: ZakatPaymentRecord = {
@@ -589,8 +589,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       {/* ─────────────────────────────────────────────────────────────
           2. ZAKAT INDICATORS & RESULTS DASHBOARD (HERO STATS CARD)
       ───────────────────────────────────────────────────────────── */}
-      <motion.section 
-        layout
+      <section 
         className="p-5 sm:p-6 rounded-3xl bg-[#11161C] border border-[#D9B978]/25 space-y-5 shadow-xl"
       >
         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4">
@@ -674,7 +673,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
             ]}
           />
         </div>
-      </motion.section>
+      </section>
 
       {/* ─────────────────────────────────────────────────────────────
           3. SLEEK SEGMENTED NAVIGATION BAR (5 ASSET CATEGORIES)
@@ -856,12 +855,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.ownedWeight}</label>
                 <div className="relative flex-1 max-w-xs">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.gold24Grams || ''}
-                    onChange={(e) => updateActiveProfile({ gold24Grams: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ gold24Grams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-amber-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -887,12 +885,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.ownedWeight}</label>
                 <div className="relative flex-1 max-w-xs">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.gold21Grams || ''}
-                    onChange={(e) => updateActiveProfile({ gold21Grams: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ gold21Grams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-amber-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -918,12 +915,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.ownedWeight}</label>
                 <div className="relative flex-1 max-w-xs">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.gold18Grams || ''}
-                    onChange={(e) => updateActiveProfile({ gold18Grams: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ gold18Grams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-amber-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -949,12 +945,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.ownedWeightSilverGrams}</label>
                 <div className="relative flex-1 max-w-xs">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.silverGrams || ''}
-                    onChange={(e) => updateActiveProfile({ silverGrams: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ silverGrams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-slate-300 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1006,11 +1001,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.currentMarketValue}</label>
                 <div className="relative flex-1 max-w-sm">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.tradingStocksValue || ''}
-                    onChange={(e) => updateActiveProfile({ tradingStocksValue: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ tradingStocksValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-[#759BC8] rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1064,11 +1059,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                     <label className="text-xs text-slate-400 shrink-0">{t.totalPortfolioValue}</label>
                     <div className="relative flex-1 max-w-sm">
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0.00"
                         value={activeProfile.longTermStocksValue || ''}
-                        onChange={(e) => updateActiveProfile({ longTermStocksValue: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateActiveProfile({ longTermStocksValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-black/40 border border-white/10 focus:border-indigo-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                       />
                       <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1081,11 +1076,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                     <label className="text-xs text-slate-400 shrink-0">{t.receivedDividends}</label>
                     <div className="relative flex-1 max-w-sm">
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0.00"
                         value={activeProfile.longTermDividendsValue || ''}
-                        onChange={(e) => updateActiveProfile({ longTermDividendsValue: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateActiveProfile({ longTermDividendsValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-black/40 border border-white/10 focus:border-indigo-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                       />
                       <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1113,11 +1108,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.totalFundsValue}</label>
                 <div className="relative flex-1 max-w-sm">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.investmentFundsValue || ''}
-                    onChange={(e) => updateActiveProfile({ investmentFundsValue: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ investmentFundsValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-violet-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1169,11 +1164,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.goodsMarketValue}</label>
                 <div className="relative flex-1 max-w-sm">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.tradeInventoryValue || ''}
-                    onChange={(e) => updateActiveProfile({ tradeInventoryValue: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ tradeInventoryValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-amber-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1199,11 +1194,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.currentRealEstateValue}</label>
                 <div className="relative flex-1 max-w-sm">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.realEstateTradeValue || ''}
-                    onChange={(e) => updateActiveProfile({ realEstateTradeValue: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ realEstateTradeValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-emerald-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1229,11 +1224,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.netCollectedRent}</label>
                 <div className="relative flex-1 max-w-sm">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.rentalIncomeValue || ''}
-                    onChange={(e) => updateActiveProfile({ rentalIncomeValue: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ rentalIncomeValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-cyan-400 rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1352,11 +1347,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <label className="text-xs text-slate-400 shrink-0">{t.additionalDeductionsAmount}</label>
                 <div className="relative flex-1 max-w-sm">
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={activeProfile.customDeductions || ''}
-                    onChange={(e) => updateActiveProfile({ customDeductions: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => updateActiveProfile({ customDeductions: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                     className="w-full bg-black/40 border border-white/10 focus:border-[#C98387] rounded-xl ps-3 pe-16 py-2 text-sm text-[#F4F1EA] font-numeric outline-none text-start"
                   />
                   <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -1537,10 +1532,11 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <div>
                   <label className="text-xs text-slate-400 block mb-1">{t.zakatPaymentAmount} ({displaySymbol})</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     placeholder="0.00"
                     value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    onChange={(e) => setPaymentAmount(sanitizeNumericInput(e.target.value))}
                     className="w-full bg-white/[0.04] border border-white/10 focus:border-[#8EB9A7] rounded-2xl px-4 py-2.5 text-sm text-[#F4F1EA] font-numeric outline-none"
                     autoFocus
                   />
@@ -1587,7 +1583,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                 <button
                   type="button"
                   onClick={handleAddPayment}
-                  disabled={!paymentAmount || Number(paymentAmount) <= 0}
+                  disabled={!paymentAmount || parseArabicNumber(paymentAmount) <= 0}
                   className="flex-1 py-3 rounded-2xl bg-[#8EB9A7] hover:bg-[#7da896] text-[#0A0D10] text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {t.documentPaymentBtn}

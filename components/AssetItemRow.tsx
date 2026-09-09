@@ -43,9 +43,8 @@ export const AssetItemRow: React.FC<AssetItemRowProps> = ({
   const c = isDark ? TOKENS.colors.dark : TOKENS.colors.light;
 
   return (
-    <motion.div 
+    <div 
       id={`asset-row-${id}`}
-      layout
       className="p-4 sm:p-5 rounded-2xl border transition-all space-y-3.5"
       style={{
         backgroundColor: isDark ? '#12171D' : '#FFFFFF',
@@ -131,6 +130,6 @@ export const AssetItemRow: React.FC<AssetItemRowProps> = ({
           {children}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };

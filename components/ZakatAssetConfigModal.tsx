@@ -19,6 +19,7 @@ import {
 import { ZakatProfile, Wallet, Debt, Currency } from '../types';
 import { TOKENS, ThemeMode } from '../theme/tokens';
 import { formatFinancialNumber } from './ElegantDashboard';
+import { parseArabicNumber, sanitizeNumericInput } from '../utils/formatters';
 
 export type ZakatModalCategory = 
   | 'metals_rates'       // أسعار العيارات والفضة
@@ -180,12 +181,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     </div>
                     <div className="relative">
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
+                        type="text"
+                        inputMode="decimal"
                         value={karatRates.price24k || ''}
                         onChange={(e) => onUpdateKaratRates({
-                          price24k: parseFloat(e.target.value) || 0,
+                          price24k: parseArabicNumber(sanitizeNumericInput(e.target.value)),
                           custom21k: karatRates.custom21k,
                           custom18k: karatRates.custom18k,
                           customSilver: karatRates.customSilver
@@ -208,17 +208,19 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     </div>
                     <div className="relative">
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
+                        type="text"
+                        inputMode="decimal"
                         placeholder={String(Math.round((karatRates.price24k * 21) / 24))}
                         value={karatRates.custom21k !== null ? karatRates.custom21k : Math.round(karatRates.price21k * 100) / 100 || ''}
-                        onChange={(e) => onUpdateKaratRates({
-                          price24k: karatRates.price24k,
-                          custom21k: parseFloat(e.target.value) || null,
-                          custom18k: karatRates.custom18k,
-                          customSilver: karatRates.customSilver
-                        })}
+                        onChange={(e) => {
+                          const sanitized = sanitizeNumericInput(e.target.value);
+                          onUpdateKaratRates({
+                            price24k: karatRates.price24k,
+                            custom21k: sanitized ? parseArabicNumber(sanitized) : null,
+                            custom18k: karatRates.custom18k,
+                            customSilver: karatRates.customSilver
+                          });
+                        }}
                         className="w-full bg-white/[0.04] border border-white/10 focus:border-[#D9B978] rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -237,17 +239,19 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     </div>
                     <div className="relative">
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
+                        type="text"
+                        inputMode="decimal"
                         placeholder={String(Math.round((karatRates.price24k * 18) / 24))}
                         value={karatRates.custom18k !== null ? karatRates.custom18k : Math.round(karatRates.price18k * 100) / 100 || ''}
-                        onChange={(e) => onUpdateKaratRates({
-                          price24k: karatRates.price24k,
-                          custom21k: karatRates.custom21k,
-                          custom18k: parseFloat(e.target.value) || null,
-                          customSilver: karatRates.customSilver
-                        })}
+                        onChange={(e) => {
+                          const sanitized = sanitizeNumericInput(e.target.value);
+                          onUpdateKaratRates({
+                            price24k: karatRates.price24k,
+                            custom21k: karatRates.custom21k,
+                            custom18k: sanitized ? parseArabicNumber(sanitized) : null,
+                            customSilver: karatRates.customSilver
+                          });
+                        }}
                         className="w-full bg-white/[0.04] border border-white/10 focus:border-[#D9B978] rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -266,16 +270,18 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     </div>
                     <div className="relative">
                       <input
-                        type="number"
-                        min="0"
-                        step="any"
+                        type="text"
+                        inputMode="decimal"
                         value={karatRates.customSilver !== null ? karatRates.customSilver : Math.round(karatRates.priceSilver * 100) / 100 || ''}
-                        onChange={(e) => onUpdateKaratRates({
-                          price24k: karatRates.price24k,
-                          custom21k: karatRates.custom21k,
-                          custom18k: karatRates.custom18k,
-                          customSilver: parseFloat(e.target.value) || null
-                        })}
+                        onChange={(e) => {
+                          const sanitized = sanitizeNumericInput(e.target.value);
+                          onUpdateKaratRates({
+                            price24k: karatRates.price24k,
+                            custom21k: karatRates.custom21k,
+                            custom18k: karatRates.custom18k,
+                            customSilver: sanitized ? parseArabicNumber(sanitized) : null
+                          });
+                        }}
                         className="w-full bg-white/[0.04] border border-white/10 focus:border-[#D9B978] rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -295,44 +301,44 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">عيار 24 (جرام)</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
                         value={profile.gold24Grams || ''}
-                        onChange={(e) => onUpdateProfile({ gold24Grams: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => onUpdateProfile({ gold24Grams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-black/40 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white font-numeric text-left outline-none focus:border-[#D9B978]"
                       />
                     </div>
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">عيار 21 (جرام)</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
                         value={profile.gold21Grams || ''}
-                        onChange={(e) => onUpdateProfile({ gold21Grams: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => onUpdateProfile({ gold21Grams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-black/40 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white font-numeric text-left outline-none focus:border-[#D9B978]"
                       />
                     </div>
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">عيار 18 (جرام)</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
                         value={profile.gold18Grams || ''}
-                        onChange={(e) => onUpdateProfile({ gold18Grams: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => onUpdateProfile({ gold18Grams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-black/40 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white font-numeric text-left outline-none focus:border-[#D9B978]"
                       />
                     </div>
                     <div>
                       <label className="text-[11px] text-slate-400 block mb-1">فضة (جرام)</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0"
                         value={profile.silverGrams || ''}
-                        onChange={(e) => onUpdateProfile({ silverGrams: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => onUpdateProfile({ silverGrams: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-black/40 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white font-numeric text-left outline-none focus:border-[#D9B978]"
                       />
                     </div>
@@ -434,11 +440,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                   </p>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={profile.tradingStocksValue || ''}
-                      onChange={(e) => onUpdateProfile({ tradingStocksValue: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => onUpdateProfile({ tradingStocksValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-sky-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -481,11 +487,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     <div className="relative">
                       <label className="text-[11px] text-slate-400 block mb-1">إجمالي قيمة المحفظة الاستثمارية:</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0.00"
                         value={profile.longTermStocksValue || ''}
-                        onChange={(e) => onUpdateProfile({ longTermStocksValue: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => onUpdateProfile({ longTermStocksValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-white/[0.04] border border-white/10 focus:border-indigo-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                       />
                       <span className="absolute right-3 top-7 text-xs text-slate-400 pointer-events-none">
@@ -496,11 +502,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                     <div className="relative">
                       <label className="text-[11px] text-slate-400 block mb-1">صافي الأرباح الموزعة المستلمة:</label>
                       <input
-                        type="number"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         placeholder="0.00"
                         value={profile.longTermDividendsValue || ''}
-                        onChange={(e) => onUpdateProfile({ longTermDividendsValue: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => onUpdateProfile({ longTermDividendsValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                         className="w-full bg-white/[0.04] border border-white/10 focus:border-indigo-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                       />
                       <span className="absolute right-3 top-7 text-xs text-slate-400 pointer-events-none">
@@ -520,11 +526,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={profile.investmentFundsValue || ''}
-                      onChange={(e) => onUpdateProfile({ investmentFundsValue: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => onUpdateProfile({ investmentFundsValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-violet-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -549,11 +555,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                   <p className="text-[11px] text-slate-400">تقوم البضائع بسعر الجملة وقت وجوب الزكاة.</p>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={profile.tradeInventoryValue || ''}
-                      onChange={(e) => onUpdateProfile({ tradeInventoryValue: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => onUpdateProfile({ tradeInventoryValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-amber-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -572,11 +578,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={profile.realEstateTradeValue || ''}
-                      onChange={(e) => onUpdateProfile({ realEstateTradeValue: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => onUpdateProfile({ realEstateTradeValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-emerald-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -595,11 +601,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={profile.rentalIncomeValue || ''}
-                      onChange={(e) => onUpdateProfile({ rentalIncomeValue: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => onUpdateProfile({ rentalIncomeValue: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-cyan-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">
@@ -665,11 +671,11 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
                   </div>
                   <div className="relative">
                     <input
-                      type="number"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.00"
                       value={profile.customDeductions || ''}
-                      onChange={(e) => onUpdateProfile({ customDeductions: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) => onUpdateProfile({ customDeductions: parseArabicNumber(sanitizeNumericInput(e.target.value)) })}
                       className="w-full bg-white/[0.04] border border-white/10 focus:border-rose-400 rounded-xl pl-16 pr-3 py-2 text-sm text-white font-numeric outline-none text-left"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">

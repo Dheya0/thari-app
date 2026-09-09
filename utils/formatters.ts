@@ -255,6 +255,38 @@ export function parseArabicNumber(input: string | number | null | undefined): nu
 }
 
 /**
+ * Unified Financial Number Formatter across all components & views
+ */
+export function formatFinancialNumber(num: number | string | undefined | null, useCompact: boolean = false): string {
+  const parsed = typeof num === 'number' ? num : parseArabicNumber(num);
+  if (isNaN(parsed)) return '0';
+
+  const sign = parsed < 0 ? '-' : '';
+  const safeNum = Math.abs(parsed);
+
+  if (useCompact) {
+    if (safeNum >= 1_000_000_000) {
+      const val = safeNum / 1_000_000_000;
+      return sign + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + 'B';
+    }
+    if (safeNum >= 1_000_000) {
+      const val = safeNum / 1_000_000;
+      return sign + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + 'M';
+    }
+    if (safeNum >= 10_000) {
+      const val = safeNum / 1_000;
+      return sign + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(0)) + 'K';
+    }
+  }
+
+  const hasDecimals = safeNum % 1 !== 0;
+  return sign + safeNum.toLocaleString('en-US', {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2
+  });
+}
+
+/**
  * Helper to handle numeric input change with cursor preservation and normalization.
  */
 export function handleNumericInputChange(

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   User, 
@@ -53,7 +53,7 @@ import {
   DebtCalculation 
 } from '../utils/debtModel';
 import { getTranslation, getLocalizedCurrency, LanguageKey } from '../utils/translations';
-import { parseArabicNumber, formatLocalDateOnly } from '../utils/formatters';
+import { parseArabicNumber, formatLocalDateOnly, formatFinancialNumber, sanitizeNumericInput, normalizeDigits } from '../utils/formatters';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { useBackNavigation } from '../utils/backNavigation';
 
@@ -75,6 +75,7 @@ interface DebtManagerProps {
   currencySymbol: string;
   currencyCode: string;
   language?: LanguageKey;
+  initialFilter?: 'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue';
 }
 
 export const DebtManager: React.FC<DebtManagerProps> = ({ 
@@ -87,7 +88,8 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   onDeleteDebt, 
   currencySymbol, 
   currencyCode,
-  language = 'ar'
+  language = 'ar',
+  initialFilter = 'all'
 }) => {
   const t = getTranslation(language);
   const isRtl = language === 'ar';
@@ -104,8 +106,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
 
   // Main view modes: 'list' (individual debts) | 'persons' (statement by contact)
   const [activeView, setActiveView] = useState<'list' | 'persons'>('list');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue'>(initialFilter);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Synchronize when initialFilter changes from parent
+  useEffect(() => {
+    if (initialFilter) {
+      setStatusFilter(initialFilter);
+    }
+  }, [initialFilter]);
 
   // Modals state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -651,48 +660,69 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   return (
     <div className="space-y-6 pb-28 max-w-5xl mx-auto w-full text-start" dir={isRtl ? 'rtl' : 'ltr'}>
       
-      {/* 1. Header & Summary Cards (Quiet Luxury Tokens: bg-[#11161C], text-[#D9B978]) */}
+      {/* 1. Header & Summary Cards (Quiet Luxury Tokens: matching Dashboard layout & colors) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        {/* Debts I Owe (عليّ) */}
-        <div className="bg-[#11161C] border border-white/10 p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group shadow-lg backdrop-blur-md">
+        {/* Debts Owed to Me (لك عند الآخرين / مستحقات) */}
+        <div 
+          onClick={() => setStatusFilter(statusFilter === 'to_me' ? 'all' : 'to_me')}
+          className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group shadow-lg backdrop-blur-md cursor-pointer transition-all duration-200 active:scale-[0.99] ${
+            statusFilter === 'to_me'
+              ? 'bg-[#8EB9A7]/10 border-2 border-[#8EB9A7]'
+              : 'bg-[#11161C] border border-white/10 hover:border-[#8EB9A7]/40'
+          }`}
+        >
           <div className="flex items-center justify-between mb-2">
-            <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
-              <UserMinus size={18} />
+            <span className="p-2 rounded-xl bg-emerald-500/20 text-[#8EB9A7]">
+              <UserPlus size={18} />
             </span>
-            <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-1">
-              <ArrowDownLeft size={12} /> {t.debtOwesYou}
+            <span className="text-[10px] font-black text-[#8EB9A7] uppercase tracking-widest flex items-center gap-1">
+              <ArrowUpRight size={12} /> {t.youOweOthers || t.debtIOWin}
             </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-[#F4F1EA]">
-            {stats.totalIOweRemaining.toLocaleString()} <span className="text-xs text-rose-400 font-bold">{resolvedSymbol}</span>
+          <p className="text-xl sm:text-2xl font-black text-[#F4F1EA] font-numeric tracking-tight">
+            {formatFinancialNumber(stats.totalOwedToMeRemaining)} <span className="text-xs text-[#8EB9A7] font-bold">{resolvedSymbol}</span>
           </p>
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-white/5">
-            <span>{t.originalAmount}: {stats.totalOriginalIOwe.toLocaleString()}</span>
-            <span>{t.paidAmount}: {stats.totalPaidIOwe.toLocaleString()}</span>
+          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-white/5 font-numeric">
+            <span>{t.originalAmount}: {formatFinancialNumber(stats.totalOriginalOwedToMe)}</span>
+            <span>{t.paidAmount}: {formatFinancialNumber(stats.totalPaidOwedToMe)}</span>
           </div>
         </div>
 
-        {/* Debts Owed to Me (لي) */}
-        <div className="bg-[#11161C] border border-white/10 p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group shadow-lg backdrop-blur-md">
+        {/* Debts I Owe (عليك للآخرين / التزامات) */}
+        <div 
+          onClick={() => setStatusFilter(statusFilter === 'on_me' ? 'all' : 'on_me')}
+          className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group shadow-lg backdrop-blur-md cursor-pointer transition-all duration-200 active:scale-[0.99] ${
+            statusFilter === 'on_me'
+              ? 'bg-[#C98387]/10 border-2 border-[#C98387]'
+              : 'bg-[#11161C] border border-white/10 hover:border-[#C98387]/40'
+          }`}
+        >
           <div className="flex items-center justify-between mb-2">
-            <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
-              <UserPlus size={18} />
+            <span className="p-2 rounded-xl bg-rose-500/20 text-[#C98387]">
+              <UserMinus size={18} />
             </span>
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1">
-              <ArrowUpRight size={12} /> {t.debtIOWin}
+            <span className="text-[10px] font-black text-[#C98387] uppercase tracking-widest flex items-center gap-1">
+              <ArrowDownLeft size={12} /> {t.othersOweYou || t.debtOwesYou}
             </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-[#F4F1EA]">
-            {stats.totalOwedToMeRemaining.toLocaleString()} <span className="text-xs text-emerald-400 font-bold">{resolvedSymbol}</span>
+          <p className="text-xl sm:text-2xl font-black text-[#F4F1EA] font-numeric tracking-tight">
+            {formatFinancialNumber(stats.totalIOweRemaining)} <span className="text-xs text-[#C98387] font-bold">{resolvedSymbol}</span>
           </p>
-          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-white/5">
-            <span>{t.originalAmount}: {stats.totalOriginalOwedToMe.toLocaleString()}</span>
-            <span>{t.paidAmount}: {stats.totalPaidOwedToMe.toLocaleString()}</span>
+          <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-white/5 font-numeric">
+            <span>{t.originalAmount}: {formatFinancialNumber(stats.totalOriginalIOwe)}</span>
+            <span>{t.paidAmount}: {formatFinancialNumber(stats.totalPaidIOwe)}</span>
           </div>
         </div>
 
         {/* Net Debt Position */}
-        <div className="bg-[#11161C] border border-white/10 p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group shadow-lg backdrop-blur-md">
+        <div 
+          onClick={() => setStatusFilter('all')}
+          className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group shadow-lg backdrop-blur-md cursor-pointer transition-all duration-200 active:scale-[0.99] ${
+            statusFilter === 'all'
+              ? 'bg-[#11161C] border border-[#D9B978]/40'
+              : 'bg-[#11161C] border border-white/10 hover:border-[#D9B978]/30'
+          }`}
+        >
           <div className="flex items-center justify-between mb-2">
             <span className="p-2 rounded-xl bg-[#D9B978]/20 text-[#D9B978]">
               <Scale size={18} />
@@ -707,12 +737,12 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
             const isZero = Math.abs(net) < 0.01;
             return (
               <>
-                <p className={`text-xl sm:text-2xl font-black ${isZero ? 'text-slate-300' : isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {Math.abs(net).toLocaleString()} <span className="text-xs font-bold">{resolvedSymbol}</span>
+                <p className={`text-xl sm:text-2xl font-black font-numeric tracking-tight ${isZero ? 'text-slate-300' : isPositive ? 'text-[#8EB9A7]' : 'text-[#C98387]'}`}>
+                  {formatFinancialNumber(Math.abs(net))} <span className="text-xs font-bold text-[#D9B978]">{resolvedSymbol}</span>
                 </p>
-                <div className="text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
+                <div className="text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-white/5 flex items-center justify-between font-numeric">
                   <span>{isZero ? (isRtl ? 'الذمم متعادلة' : 'Balanced') : isPositive ? (isRtl ? 'صافي مستحق لك' : 'Net Receivable') : (isRtl ? 'صافي التزام عليك' : 'Net Payable')}</span>
-                  <span>{stats.uniquePersonsCount} {isRtl ? 'جهات تعامل' : 'Contacts'}</span>
+                  <span>{formatFinancialNumber(stats.uniquePersonsCount)} {isRtl ? 'جهات تعامل' : 'Contacts'}</span>
                 </div>
               </>
             );
@@ -1023,12 +1053,12 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     </div>
 
                     <div className="text-end">
-                      <p className={`text-base sm:text-lg font-black ${
+                      <p className={`text-base sm:text-lg font-black font-numeric tracking-tight ${
                         calc.status === 'settled' 
                           ? 'text-emerald-400' 
                           : debt.type === 'to_me' ? 'text-emerald-400' : 'text-rose-400'
                       }`}>
-                        {calc.remainingAmount.toLocaleString()} <span className="text-[10px] opacity-70">{getDebtCurrencySymbol(debt.currency)}</span>
+                        {formatFinancialNumber(calc.remainingAmount)} <span className="text-[10px] opacity-70">{getDebtCurrencySymbol(debt.currency)}</span>
                       </p>
                       <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">
                         {t.remainingBalance}
@@ -1036,19 +1066,19 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 mt-3.5 p-2.5 bg-[#0A0D10] rounded-2xl border border-white/5 text-center text-xs">
+                  <div className="grid grid-cols-3 gap-2 mt-3.5 p-2.5 bg-[#0A0D10] rounded-2xl border border-white/5 text-center text-xs font-numeric">
                     <div>
                       <span className="text-[9px] font-bold text-slate-500 block mb-0.5">{t.originalAmount}</span>
-                      <span className="font-black text-white">{calc.originalAmount.toLocaleString()} {getDebtCurrencySymbol(debt.currency)}</span>
+                      <span className="font-black text-white">{formatFinancialNumber(calc.originalAmount)} {getDebtCurrencySymbol(debt.currency)}</span>
                     </div>
                     <div className="border-inline border-white/5 px-1">
-                      <span className="text-[9px] font-bold text-slate-500 block mb-0.5">{t.paidAmount} ({Math.round(calc.progressPercent)}%)</span>
-                      <span className="font-black text-[#D9B978]">{calc.paidAmount.toLocaleString()} {getDebtCurrencySymbol(debt.currency)}</span>
+                      <span className="text-[9px] font-bold text-slate-500 block mb-0.5">{t.paidAmount} ({formatFinancialNumber(Math.round(calc.progressPercent))}%)</span>
+                      <span className="font-black text-[#D9B978]">{formatFinancialNumber(calc.paidAmount)} {getDebtCurrencySymbol(debt.currency)}</span>
                     </div>
                     <div>
                       <span className="text-[9px] font-bold text-slate-500 block mb-0.5">{t.remainingBalance}</span>
                       <span className={`font-black ${debt.type === 'to_me' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {calc.remainingAmount.toLocaleString()} {getDebtCurrencySymbol(debt.currency)}
+                        {formatFinancialNumber(calc.remainingAmount)} {getDebtCurrencySymbol(debt.currency)}
                       </span>
                     </div>
                   </div>
@@ -1292,12 +1322,12 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         ) : person.netStatus === 'receivable' ? (
                           <>
                             <ArrowUpRight size={14} />
-                            <span>{isRtl ? 'لك بذمته' : 'Owed To You'}: {person.netBalance.toLocaleString()} {resolvedSymbol}</span>
+                            <span>{isRtl ? 'لك بذمته' : 'Owed To You'}: {formatFinancialNumber(person.netBalance)} {resolvedSymbol}</span>
                           </>
                         ) : (
                           <>
                             <ArrowDownLeft size={14} />
-                            <span>{isRtl ? 'له بذمتك' : 'You Owe'}: {Math.abs(person.netBalance).toLocaleString()} {resolvedSymbol}</span>
+                            <span>{isRtl ? 'له بذمتك' : 'You Owe'}: {formatFinancialNumber(Math.abs(person.netBalance))} {resolvedSymbol}</span>
                           </>
                         )}
                       </div>
@@ -1309,9 +1339,9 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       <span className="text-[10px] font-black text-emerald-400 block mb-1 flex items-center gap-1">
                         <ArrowUpRight size={12} /> {t.totalDebtsOwedToMe}
                       </span>
-                      <div className="flex justify-between items-baseline">
+                      <div className="flex justify-between items-baseline font-numeric">
                         <span className="text-slate-400 text-[10px] font-bold">{isRtl ? 'المتبقي:' : 'Remaining:'}</span>
-                        <span className="font-black text-emerald-400 text-sm">{person.totalOwedToMeRemaining.toLocaleString()} {resolvedSymbol}</span>
+                        <span className="font-black text-emerald-400 text-sm">{formatFinancialNumber(person.totalOwedToMeRemaining)} {resolvedSymbol}</span>
                       </div>
                     </div>
 
@@ -1319,9 +1349,9 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       <span className="text-[10px] font-black text-rose-400 block mb-1 flex items-center gap-1">
                         <ArrowDownLeft size={12} /> {t.totalDebtsIOwe}
                       </span>
-                      <div className="flex justify-between items-baseline">
+                      <div className="flex justify-between items-baseline font-numeric">
                         <span className="text-slate-400 text-[10px] font-bold">{isRtl ? 'المتبقي:' : 'Remaining:'}</span>
-                        <span className="font-black text-rose-400 text-sm">{person.totalIOweRemaining.toLocaleString()} {resolvedSymbol}</span>
+                        <span className="font-black text-rose-400 text-sm">{formatFinancialNumber(person.totalIOweRemaining)} {resolvedSymbol}</span>
                       </div>
                     </div>
                   </div>
@@ -1513,12 +1543,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 </label>
                 <div className="relative">
                   <input 
-                    type="number" 
+                    type="text" 
                     inputMode="decimal"
-                    step="any"
                     value={amount} 
                     onChange={e => {
-                      const val = e.target.value;
+                      const val = sanitizeNumericInput(e.target.value);
                       setAmount(val);
                       if (hasAgreedRate && agreedRateInput) {
                         const amtNum = parseArabicNumber(val);
@@ -1529,7 +1558,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       }
                     }} 
                     placeholder="0.00" 
-                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-[#D9B978] font-black text-center text-xl tracking-wider focus:border-[#D9B978] transition-colors shadow-inner" 
+                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-[#D9B978] font-black text-center text-xl tracking-wider focus:border-[#D9B978] transition-colors shadow-inner font-numeric" 
                     enterKeyHint="next"
                     required 
                   />
@@ -1569,7 +1598,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                           }
                         }
                       }
-                    }}
+                    }} 
                   >
                     <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${hasAgreedRate ? (isRtl ? '-translate-x-4' : 'translate-x-4') : 'translate-x-0'}`} />
                   </div>
@@ -1584,12 +1613,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         </label>
                         <div className="flex items-center bg-[#11161C] rounded-xl border border-white/10 overflow-hidden">
                           <input 
-                            type="number"
+                            type="text"
                             inputMode="decimal"
-                            step="any"
                             value={foreignAmountInput}
                             onChange={e => {
-                              const val = e.target.value;
+                              const val = sanitizeNumericInput(e.target.value);
                               setForeignAmountInput(val);
                               const num = parseArabicNumber(val);
                               const rate = parseArabicNumber(agreedRateInput);
@@ -1598,7 +1626,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                               }
                             }}
                             placeholder={isRtl ? 'مثلاً: 104' : 'e.g. 104'}
-                            className="w-full p-2.5 bg-transparent outline-none text-white font-bold text-xs"
+                            className="w-full p-2.5 bg-transparent outline-none text-white font-bold text-xs font-numeric"
                             enterKeyHint="next"
                           />
                           <select
@@ -1624,12 +1652,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                           {isRtl ? 'سعر الصرف المتفق عليه' : 'Agreed Rate'}
                         </label>
                         <input 
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="any"
                           value={agreedRateInput}
                           onChange={e => {
-                            const val = e.target.value;
+                            const val = sanitizeNumericInput(e.target.value);
                             setAgreedRateInput(val);
                             const num = parseArabicNumber(foreignAmountInput);
                             const rate = parseArabicNumber(val);
@@ -1638,7 +1665,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                             }
                           }}
                           placeholder={isRtl ? 'مثلاً: 1600' : 'e.g. 1600'}
-                          className="w-full p-2.5 rounded-xl bg-[#11161C] border border-white/10 outline-none text-[#D9B978] font-bold text-xs"
+                          className="w-full p-2.5 rounded-xl bg-[#11161C] border border-white/10 outline-none text-white font-bold text-xs font-numeric"
                           enterKeyHint="next"
                         />
                       </div>
@@ -1914,12 +1941,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'المبلغ الأجنبي' : 'Foreign Amt'}</label>
                         <div className="flex items-center bg-[#11161C] rounded-xl border border-white/10 overflow-hidden">
                           <input 
-                            type="number"
+                            type="text"
                             inputMode="decimal"
-                            step="any"
                             value={payForeignAmountInput}
                             onChange={e => {
-                              const val = e.target.value;
+                              const val = sanitizeNumericInput(e.target.value);
                               setPayForeignAmountInput(val);
                               const num = parseArabicNumber(val);
                               const rate = parseArabicNumber(payAgreedRateInput);
@@ -1928,7 +1954,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                               }
                             }}
                             placeholder="مثلاً: 50"
-                            className="w-full p-2 bg-transparent outline-none text-white font-bold text-xs"
+                            className="w-full p-2 bg-transparent outline-none text-white font-bold text-xs font-numeric"
                             enterKeyHint="next"
                           />
                           <select
@@ -1947,12 +1973,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'سعر الصرف' : 'Rate'}</label>
                         <input 
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          step="any"
                           value={payAgreedRateInput}
                           onChange={e => {
-                            const val = e.target.value;
+                            const val = sanitizeNumericInput(e.target.value);
                             setPayAgreedRateInput(val);
                             const num = parseArabicNumber(payForeignAmountInput);
                             const rate = parseArabicNumber(val);
@@ -1961,7 +1986,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                             }
                           }}
                           placeholder={isRtl ? 'مثلاً: 1600' : 'e.g. 1600'}
-                          className="w-full p-2 rounded-xl bg-[#11161C] border border-white/10 outline-none text-white font-bold text-xs"
+                          className="w-full p-2 rounded-xl bg-[#11161C] border border-white/10 outline-none text-white font-bold text-xs font-numeric"
                           enterKeyHint="next"
                         />
                       </div>
@@ -1996,7 +2021,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                     >
                       {wallets.map(w => (
                         <option key={w.id} value={w.id}>
-                          {w.name} ({w.balance.toLocaleString()} {w.currencyCode})
+                          {w.name} ({formatFinancialNumber(w.balance)} {w.currencyCode})
                         </option>
                       ))}
                     </select>
@@ -2013,12 +2038,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{isRtl ? 'المبلغ الإجمالي المسدد بالعملة الأساسية' : 'Payment Amount in Base Currency'}</label>
                 <div className="relative">
                   <input 
-                    type="number" 
+                    type="text" 
                     inputMode="decimal"
-                    step="any"
                     value={payAmountInput}
                     onChange={e => {
-                      const val = e.target.value;
+                      const val = sanitizeNumericInput(e.target.value);
                       setPayAmountInput(val);
                       if (payHasAgreedRate && payAgreedRateInput) {
                         const amtNum = parseArabicNumber(val);
@@ -2029,7 +2053,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       }
                     }} 
                     placeholder="0.00" 
-                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-emerald-400 font-black text-center text-xl tracking-wider focus:border-emerald-500 transition-colors shadow-inner" 
+                    className="w-full p-3 rounded-2xl bg-[#0A0D10] border border-white/10 outline-none text-emerald-400 font-black text-center text-xl tracking-wider focus:border-emerald-500 transition-colors shadow-inner font-numeric" 
                     enterKeyHint="next"
                     required
                   />

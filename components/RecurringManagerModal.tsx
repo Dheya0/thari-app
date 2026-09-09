@@ -6,7 +6,7 @@ import {
   ArrowUpRight, ArrowDownLeft, ArrowLeftRight, Clock, ArrowRight
 } from 'lucide-react';
 import { RecurringRule, Wallet, Category, Currency } from '../types';
-import { formatLocalDateOnly } from '../utils/formatters';
+import { formatLocalDateOnly, parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 import { useBackNavigation } from '../utils/backNavigation';
 
 interface RecurringManagerModalProps {
@@ -138,12 +138,13 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
 
   const handleSubmitNew = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !amount || Number(amount) <= 0 || !walletId) return;
+    const parsedAmt = parseArabicNumber(amount);
+    if (!description || !amount || parsedAmt <= 0 || !walletId) return;
 
     onAddRule({
       description,
       type,
-      amount: parseFloat(amount),
+      amount: parsedAmt,
       currency,
       walletId,
       destinationWalletId: type === 'transfer' ? destinationWalletId : undefined,
@@ -306,13 +307,12 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
                   <div>
                     <label className="text-[11px] text-slate-400 block mb-1">{t.amountLabel}</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
                       placeholder="0.00"
-                      min="0.01"
-                      step="any"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-numeric"
                       required
                     />
                   </div>
@@ -454,8 +454,8 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
-                      <div className="text-left sm:text-right font-mono font-bold text-sm text-white">
-                        {rule.amount.toLocaleString()} <span className="text-[10px] text-slate-400">{rule.currency}</span>
+                      <div className="text-left sm:text-right font-numeric font-bold text-sm text-white">
+                        {formatFinancialNumber(rule.amount)} <span className="text-[10px] text-slate-400">{rule.currency}</span>
                       </div>
 
                       <div className="flex items-center gap-1">

@@ -18,6 +18,10 @@ import { convertCurrency } from '../constants';
 import { calculateDateBasedGrowth, calculateWalletBalances } from '../services/balanceEngine';
 import { getTranslation } from '../utils/translations';
 import { SwipeableRow } from './SwipeableRow';
+import { formatFinancialNumber } from '../utils/formatters';
+import { safeAdd } from '../utils/mathPrecision';
+
+export { formatFinancialNumber };
 
 interface ElegantDashboardProps {
   userName: string;
@@ -39,37 +43,12 @@ interface ElegantDashboardProps {
   onSelectWallet: (id: string | null) => void;
   onChangeCurrency: (currency: Currency) => void;
   onOpenNewTransaction: (type?: 'expense' | 'income' | 'transfer' | 'adjustment') => void;
-  onOpenDebts: () => void;
+  onOpenDebts: (filter?: 'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue') => void;
   onOpenAllTransactions: () => void;
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   language?: 'ar' | 'en';
 }
-
-export const formatFinancialNumber = (num: number | string | undefined | null, useCompact: boolean = false): string => {
-  const parsed = typeof num === 'number' ? num : parseFloat(String(num ?? 0));
-  if (isNaN(parsed)) return '0';
-
-  const sign = parsed < 0 ? '-' : '';
-  const safeNum = Math.abs(parsed);
-
-  if (useCompact) {
-    if (safeNum >= 1_000_000_000) {
-      const val = safeNum / 1_000_000_000;
-      return sign + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + 'B';
-    }
-    if (safeNum >= 1_000_000) {
-      const val = safeNum / 1_000_000;
-      return sign + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + 'M';
-    }
-    if (safeNum >= 10_000) {
-      const val = safeNum / 1_000;
-      return sign + (val % 1 === 0 ? val.toFixed(0) : val.toFixed(0)) + 'K';
-    }
-  }
-
-  return sign + Math.round(safeNum).toLocaleString('en-US');
-};
 
 export const getGreeting = (lang: 'ar' | 'en' = 'ar'): { text: string; sub: string } => {
   const hour = new Date().getHours();
@@ -152,13 +131,19 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   }, [wallets, transactions, exchangeRates]);
 
   const currencyBalances = useMemo(() => {
-    return calculatedBalances.currencyBalances || {};
-  }, [calculatedBalances]);
+    const map: Record<string, number> = {};
+    wallets.forEach(w => {
+      const summary = calculatedBalances[w.id];
+      const bal = summary ? summary.currentBalance : (Number(w.openingBalance) || 0);
+      map[w.currencyCode] = safeAdd(map[w.currencyCode] || 0, bal);
+    });
+    return map;
+  }, [wallets, calculatedBalances]);
 
   const walletRows = useMemo(() => {
-    const balanceMap = calculatedBalances.walletBalances || {};
     return wallets.map(wallet => {
-      const balance = balanceMap[wallet.id] ?? (Number(wallet.openingBalance) || 0);
+      const summary = calculatedBalances[wallet.id];
+      const balance = summary ? summary.currentBalance : (Number(wallet.openingBalance) || 0);
 
       const walletCurr = currencies.find(c => c.code === wallet.currencyCode) || {
         code: wallet.currencyCode,
@@ -283,7 +268,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           </div>
 
           <button 
-            onClick={onOpenDebts}
+            onClick={() => onOpenDebts('to_me')}
             className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#8EB9A7]/5 border border-white/[0.03] hover:border-[#8EB9A7]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px]"
           >
             <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#8EB9A7] transition-colors block truncate">
@@ -296,7 +281,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           </button>
 
           <button 
-            onClick={onOpenDebts}
+            onClick={() => onOpenDebts('on_me')}
             className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#C98387]/5 border border-white/[0.03] hover:border-[#C98387]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px]"
           >
             <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#C98387] transition-colors block truncate">

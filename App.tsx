@@ -6,6 +6,7 @@ import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringR
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
+import { safeAdd } from './utils/mathPrecision';
 import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave, deobfuscateData } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
 import { processDueRecurringRules } from './services/recurringService';
@@ -321,6 +322,7 @@ const App: React.FC = () => {
 
   type TabType = 'dashboard' | 'transactions' | 'debts' | 'chat' | 'subscriptions' | 'settings' | 'budgets' | 'goals' | 'zakat';
   const [activeTab, setActiveTabState] = useState<TabType>('dashboard');
+  const [debtFilter, setDebtFilter] = useState<'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue'>('all');
   const [tabHistory, setTabHistory] = useState<TabType[]>(['dashboard']);
   const tabHistoryRef = useRef<TabType[]>(['dashboard']);
   useEffect(() => {
@@ -1808,7 +1810,10 @@ const App: React.FC = () => {
                       setFormDefaultType(type);
                       setShowAddForm(true);
                     }}
-                    onOpenDebts={() => setActiveTab('debts')}
+                    onOpenDebts={(filter) => {
+                      setDebtFilter(filter || 'all');
+                      setActiveTab('debts');
+                    }}
                     onOpenAllTransactions={() => setActiveTab('transactions')}
                     onEditTransaction={handleEditTransaction}
                     onDeleteTransaction={handleRequestDeleteTransaction}
@@ -1816,9 +1821,20 @@ const App: React.FC = () => {
                   />
                 )}
                 
-                {activeTab === 'goals' && <GoalTracker goals={state.goals} wallets={state.wallets} transactions={state.transactions} onAddGoal={(g) => setState(p => ({ ...p, goals: [...p.goals, { ...g, id: 'g-'+Date.now() }] }))} onUpdateGoalAmount={(id, amt) => setState(p => ({ ...p, goals: p.goals.map(g => g.id === id ? { ...g, currentAmount: g.currentAmount + amt } : g) }))} currencySymbol={localizedCurrency.symbol} language={activeLanguage} />}
+                {activeTab === 'goals' && (
+                  <GoalTracker 
+                    goals={state.goals} 
+                    wallets={state.wallets} 
+                    transactions={state.transactions} 
+                    onAddGoal={(g) => setState(p => ({ ...p, goals: [...p.goals, { ...g, id: 'g-'+Date.now() }] }))} 
+                    onUpdateGoalAmount={(id, amt) => setState(p => ({ ...p, goals: p.goals.map(g => g.id === id ? { ...g, currentAmount: safeAdd(g.currentAmount || 0, amt) } : g) }))} 
+                    onDeleteGoal={(id) => setState(p => ({ ...p, goals: p.goals.filter(g => g.id !== id) }))}
+                    currencySymbol={localizedCurrency.symbol} 
+                    language={activeLanguage} 
+                  />
+                )}
                 {activeTab === 'budgets' && <BudgetManager budgets={state.budgets} categories={state.categories} transactions={filteredTransactions} onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} exchangeRates={state.exchangeRates} language={activeLanguage} />}
-                {activeTab === 'debts' && <DebtManager debts={state.debts} wallets={state.wallets} onAddDebt={handleAddDebt} onUpdateDebt={handleUpdateDebt} onSettleDebt={handleSettleDebt} onPayDebt={handlePayDebt} onDeleteDebt={(id) => setState(p => ({ ...p, debts: p.debts.filter(d => d.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
+                {activeTab === 'debts' && <DebtManager debts={state.debts} wallets={state.wallets} onAddDebt={handleAddDebt} onUpdateDebt={handleUpdateDebt} onSettleDebt={handleSettleDebt} onPayDebt={handlePayDebt} onDeleteDebt={(id) => setState(p => ({ ...p, debts: p.debts.filter(d => d.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} initialFilter={debtFilter} />}
                 {activeTab === 'subscriptions' && <SubscriptionManager subscriptions={state.subscriptions} categories={state.categories} onAdd={(sub) => setState(p => ({ ...p, subscriptions: [{...sub, id: 's-'+Date.now()}, ...p.subscriptions] }))} onRemove={(id) => setState(p => ({ ...p, subscriptions: p.subscriptions.filter(s => s.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
                 {activeTab === 'zakat' && (
                   <ZakatCalculator 

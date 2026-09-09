@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Target, TriangleAlert, Award, TrendingUp, Sparkles, AlertCircle, Coins, ShieldCheck, Play } from 'lucide-react';
+import { Target, TriangleAlert, Award, TrendingUp, Sparkles, AlertCircle, Coins, ShieldCheck, Play, Trash2 } from 'lucide-react';
 import { Budget, Category, Transaction } from '../types';
 import { getLocalizedCurrency, getTranslation, LanguageKey } from '../utils/translations';
-import { parseArabicNumber } from '../utils/formatters';
+import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
 
@@ -157,8 +157,8 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
               <p className="text-xs font-bold text-[#F4F1EA]">إجمالي الصرف الجاري</p>
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-bold text-[#F4F1EA] leading-tight">
-            {abundanceData.burnRate.toLocaleString()} <span className="text-xs text-slate-400 font-normal">{currencySymbol}</span>
+          <div className="text-lg sm:text-xl font-bold text-[#F4F1EA] leading-tight font-numeric">
+            {formatFinancialNumber(abundanceData.burnRate)} <span className="text-xs text-slate-400 font-normal">{currencySymbol}</span>
           </div>
         </div>
 
@@ -172,8 +172,8 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
               <p className="text-xs font-bold text-[#F4F1EA]">المدخرات المحققة</p>
             </div>
           </div>
-          <div className="text-lg sm:text-xl font-bold text-[#8EB9A7] leading-tight">
-            +{Math.round(abundanceData.savingsRate)}%
+          <div className="text-lg sm:text-xl font-bold text-[#8EB9A7] leading-tight font-numeric">
+            +{formatFinancialNumber(Math.round(abundanceData.savingsRate))}%
           </div>
         </div>
       </div>
@@ -200,11 +200,12 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
           <div className="flex gap-2">
             <div className="relative flex-1">
                <input 
-                type="number"
-                placeholder="الحد الشرعي المقترح للصرف"
+                type="text"
+                inputMode="decimal"
+                placeholder="الحد المقترح للصرف"
                 value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 outline-none text-[#F4F1EA] font-bold text-xs focus:border-[#D9B978]/50 transition-colors"
+                onChange={e => setAmount(sanitizeNumericInput(e.target.value))}
+                className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 outline-none text-[#F4F1EA] font-bold text-xs focus:border-[#D9B978]/50 transition-colors font-numeric"
               />
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-500">{resolvedSymbol}</span>
             </div>
@@ -254,21 +255,31 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                       {isWarning && !isCritical && <span className="text-[9px] font-bold text-[#D9B978] uppercase tracking-widest">{isRtl ? 'تنبيه بالاقتراب من السقف' : 'Approaching Budget Limit'}</span>}
                     </div>
                   </div>
-                  <div className="text-start sm:text-end leading-none">
-                     <p className="text-xs font-bold text-[#F4F1EA]">
-                      {b.spent.toLocaleString()} / {b.amount.toLocaleString()} <span className="text-[10px] text-slate-400">{resolvedSymbol}</span>
-                    </p>
-                    <p className={`text-[11px] font-medium mt-1.5 ${isCritical ? 'text-[#C98387]' : 'text-slate-400'}`}>
-                      {isCritical ? (isRtl ? 'سقف مستهلك' : 'Limit exceeded') : (isRtl ? `تبقي ${(b.amount - b.spent).toLocaleString()} ${resolvedSymbol}` : `Remaining ${(b.amount - b.spent).toLocaleString()} ${resolvedSymbol}`)}
-                    </p>
+                  <div className="flex items-start gap-2">
+                    <div className="text-start sm:text-end leading-none font-numeric">
+                       <p className="text-xs font-bold text-[#F4F1EA]">
+                        {formatFinancialNumber(b.spent)} / {formatFinancialNumber(b.amount)} <span className="text-[10px] text-slate-400">{resolvedSymbol}</span>
+                      </p>
+                      <p className={`text-[11px] font-medium mt-1.5 ${isCritical ? 'text-[#C98387]' : 'text-slate-400'}`}>
+                        {isCritical ? (isRtl ? 'سقف مستهلك' : 'Limit exceeded') : (isRtl ? `تبقي ${formatFinancialNumber(safeSub(b.amount, b.spent))} ${resolvedSymbol}` : `Remaining ${formatFinancialNumber(safeSub(b.amount, b.spent))} ${resolvedSymbol}`)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onSetBudget(b.categoryId, 0)}
+                      className="p-1.5 text-slate-500 hover:text-[#C98387] rounded-lg hover:bg-white/5 transition-colors"
+                      title={isRtl ? 'إزالة حد الميزانية' : 'Remove budget limit'}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
 
                 <div className="relative pt-1">
-                  <div className="flex mb-2 items-center justify-between">
+                  <div className="flex mb-2 items-center justify-between font-numeric">
                     <div>
                       <span className={`text-[10px] font-bold inline-block py-1 px-2.5 rounded-lg ${isCritical ? 'bg-[#C98387] text-[#0A0D10]' : isWarning ? 'bg-[#D9B978] text-[#0A0D10]' : 'bg-[#8EB9A7] text-[#0A0D10]'}`}>
-                        {Math.round(b.percentage)}% مستخدم
+                        {formatFinancialNumber(Math.round(b.percentage))}% مستخدم
                       </span>
                     </div>
                   </div>

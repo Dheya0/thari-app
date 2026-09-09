@@ -5,7 +5,7 @@ import { CreditCard, Plus, X, Calendar, RefreshCw, Trash2, Zap, Clock } from 'lu
 import { Subscription, Category } from '../types';
 import { getIcon } from '../constants';
 import { getLocalizedCurrency, getTranslation, LanguageKey } from '../utils/translations';
-import { parseArabicNumber } from '../utils/formatters';
+import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 
 interface SubscriptionManagerProps {
   subscriptions: Subscription[];
@@ -51,7 +51,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
         <Zap className="absolute -right-4 -top-4 text-white/[0.03] group-hover:scale-125 transition-transform duration-1000" size={120} />
         <div className="relative z-10 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#D9B978]">{t.totalMonthlyCommitment}</p>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#F4F1EA] tracking-tight">{totalMonthly.toLocaleString(isRtl ? 'ar-SA' : 'en-US')} <span className="text-xl text-[#D9B978]">{resolvedSymbol}</span></h2>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#F4F1EA] tracking-tight font-numeric">{formatFinancialNumber(totalMonthly)} <span className="text-xl text-[#D9B978]">{resolvedSymbol}</span></h2>
           <p className="text-xs text-slate-400 font-medium">{t.subscriptionsAnnualNote}</p>
         </div>
       </div>
@@ -79,7 +79,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                         <RefreshCw size={10} /> {sub.period === 'monthly' ? t.monthly : t.yearly}
                      </p>
                      {sub.nextBillingDate && (
-                         <p className="text-[10px] font-medium text-[#759BC8] flex items-center gap-1">
+                         <p className="text-[10px] font-medium text-[#759BC8] flex items-center gap-1 font-numeric">
                             <Clock size={10} /> {sub.nextBillingDate}
                          </p>
                      )}
@@ -87,8 +87,8 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="text-start sm:text-end">
-                  <p className="text-base sm:text-lg font-bold text-[#F4F1EA]">{sub.amount.toLocaleString(isRtl ? 'ar-SA' : 'en-US')} <span className="text-xs text-slate-400 font-normal">{resolvedSymbol}</span></p>
+                <div className="text-start sm:text-end font-numeric">
+                  <p className="text-base sm:text-lg font-bold text-[#F4F1EA]">{formatFinancialNumber(sub.amount)} <span className="text-xs text-slate-400 font-normal">{resolvedSymbol}</span></p>
                 </div>
                 <button onClick={() => onRemove(sub.id)} className="p-2 text-slate-500 hover:text-[#C98387] rounded-xl hover:bg-white/5 transition-colors" title={t.delete}>
                   <Trash2 size={16} />
@@ -123,7 +123,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 </div>
                 <div className="flex gap-3 sm:gap-4">
                    <div className="relative flex-1">
-                     <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 text-[#F4F1EA] font-bold text-xs focus:border-[#D9B978]/50 outline-none transition-colors" />
+                     <input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(sanitizeNumericInput(e.target.value))} placeholder="0.00" className="w-full p-3.5 rounded-xl bg-[#0A0D10] border border-white/10 text-[#F4F1EA] font-bold text-xs focus:border-[#D9B978]/50 outline-none transition-colors font-numeric" />
                      <span className={`absolute ${isRtl ? 'left-4' : 'right-4'} top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400`}>{resolvedSymbol}</span>
                    </div>
                    <select value={period} onChange={e => setPeriod(e.target.value as any)} className="bg-[#0A0D10] border border-white/10 text-[#F4F1EA] p-3.5 rounded-xl font-medium outline-none text-xs focus:border-[#D9B978]/50 transition-colors">
