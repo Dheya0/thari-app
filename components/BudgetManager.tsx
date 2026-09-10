@@ -5,6 +5,7 @@ import { getLocalizedCurrency, getTranslation, LanguageKey } from '../utils/tran
 import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { NativeHaptics } from '../services/nativeServices';
 
 interface BudgetManagerProps {
   budgets: Budget[];
@@ -212,6 +213,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
             <button 
               onClick={() => {
                 if (selectedCat && amount) {
+                  NativeHaptics.notification('SUCCESS').catch(() => {});
                   onSetBudget(selectedCat, parseArabicNumber(amount));
                   setAmount('');
                   setSelectedCat('');
@@ -266,7 +268,10 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => onSetBudget(b.categoryId, 0)}
+                      onClick={() => {
+                        NativeHaptics.impact('MEDIUM').catch(() => {});
+                        onSetBudget(b.categoryId, 0);
+                      }}
                       className="p-1.5 text-slate-500 hover:text-[#C98387] rounded-lg hover:bg-white/5 transition-colors"
                       title={isRtl ? 'إزالة حد الميزانية' : 'Remove budget limit'}
                     >

@@ -8,6 +8,7 @@ import {
 import { RecurringRule, Wallet, Category, Currency } from '../types';
 import { formatLocalDateOnly, parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 import { useBackNavigation } from '../utils/backNavigation';
+import { NativeHaptics } from '../services/nativeServices';
 
 interface RecurringManagerModalProps {
   isOpen: boolean;
@@ -141,6 +142,7 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
     const parsedAmt = parseArabicNumber(amount);
     if (!description || !amount || parsedAmt <= 0 || !walletId) return;
 
+    NativeHaptics.notification('SUCCESS').catch(() => {});
     onAddRule({
       description,
       type,
@@ -226,7 +228,10 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={onTriggerCatchup}
+              onClick={() => {
+                NativeHaptics.impact('LIGHT').catch(() => {});
+                onTriggerCatchup();
+              }}
               className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors flex items-center gap-1.5"
               title={t.catchupTooltip}
             >
@@ -234,7 +239,10 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
               <span>{t.catchupBtn}</span>
             </button>
             <button
-              onClick={() => setIsAdding(!isAdding)}
+              onClick={() => {
+                NativeHaptics.impact('LIGHT').catch(() => {});
+                setIsAdding(!isAdding);
+              }}
               className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors flex items-center gap-1.5 shadow-sm"
             >
               <Plus size={14} />
@@ -461,7 +469,10 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => onToggleActive(rule.id)}
+                          onClick={() => {
+                            NativeHaptics.impact('LIGHT').catch(() => {});
+                            onToggleActive(rule.id);
+                          }}
                           className={`p-2 rounded-xl border transition-colors ${
                             rule.isActive
                               ? 'bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20'
@@ -473,7 +484,10 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeleteRule(rule.id)}
+                          onClick={() => {
+                            NativeHaptics.impact('MEDIUM').catch(() => {});
+                            onDeleteRule(rule.id);
+                          }}
                           className="p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:text-rose-400 hover:border-rose-500/30 transition-colors"
                           title={t.deleteTitle}
                         >

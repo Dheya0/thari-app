@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Calendar, StickyNote, Wallet as WalletIcon, ArrowLeftRight, 
   Camera, Image as ImageIcon, Trash2, CheckCircle2, Clock, 
-  AlertCircle, Search, ArrowUpRight, ArrowDownLeft, ChevronRight, 
-  UserPlus, UserMinus, Scale, Sliders, Check, Phone, DollarSign,
-  Tag, Info, Edit3
+  AlertCircle, Search, ArrowUpRight, ArrowDownLeft, 
+  UserPlus, UserMinus, Scale, Check, Phone,
+  Tag, Edit3, ChevronRight, Coins, RefreshCw
 } from 'lucide-react';
 import { 
   Transaction, 
@@ -21,11 +20,14 @@ import {
 import { getIcon, DEFAULT_CURRENCIES, convertCurrency, tryConvertCurrency } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
 import { getCurrencySymbol, parseArabicNumber, sanitizeNumericInput, formatLocalDateOnly } from '../utils/formatters';
-import { safeMul, safeDiv, roundToCurrency } from '../utils/mathPrecision';
+import { safeDiv, roundToCurrency } from '../utils/mathPrecision';
 import { NativeKeyboard, NativeHaptics } from '../services/nativeServices';
 import { saveReceiptToStorage, loadReceiptDataUrl } from '../services/receiptStorage';
 import { useBackNavigation } from '../utils/backNavigation';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+
+export type UnifiedTransactionTab = 'expense' | 'income' | 'transfer' | 'debt' | 'adjustment' | 'history';
+export type DebtSubMode = 'to_me' | 'on_me' | 'repayment';
 
 interface TransactionFormProps {
   categories: Category[];
@@ -35,6 +37,7 @@ interface TransactionFormProps {
   onSubmit: (transaction: Omit<Transaction, 'id'> & { id?: string }) => void;
   onDelete?: (id: string) => void;
   onAddDebt?: (debt: Omit<Debt, 'id'>, walletId?: string) => void;
+  onUpdateDebt?: (id: string, updates: Partial<Debt>) => void;
   onPayDebt?: (
     id: string, 
     amount: number, 
@@ -45,6 +48,9 @@ interface TransactionFormProps {
   ) => void;
   onClose: () => void;
   initialData?: Transaction | null;
+  initialDebt?: Debt | null;
+  initialPersonName?: string;
+  initialDebtId?: string;
   exchangeRates: Record<string, number>;
   defaultType?: FinancialEventType | TransactionType;
   isTravelMode?: boolean;
@@ -61,9 +67,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   onSubmit,
   onDelete,
   onAddDebt,
+  onUpdateDebt,
   onPayDebt,
   onClose,
   initialData,
+  initialDebt,
+  initialPersonName,
+  initialDebtId,
   exchangeRates,
   defaultType,
   isTravelMode,
@@ -71,49 +81,46 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   language = 'ar',
   t,
 }) => {
-  const mapInitialEventType = (): FinancialEventType | null => {
+  // Determine initial tab from initialData, initialDebt, or defaultType
+  const resolveInitialTab = (): { tab: UnifiedTransactionTab; debtMode: DebtSubMode } => {
+    if (initialDebt) {
+      return { tab: 'debt', debtMode: initialDebt.type };
+    }
     if (initialData) {
-      if (initialData.type === 'income') return 'income';
-      if (initialData.type === 'transfer') return 'transfer';
-      if (initialData.type === 'adjustment') return 'balance_adjustment';
-      return 'expense';
+      if (initialData.type === 'income') return { tab: 'income', debtMode: 'to_me' };
+      if (initialData.type === 'transfer') return { tab: 'transfer', debtMode: 'to_me' };
+      if (initialData.type === 'adjustment') return { tab: 'adjustment', debtMode: 'to_me' };
+      return { tab: 'expense', debtMode: 'to_me' };
     }
     if (defaultType) {
-      if (defaultType === 'income') return 'income';
-      if (defaultType === 'transfer') return 'transfer';
-      if (defaultType === 'adjustment' || defaultType === 'balance_adjustment') return 'balance_adjustment';
-      if (defaultType === 'debt_to_me') return 'debt_to_me';
-      if (defaultType === 'debt_on_me') return 'debt_on_me';
-      if (defaultType === 'debt_repayment') return 'debt_repayment';
-      return 'expense';
+      if (defaultType === 'income') return { tab: 'income', debtMode: 'to_me' };
+      if (defaultType === 'transfer') return { tab: 'transfer', debtMode: 'to_me' };
+      if (defaultType === 'adjustment' || defaultType === 'balance_adjustment') return { tab: 'adjustment', debtMode: 'to_me' };
+      if (defaultType === 'debt_to_me') return { tab: 'debt', debtMode: 'to_me' };
+      if (defaultType === 'debt_on_me') return { tab: 'debt', debtMode: 'on_me' };
+      if (defaultType === 'debt_repayment') return { tab: 'debt', debtMode: 'repayment' };
+      return { tab: 'expense', debtMode: 'to_me' };
     }
-    return null;
+    return { tab: 'expense', debtMode: 'to_me' };
   };
 
-  const [selectedEvent, setSelectedEvent] = useState<FinancialEventType | null>(mapInitialEventType);
+  const initialConfig = resolveInitialTab();
+  const [activeTab, setActiveTab] = useState<UnifiedTransactionTab>(initialConfig.tab);
+  const [debtSubMode, setDebtSubMode] = useState<DebtSubMode>(initialConfig.debtMode);
+  
+  // Navigation step compatibility for testing invariants & deep history linking
   const [navStep, setNavStep] = useState<'what_happened' | 'previous_transactions_list' | 'edit_transaction'>(
-    initialData ? 'edit_transaction' : 'what_happened'
+    initialData || initialDebt ? 'edit_transaction' : 'edit_transaction'
   );
-  const [cameFromPreviousEditList, setCameFromPreviousEditList] = useState<boolean>(Boolean(initialData));
-  const listScrollRef = useRef<HTMLDivElement>(null);
-  const [savedScrollTop, setSavedScrollTop] = useState(0);
-
-  useEffect(() => {
-    if (selectedEvent) {
-      setNavStep('edit_transaction');
-    }
-  }, [selectedEvent]);
-
-  useEffect(() => {
-    if (navStep === 'previous_transactions_list' && listScrollRef.current) {
-      listScrollRef.current.scrollTop = savedScrollTop;
-    }
-  }, [navStep]);
-
-  const [isEditingExisting, setIsEditingExisting] = useState<boolean>(Boolean(initialData));
+  
+  const [isEditingExisting, setIsEditingExisting] = useState<boolean>(Boolean(initialData || initialDebt));
   const [selectedTxForEdit, setSelectedTxForEdit] = useState<string>(initialData?.id || '');
 
-  const [amount, setAmount] = useState(initialData ? initialData.amount.toString() : '');
+  const [amount, setAmount] = useState(() => {
+    if (initialDebt) return (initialDebt.originalAmount || initialDebt.amount).toString();
+    if (initialData) return initialData.amount.toString();
+    return '';
+  });
   const [categoryId, setCategoryId] = useState(initialData?.categoryId || '');
   const [walletId, setWalletId] = useState(initialData?.walletId || wallets[0]?.id || '');
   const [destinationWalletId, setDestinationWalletId] = useState<string>(
@@ -122,7 +129,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [destinationAmount, setDestinationAmount] = useState<string>(
     initialData?.destinationAmount ? initialData.destinationAmount.toString() : ''
   );
-  const [note, setNote] = useState(initialData?.note || '');
+  const [note, setNote] = useState(initialDebt?.note || initialData?.note || '');
   const [date, setDate] = useState(initialData?.date || formatLocalDateOnly(new Date()));
   const [time, setTime] = useState(initialData?.time || new Date().toTimeString().slice(0, 5));
   const [receipt, setReceipt] = useState<ReceiptAttachment | undefined>(initialData?.receipt);
@@ -131,162 +138,81 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [personName, setPersonName] = useState('');
-  const [personPhone, setPersonPhone] = useState('');
-  const [debtDueDate, setDebtDueDate] = useState('');
-  const [linkDebtToWallet, setLinkDebtToWallet] = useState(true);
-  const [selectedDebtIdForRepayment, setSelectedDebtIdForRepayment] = useState<string>(
-    debts.find(d => !d.isPaid)?.id || ''
-  );
+  // Debt fields
+  const [personName, setPersonName] = useState(initialDebt?.personName || initialPersonName || '');
+  const [personPhone, setPersonPhone] = useState(initialDebt?.personPhone || '');
+  const [debtDueDate, setDebtDueDate] = useState(initialDebt?.dueDate || '');
+  const [linkDebtToWallet, setLinkDebtToWallet] = useState(!initialDebt);
+  const [selectedDebtIdForRepayment, setSelectedDebtIdForRepayment] = useState<string>(() => {
+    if (initialDebtId) return initialDebtId;
+    return debts.find(d => !d.isPaid)?.id || '';
+  });
 
+  useEffect(() => {
+    if (initialDebt) {
+      setPersonName(initialDebt.personName || '');
+      setPersonPhone(initialDebt.personPhone || '');
+      setDebtDueDate(initialDebt.dueDate || '');
+      setAmount((initialDebt.originalAmount || initialDebt.amount).toString());
+      setNote(initialDebt.note || '');
+      setDebtSubMode(initialDebt.type);
+    } else if (initialPersonName) {
+      setPersonName(initialPersonName);
+    }
+  }, [initialDebt, initialPersonName]);
+
+  useEffect(() => {
+    if (initialDebtId) {
+      setSelectedDebtIdForRepayment(initialDebtId);
+      const target = debts.find(d => d.id === initialDebtId);
+      if (target) {
+        const rem = Math.max(0, (target.originalAmount || target.amount) - (target.paidAmount || 0));
+        setAmount(rem.toString());
+      }
+    }
+  }, [initialDebtId, debts]);
+
+  // Search filter for previous transactions
+  const [txSearchQuery, setTxSearchQuery] = useState('');
+
+  // Balance adjustment fields
   const [actualRealBalance, setActualRealBalance] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const primaryInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const primaryInputRef = useRef<HTMLInputElement | null>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Helper to smoothly and reliably bring the active input to the optical center above the keyboard
-  const centerActiveInput = (targetElement?: HTMLElement | null) => {
-    const el = targetElement || (typeof document !== 'undefined' ? (document.activeElement as HTMLElement) : null);
-    if (!el || !['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
-
-    try {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-    } catch {
-      try {
-        el.scrollIntoView(false);
-      } catch {}
+  // Handle Tab Switching
+  const handleTabChange = (newTab: UnifiedTransactionTab) => {
+    NativeHaptics.selection().catch(() => {});
+    setErrorMessage('');
+    setActiveTab(newTab);
+    if (newTab === 'history') {
+      setNavStep('previous_transactions_list');
+    } else {
+      setNavStep('edit_transaction');
+      // Auto assign default category if empty
+      if (newTab === 'expense' && (!categoryId || !categories.some(c => c.id === categoryId && c.type === 'expense'))) {
+        const firstExp = categories.find(c => c.type === 'expense');
+        if (firstExp) setCategoryId(firstExp.id);
+      } else if (newTab === 'income' && (!categoryId || !categories.some(c => c.id === categoryId && c.type === 'income'))) {
+        const firstInc = categories.find(c => c.type === 'income');
+        if (firstInc) setCategoryId(firstInc.id);
+      } else if (newTab === 'adjustment') {
+        const selW = wallets.find(w => w.id === walletId) || wallets[0];
+        if (selW && !actualRealBalance) {
+          setActualRealBalance((selW.currentBalance ?? selW.openingBalance ?? 0).toString());
+        }
+      }
     }
   };
-
-  useEffect(() => {
-    // 1. Configure Capacitor Native Keyboard with native resize mode
-    if (NativeKeyboard.isAvailable()) {
-      NativeKeyboard.setStyle('DARK').catch(() => {});
-      NativeKeyboard.setResizeMode('native').catch(() => {});
-      NativeKeyboard.setAccessoryBarVisible(false).catch(() => {});
-    }
-
-    let isSubscribed = true;
-    let removeNativeListeners: Array<() => void> = [];
-
-    const registerNativeKeyboard = async () => {
-      try {
-        const willShow = await NativeKeyboard.addListener('keyboardWillShow', (info) => {
-          if (!isSubscribed) return;
-          setIsKeyboardOpen(true);
-          const kh = info?.keyboardHeight || 280;
-          document.documentElement.style.setProperty('--keyboard-inset', `${kh}px`);
-          document.documentElement.style.setProperty('--keyboard-active', '1');
-        });
-        const didShow = await NativeKeyboard.addListener('keyboardDidShow', () => {
-          if (!isSubscribed) return;
-          setIsKeyboardOpen(true);
-          setTimeout(() => centerActiveInput(), 80);
-          setTimeout(() => centerActiveInput(), 260);
-        });
-        const willHide = await NativeKeyboard.addListener('keyboardWillHide', () => {
-          if (!isSubscribed) return;
-          setIsKeyboardOpen(false);
-          document.documentElement.style.setProperty('--keyboard-inset', '0px');
-          document.documentElement.style.setProperty('--keyboard-active', '0');
-        });
-        const didHide = await NativeKeyboard.addListener('keyboardDidHide', () => {
-          if (!isSubscribed) return;
-          setIsKeyboardOpen(false);
-        });
-
-        removeNativeListeners.push(
-          () => willShow.remove(),
-          () => didShow.remove(),
-          () => willHide.remove(),
-          () => didHide.remove()
-        );
-      } catch (err) {
-        console.warn('Native keyboard listeners fallback:', err);
-      }
-    };
-
-    registerNativeKeyboard();
-
-    // 2. Web Visual Viewport Fallback for Browser / PWA
-    const handleViewportResize = () => {
-      if (!isSubscribed) return;
-      if (typeof window !== 'undefined' && window.visualViewport) {
-        const diff = window.innerHeight - window.visualViewport.height;
-        const keyboardActive = diff > 130;
-        setIsKeyboardOpen(keyboardActive);
-        document.documentElement.style.setProperty('--keyboard-inset', `${Math.max(0, diff)}px`);
-        document.documentElement.style.setProperty('--keyboard-active', keyboardActive ? '1' : '0');
-        if (keyboardActive) {
-          setTimeout(() => centerActiveInput(), 100);
-        }
-      }
-    };
-
-    if (typeof window !== 'undefined' && window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-    }
-
-    return () => {
-      isSubscribed = false;
-      removeNativeListeners.forEach(fn => {
-        try { fn(); } catch {}
-      });
-      if (typeof window !== 'undefined' && window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-      }
-    };
-  }, []);
-
-  // Seamless Auto-focus when switching to any event form
-  useEffect(() => {
-    if (selectedEvent) {
-      const focusTimer = setTimeout(() => {
-        if (primaryInputRef.current) {
-          primaryInputRef.current.focus({ preventScroll: false });
-          centerActiveInput(primaryInputRef.current);
-        }
-      }, 100);
-      const centerFollowupTimer = setTimeout(() => {
-        if (primaryInputRef.current) {
-          centerActiveInput(primaryInputRef.current);
-        }
-      }, 320);
-      return () => {
-        clearTimeout(focusTimer);
-        clearTimeout(centerFollowupTimer);
-      };
-    }
-  }, [selectedEvent]);
 
   const dismissKeyboard = () => {
     NativeKeyboard.hide().catch(() => {});
     if (typeof document !== 'undefined') {
       (document.activeElement as HTMLElement)?.blur();
     }
-    setIsKeyboardOpen(false);
-  };
-
-  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setIsKeyboardOpen(true);
-    const target = e.target;
-    setTimeout(() => {
-      centerActiveInput(target);
-    }, 150);
-  };
-
-  const handleInputBlur = () => {
-    setTimeout(() => {
-      if (typeof document !== 'undefined') {
-        const activeTag = document.activeElement?.tagName?.toLowerCase();
-        if (activeTag !== 'input' && activeTag !== 'textarea' && activeTag !== 'select') {
-          setIsKeyboardOpen(false);
-        }
-      }
-    }, 180);
   };
 
   const handleKeyDownPreventEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -310,22 +236,16 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       if (initialData) {
         onClose();
       } else {
-        setSelectedEvent(null);
         setSelectedTxForEdit('');
-        setCameFromPreviousEditList(true);
-        setNavStep('previous_transactions_list');
+        setIsEditingExisting(false);
+        setActiveTab('history');
         setShowDeleteConfirm(false);
       }
     }
   };
 
   const handleSelectTransactionItem = (txId: string) => {
-    if (listScrollRef.current) {
-      setSavedScrollTop(listScrollRef.current.scrollTop);
-    }
     handleSelectTxForEdit(txId);
-    setCameFromPreviousEditList(true);
-    setNavStep('edit_transaction');
   };
 
   const handleStepBack = (): boolean => {
@@ -333,36 +253,22 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       setShowDeleteConfirm(false);
       return true;
     }
-    if (navStep === 'edit_transaction') {
-      if (listScrollRef.current) {
-        setSavedScrollTop(listScrollRef.current.scrollTop);
-      }
-      if (cameFromPreviousEditList) {
-        setSelectedEvent(null);
-        setSelectedTxForEdit('');
-        setNavStep('previous_transactions_list');
-      } else {
-        setSelectedEvent(null);
-        setNavStep('what_happened');
-      }
-      setErrorMessage('');
-      dismissKeyboard();
+    if (activeTab === 'history') {
+      setActiveTab('expense');
+      setNavStep('edit_transaction');
       return true;
     }
-    if (navStep === 'previous_transactions_list') {
-      setNavStep('what_happened');
-      setErrorMessage('');
-      dismissKeyboard();
+    if (isEditingExisting && !initialData) {
+      setIsEditingExisting(false);
+      setSelectedTxForEdit('');
+      setActiveTab('history');
       return true;
     }
-    if (navStep === 'what_happened' || initialData) {
-      onClose();
-      return true;
-    }
-    return false;
+    onClose();
+    return true;
   };
 
-  // Register in centralized back navigation stack with high priority (20)
+  // Register back handler
   useBackNavigation(handleStepBack, true, 20);
   
   const selectedSourceWallet = wallets.find(w => w.id === walletId) || wallets[0];
@@ -372,87 +278,37 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     initialData?.currency || selectedSourceWallet?.currencyCode || 'SAR'
   );
 
-  // 💱 Agreed Rate & Foreign Currency Lock States
-  const [hasAgreedRate, setHasAgreedRate] = useState<boolean>(
-    Boolean(initialData?.foreignAmount || initialData?.exchangeRate || initialData?.conversionNote)
-  );
-  const [foreignAmountInput, setForeignAmountInput] = useState<string>(
-    initialData?.foreignAmount ? initialData.foreignAmount.toString() : ''
-  );
-  const [foreignCurrencyInput, setForeignCurrencyInput] = useState<string>(
-    initialData?.foreignCurrency || 'USD'
-  );
-  const [agreedRateInput, setAgreedRateInput] = useState<string>(
-    initialData?.exchangeRate ? initialData.exchangeRate.toString() : ''
-  );
-  const [customConversionNote, setCustomConversionNote] = useState<string>(
-    initialData?.conversionNote || ''
-  );
+  // Swap Source and Destination Wallets in Transfer mode
+  const handleSwapWallets = () => {
+    NativeHaptics.impact('LIGHT').catch(() => {});
+    if (destinationWalletId && walletId) {
+      const prevSource = walletId;
+      const prevDest = destinationWalletId;
+      setWalletId(prevDest);
+      setDestinationWalletId(prevSource);
+    }
+  };
 
   const handleAmountChange = (val: string) => {
     const sanitized = sanitizeNumericInput(val);
     setAmount(sanitized);
-    if (hasAgreedRate && agreedRateInput) {
-      const amtNum = parseArabicNumber(sanitized);
-      const rateNum = parseArabicNumber(agreedRateInput);
-      if (!isNaN(amtNum) && amtNum > 0 && !isNaN(rateNum) && rateNum > 0) {
-        setForeignAmountInput(roundToCurrency(safeDiv(amtNum, rateNum)).toString());
-      }
-    }
   };
-
-  const handleForeignAmountChange = (val: string) => {
-    const sanitized = sanitizeNumericInput(val);
-    setForeignAmountInput(sanitized);
-    const fNum = parseArabicNumber(sanitized);
-    const rateNum = parseArabicNumber(agreedRateInput);
-    if (!isNaN(fNum) && fNum > 0 && !isNaN(rateNum) && rateNum > 0) {
-      setAmount(roundToCurrency(safeMul(fNum, rateNum)).toString());
-    }
-  };
-
-  const handleAgreedRateChange = (val: string) => {
-    const sanitized = sanitizeNumericInput(val);
-    setAgreedRateInput(sanitized);
-    const fNum = parseArabicNumber(foreignAmountInput);
-    const rateNum = parseArabicNumber(sanitized);
-    if (!isNaN(fNum) && fNum > 0 && !isNaN(rateNum) && rateNum > 0) {
-      setAmount(roundToCurrency(safeMul(fNum, rateNum)).toString());
-    }
-  };
-
-  const effectiveConversionNotePreview = useMemo(() => {
-    const fAmt = foreignAmountInput ? parseArabicNumber(foreignAmountInput) : 0;
-    const exRate = agreedRateInput ? parseArabicNumber(agreedRateInput) : 0;
-    const currentTotal = amount ? parseArabicNumber(amount) : (fAmt * exRate);
-    const baseCurrSymbol = getCurrencySymbol(inputCurrency || selectedSourceWallet?.currencyCode || 'SAR');
-    const forCurrSymbol = getCurrencySymbol(foreignCurrencyInput || 'USD');
-
-    if (fAmt > 0 && exRate > 0) {
-      return language === 'ar'
-        ? `تمت عملية ${fAmt} ${forCurrSymbol} بسعر صرف ${exRate.toLocaleString()} • الإجمالي: ${currentTotal.toLocaleString()} ${baseCurrSymbol}`
-        : `Recorded: ${fAmt} ${foreignCurrencyInput || 'USD'} @ ${exRate.toLocaleString()} • Total: ${currentTotal.toLocaleString()} ${baseCurrSymbol}`;
-    }
-    return language === 'ar'
-      ? `يرجى تحديد المبلغ بالعملة الأجنبية وسعر الصرف المتفق عليه ليتم توثيق القيد تلقائياً.`
-      : `Specify foreign amount & agreed exchange rate to lock transaction parameters.`;
-  }, [foreignAmountInput, agreedRateInput, amount, inputCurrency, selectedSourceWallet, foreignCurrencyInput, language]);
 
   useEffect(() => {
-    if (selectedEvent === 'expense' && !categoryId) {
+    if (activeTab === 'expense' && !categoryId) {
       const firstExp = categories.find(c => c.type === 'expense');
       if (firstExp) setCategoryId(firstExp.id);
-    } else if (selectedEvent === 'income' && !categoryId) {
+    } else if (activeTab === 'income' && !categoryId) {
       const firstInc = categories.find(c => c.type === 'income');
       if (firstInc) setCategoryId(firstInc.id);
     }
-  }, [selectedEvent, categories]);
+  }, [activeTab, categories]);
 
   useEffect(() => {
-    if (selectedSourceWallet && !initialData && selectedEvent !== 'transfer') {
+    if (selectedSourceWallet && !initialData && activeTab !== 'transfer') {
       setInputCurrency(selectedSourceWallet.currencyCode);
     }
-  }, [walletId, selectedEvent]);
+  }, [walletId, activeTab]);
 
   const activeDebts = useMemo(() => {
     return debts.filter(d => !d.isPaid);
@@ -470,10 +326,23 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     return Array.from(names);
   }, [debts]);
 
+  const filteredPreviousTransactions = useMemo(() => {
+    if (!txSearchQuery.trim()) return transactions;
+    const q = txSearchQuery.toLowerCase().trim();
+    return transactions.filter(tx => {
+      const cat = categories.find(c => c.id === tx.categoryId);
+      const noteMatch = tx.note?.toLowerCase().includes(q);
+      const catMatch = cat?.name?.toLowerCase().includes(q);
+      const amtMatch = tx.amount.toString().includes(q);
+      return noteMatch || catMatch || amtMatch;
+    });
+  }, [transactions, txSearchQuery, categories]);
+
   const handleSelectTxForEdit = (txId: string) => {
     const tx = transactions.find(t => t.id === txId);
     if (!tx) return;
     setSelectedTxForEdit(txId);
+    setIsEditingExisting(true);
     setAmount(tx.amount.toString());
     setCategoryId(tx.categoryId || '');
     setWalletId(tx.walletId);
@@ -485,33 +354,24 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     setTime(tx.time || '12:00');
     setReceipt(tx.receipt);
 
-    if (tx.foreignAmount || tx.exchangeRate || tx.conversionNote) {
-      setHasAgreedRate(true);
-      setForeignAmountInput(tx.foreignAmount ? tx.foreignAmount.toString() : '');
-      setForeignCurrencyInput(tx.foreignCurrency || 'USD');
-      setAgreedRateInput(tx.exchangeRate ? tx.exchangeRate.toString() : '');
-      setCustomConversionNote(tx.conversionNote || '');
-    } else {
-      setHasAgreedRate(false);
-      setForeignAmountInput('');
-      setForeignCurrencyInput('USD');
-      setAgreedRateInput('');
-      setCustomConversionNote('');
-    }
-
-    if (tx.type === 'income') setSelectedEvent('income');
-    else if (tx.type === 'transfer') setSelectedEvent('transfer');
-    else if (tx.type === 'adjustment') {
-      setSelectedEvent('balance_adjustment');
+    if (tx.type === 'income') {
+      setActiveTab('income');
+    } else if (tx.type === 'transfer') {
+      setActiveTab('transfer');
+    } else if (tx.type === 'adjustment') {
+      setActiveTab('adjustment');
       setActualRealBalance(tx.amount.toString());
-    } else setSelectedEvent('expense');
+    } else {
+      setActiveTab('expense');
+    }
+    setNavStep('edit_transaction');
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        setErrorMessage('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت');
+        setErrorMessage(language === 'en' ? 'Image size is too large (max 5MB)' : 'حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 5 ميجابايت');
         return;
       }
       const reader = new FileReader();
@@ -532,7 +392,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const adjustmentCalc = useMemo(() => {
-    if (selectedEvent !== 'balance_adjustment') return null;
+    if (activeTab !== 'adjustment') return null;
     const current = selectedSourceWallet ? (selectedSourceWallet.currentBalance ?? selectedSourceWallet.openingBalance ?? 0) : 0;
     const actual = actualRealBalance === '' ? null : parseArabicNumber(actualRealBalance);
     if (actual === null || isNaN(actual)) return { current, actual: null, diff: 0, isIncrease: true, absDiff: 0 };
@@ -544,13 +404,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       isIncrease: diff >= 0,
       absDiff: Math.abs(diff)
     };
-  }, [selectedEvent, selectedSourceWallet, actualRealBalance]);
+  }, [activeTab, selectedSourceWallet, actualRealBalance]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (selectedEvent !== 'balance_adjustment') {
+    if (activeTab !== 'adjustment') {
       const rawClean = typeof amount === 'string' ? amount.trim() : String(amount || '');
       if (rawClean.includes('-')) {
         NativeHaptics.notification('ERROR').catch(() => {});
@@ -571,7 +431,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
     try {
       NativeHaptics.notification('SUCCESS').catch(() => {});
-      if (selectedEvent === 'expense') {
+      if (activeTab === 'expense') {
         const sourceCurrency = inputCurrency || selectedSourceWallet?.currencyCode || 'SAR';
         const walletCurrency = selectedSourceWallet?.currencyCode || sourceCurrency;
         const convertedValue = sourceCurrency !== walletCurrency && exchangeRates
@@ -579,7 +439,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           : numAmount;
 
         onSubmit({
-          id: initialData?.id,
+          id: initialData?.id || (isEditingExisting ? selectedTxForEdit : undefined),
           type: 'expense',
           amount: numAmount,
           currency: sourceCurrency,
@@ -594,7 +454,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           frequency: 'once',
           receipt
         });
-      } else if (selectedEvent === 'income') {
+      } else if (activeTab === 'income') {
         const sourceCurrency = inputCurrency || selectedSourceWallet?.currencyCode || 'SAR';
         const walletCurrency = selectedSourceWallet?.currencyCode || sourceCurrency;
         const convertedValue = sourceCurrency !== walletCurrency && exchangeRates
@@ -602,7 +462,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           : numAmount;
 
         onSubmit({
-          id: initialData?.id,
+          id: initialData?.id || (isEditingExisting ? selectedTxForEdit : undefined),
           type: 'income',
           amount: numAmount,
           currency: sourceCurrency,
@@ -616,9 +476,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           time,
           frequency: 'once'
         });
-      } else if (selectedEvent === 'transfer') {
+      } else if (activeTab === 'transfer') {
         if (walletId === destinationWalletId) {
-          setErrorMessage('لا يمكن التحويل بين نفس المحفظة');
+          setErrorMessage(language === 'en' ? 'Cannot transfer between the same wallet' : 'لا يمكن التحويل بين نفس المحفظة');
           setIsSubmitting(false);
           return;
         }
@@ -630,7 +490,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           finalDestAmount = convertCurrency(numAmount, sourceCurrency, destinationCurrency, exchangeRates);
         }
         onSubmit({
-          id: initialData?.id,
+          id: initialData?.id || (isEditingExisting ? selectedTxForEdit : undefined),
           type: 'transfer',
           amount: numAmount,
           currency: sourceCurrency,
@@ -647,77 +507,102 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           time,
           frequency: 'once'
         });
-      } else if (selectedEvent === 'debt_to_me') {
-        if (!personName.trim()) {
-          setErrorMessage('الرجاء إدخال اسم المدين');
-          setIsSubmitting(false);
-          return;
-        }
-        let finalAmount = numAmount;
-        if (inputCurrency !== selectedSourceWallet?.currencyCode && exchangeRates) {
-          finalAmount = convertCurrency(numAmount, inputCurrency, selectedSourceWallet.currencyCode, exchangeRates);
-        }
-        if (onAddDebt) {
-          onAddDebt({
-            type: 'to_me',
+      } else if (activeTab === 'debt') {
+        if (initialDebt && onUpdateDebt) {
+          if (!personName.trim()) {
+            setErrorMessage(language === 'en' ? 'Please enter contact name' : 'الرجاء إدخال اسم الطرف المعني');
+            setIsSubmitting(false);
+            return;
+          }
+          let finalAmount = numAmount;
+          if (inputCurrency !== selectedSourceWallet?.currencyCode && exchangeRates) {
+            finalAmount = convertCurrency(numAmount, inputCurrency, selectedSourceWallet.currencyCode, exchangeRates);
+          }
+          onUpdateDebt(initialDebt.id, {
+            type: debtSubMode === 'on_me' ? 'on_me' : 'to_me',
             personName: personName.trim(),
             personPhone: personPhone.trim(),
             amount: finalAmount,
             originalAmount: finalAmount,
-            paidAmount: 0,
-            currency: selectedSourceWallet?.currencyCode || 'SAR',
             dueDate: debtDueDate || undefined,
-            isPaid: false,
             note: note || '',
-            createdAt: new Date().toISOString()
-          }, linkDebtToWallet ? walletId : undefined);
-        }
-        onClose();
-      } else if (selectedEvent === 'debt_on_me') {
-        if (!personName.trim()) {
-          setErrorMessage('الرجاء إدخال اسم صاحب الدين (الدائن)');
-          setIsSubmitting(false);
+          });
+          onClose();
           return;
         }
-        let finalAmount = numAmount;
-        if (inputCurrency !== selectedSourceWallet?.currencyCode && exchangeRates) {
-          finalAmount = convertCurrency(numAmount, inputCurrency, selectedSourceWallet.currencyCode, exchangeRates);
+
+        if (debtSubMode === 'to_me') {
+          if (!personName.trim()) {
+            setErrorMessage(language === 'en' ? 'Please enter debtor person name' : 'الرجاء إدخال اسم الشخص المدين');
+            setIsSubmitting(false);
+            return;
+          }
+          let finalAmount = numAmount;
+          if (inputCurrency !== selectedSourceWallet?.currencyCode && exchangeRates) {
+            finalAmount = convertCurrency(numAmount, inputCurrency, selectedSourceWallet.currencyCode, exchangeRates);
+          }
+          if (onAddDebt) {
+            onAddDebt({
+              type: 'to_me',
+              personName: personName.trim(),
+              personPhone: personPhone.trim(),
+              amount: finalAmount,
+              originalAmount: finalAmount,
+              paidAmount: 0,
+              currency: selectedSourceWallet?.currencyCode || 'SAR',
+              dueDate: debtDueDate || undefined,
+              isPaid: false,
+              note: note || '',
+              createdAt: new Date().toISOString()
+            }, linkDebtToWallet ? walletId : undefined);
+          }
+          onClose();
+        } else if (debtSubMode === 'on_me') {
+          if (!personName.trim()) {
+            setErrorMessage(language === 'en' ? 'Please enter creditor person name' : 'الرجاء إدخال اسم صاحب الدين (الدائن)');
+            setIsSubmitting(false);
+            return;
+          }
+          let finalAmount = numAmount;
+          if (inputCurrency !== selectedSourceWallet?.currencyCode && exchangeRates) {
+            finalAmount = convertCurrency(numAmount, inputCurrency, selectedSourceWallet.currencyCode, exchangeRates);
+          }
+          if (onAddDebt) {
+            onAddDebt({
+              type: 'on_me',
+              personName: personName.trim(),
+              personPhone: personPhone.trim(),
+              amount: finalAmount,
+              originalAmount: finalAmount,
+              paidAmount: 0,
+              currency: selectedSourceWallet?.currencyCode || 'SAR',
+              dueDate: debtDueDate || undefined,
+              isPaid: false,
+              note: note || '',
+              createdAt: new Date().toISOString()
+            }, linkDebtToWallet ? walletId : undefined);
+          }
+          onClose();
+        } else if (debtSubMode === 'repayment') {
+          if (!currentSelectedDebt) {
+            setErrorMessage(language === 'en' ? 'Please select debt to repay' : 'الرجاء اختيار الذمة المالية المراد سدادها');
+            setIsSubmitting(false);
+            return;
+          }
+          const rem = Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0));
+          if (numAmount > rem + 0.01) {
+            setErrorMessage(language === 'en' ? 'Payment amount exceeds remaining debt balance' : 'مبلغ الدفعة أكبر من المتبقي في الذمة المالية');
+            setIsSubmitting(false);
+            return;
+          }
+          if (onPayDebt) {
+            onPayDebt(currentSelectedDebt.id, numAmount, walletId, note ? ` - ${note}` : undefined, undefined, date);
+          }
+          onClose();
         }
-        if (onAddDebt) {
-          onAddDebt({
-            type: 'on_me',
-            personName: personName.trim(),
-            personPhone: personPhone.trim(),
-            amount: finalAmount,
-            originalAmount: finalAmount,
-            paidAmount: 0,
-            currency: selectedSourceWallet?.currencyCode || 'SAR',
-            dueDate: debtDueDate || undefined,
-            isPaid: false,
-            note: note || '',
-            createdAt: new Date().toISOString()
-          }, linkDebtToWallet ? walletId : undefined);
-        }
-        onClose();
-      } else if (selectedEvent === 'debt_repayment') {
-        if (!currentSelectedDebt) {
-          setErrorMessage('الرجاء اختيار الذمة المالية المراد سدادها');
-          setIsSubmitting(false);
-          return;
-        }
-        const rem = Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0));
-        if (numAmount > rem + 0.01) {
-          setErrorMessage('مبلغ الدفعة أكبر من المتبقي في الذمة المالية');
-          setIsSubmitting(false);
-          return;
-        }
-        if (onPayDebt) {
-          onPayDebt(currentSelectedDebt.id, numAmount, walletId, note ? ` - ${note}` : undefined, undefined, date);
-        }
-        onClose();
-      } else if (selectedEvent === 'balance_adjustment') {
+      } else if (activeTab === 'adjustment') {
         if (!adjustmentCalc || adjustmentCalc.actual === null) {
-          setErrorMessage('الرجاء إدخال الرصيد الفعلي');
+          setErrorMessage(language === 'en' ? 'Please enter actual balance' : 'الرجاء إدخال الرصيد الفعلي');
           setIsSubmitting(false);
           return;
         }
@@ -732,318 +617,889 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           currency: selectedSourceWallet?.currencyCode || 'SAR',
           walletId,
           categoryId: categoryId || categories[0]?.id || 'general',
-          note: note || `تسوية رصيد محفظة ${selectedSourceWallet?.name} إلى ${adjustmentCalc.actual}`,
+          note: note || (language === 'ar' ? `تسوية رصيد محفظة ${selectedSourceWallet?.name} إلى ${adjustmentCalc.actual}` : `Balance adjustment for ${selectedSourceWallet?.name}`),
           date,
           time,
           frequency: 'once'
         });
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'حدث خطأ أثناء حفظ المعاملة');
+      setErrorMessage(err.message || (language === 'ar' ? 'حدث خطأ أثناء حفظ المعاملة' : 'Error saving transaction'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const modalContent = (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className={`fixed inset-0 z-[99999] flex flex-col ${isKeyboardOpen ? 'justify-start pt-2 sm:pt-4' : 'justify-center'} items-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden`}
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          if (isKeyboardOpen) {
-            dismissKeyboard();
-          } else {
-            onClose();
-          }
+          onClose();
         }
       }}
     >
-      <motion.div 
-        initial={{ scale: 0.95, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className={`w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/20 rounded-3xl shadow-2xl overflow-hidden flex flex-col ${isKeyboardOpen ? 'max-h-[calc(var(--vh,100dvh)-0.75rem)]' : 'my-auto max-h-[92dvh] sm:max-h-[90vh]'}`}
+      <div 
+        className="w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/25 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[92dvh] max-h-[860px] my-auto"
       >
-        {/* TOP BAR / NAVIGATION */}
-        <div className="p-4 sm:p-5 border-b border-[#D9B978]/10 flex items-center justify-between bg-[#11161C] shrink-0">
-          <div className="flex items-center gap-2.5">
-            {((selectedEvent && !initialData) || (!initialData && navStep === 'previous_transactions_list')) && (
-              <button 
-                type="button"
-                onClick={handleStepBack}
-                className="w-11 h-11 rounded-xl bg-[#11161C] hover:bg-[#D9B978]/15 text-[#F4F1EA] flex items-center justify-center transition-all duration-200 active:scale-95 border border-[#D9B978]/20"
-                aria-label={language === 'ar' ? 'الرجوع' : 'Back'}
-                title={language === 'ar' ? 'الرجوع' : 'Back'}
-              >
-                <ChevronRight size={20} className={language === 'ar' ? '' : 'rotate-180'} />
-              </button>
-            )}
-
-            <div>
-              <h3 className="font-black text-[#F4F1EA] text-base sm:text-lg">
-                {navStep === 'what_happened' ? t.whatHappened 
-                  : navStep === 'previous_transactions_list' ? (language === 'ar' ? 'المعاملات السابقة للتعديل' : 'Previous Transactions')
-                  : selectedEvent === 'expense' ? t.recordExpense
-                  : selectedEvent === 'income' ? t.recordIncome
-                  : selectedEvent === 'transfer' ? t.transferWallet
-                  : selectedEvent === 'debt_to_me' ? t.debtToMeTitle
-                  : selectedEvent === 'debt_on_me' ? t.debtOnMeTitle
-                  : selectedEvent === 'debt_repayment' ? t.debtRepaymentTitle
-                  : t.balanceAdjustmentTitle
-                }
-              </h3>
-              <p className="text-[11px] font-medium text-[#F4F1EA]/60">
-                {navStep === 'what_happened' ? t.selectFinancialEvent
-                  : navStep === 'previous_transactions_list' ? (language === 'ar' ? 'اختر أي معاملة لتعديلها' : 'Choose any transaction to edit')
-                  : t.accountingLedgerRecord
-                }
-              </p>
+        {/* TOP BAR / UNIFIED HEADER */}
+        <div className="p-3.5 sm:p-4 border-b border-[#D9B978]/15 bg-[#11161C] shrink-0 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
+                {activeTab === 'expense' ? <ArrowDownLeft size={18} className="text-[#C98387]" /> :
+                 activeTab === 'income' ? <ArrowUpRight size={18} className="text-[#8EB9A7]" /> :
+                 activeTab === 'transfer' ? <ArrowLeftRight size={18} className="text-[#D9B978]" /> :
+                 activeTab === 'debt' ? <Coins size={18} className="text-[#D9B978]" /> :
+                 activeTab === 'adjustment' ? <Scale size={18} className="text-[#D9B978]" /> :
+                 <Edit3 size={18} className="text-[#D9B978]" />}
+              </div>
+              <div>
+                <h3 className="font-black text-[#F4F1EA] text-sm sm:text-base leading-tight">
+                  {initialData || isEditingExisting ? (language === 'ar' ? 'تعديل المعاملة' : 'Edit Transaction') :
+                   activeTab === 'expense' ? (t.recordExpense || 'تسجيل مصروف') :
+                   activeTab === 'income' ? (t.recordIncome || 'إيداع دخل') :
+                   activeTab === 'transfer' ? (t.transferWallet || 'تحويل مالي بين المحافظ') :
+                   activeTab === 'debt' ? (language === 'ar' ? 'قيد وسداد الديون' : 'Debt Management') :
+                   activeTab === 'adjustment' ? (t.balanceAdjustmentTitle || 'تسوية الرصيد') :
+                   (language === 'ar' ? 'سجل وتعديل المعاملات' : 'Transaction History')}
+                </h3>
+                <p className="text-[10px] text-[#F4F1EA]/50 font-medium">
+                  {language === 'ar' ? 'نموذج موحد وسريع للقيود المحاسبية' : 'Unified financial ledger form'}
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Direct Keyboard Dismissal Button */}
-            {selectedEvent && (
-              <button
-                type="button"
-                onClick={dismissKeyboard}
-                className="px-3 min-h-[40px] rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 border border-[#D9B978]/40 bg-[#D9B978]/15 text-[#D9B978] hover:bg-[#D9B978]/25 shadow-xs"
-                title="إخفاء لوحة المفاتيح والرجوع للنموذج"
-              >
-                <Check size={15} strokeWidth={2.5} />
-                <span>إخفاء الكيبورد</span>
-              </button>
-            )}
-
-            {!selectedEvent && navStep === 'what_happened' && transactions.length > 0 && !initialData && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCameFromPreviousEditList(true);
-                  setNavStep('previous_transactions_list');
-                }}
-                className="px-3.5 min-h-[44px] rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 border bg-[#11161C] text-[#F4F1EA]/80 border-[#D9B978]/20 hover:text-[#F4F1EA] hover:border-[#D9B978]/40"
-              >
-                <Edit3 size={14} />
-                <span>{t.editPrevious}</span>
-              </button>
-            )}
 
             <button 
               type="button"
               onClick={onClose}
-              className="w-11 h-11 rounded-xl bg-[#11161C] hover:bg-[#D9B978]/15 text-[#F4F1EA]/70 hover:text-[#F4F1EA] flex items-center justify-center transition-all duration-200 active:scale-95 border border-[#D9B978]/20"
+              className="w-8 h-8 rounded-xl bg-[#0A0D10] hover:bg-[#C98387]/20 text-[#F4F1EA]/70 hover:text-[#C98387] flex items-center justify-center transition-all duration-150 active:scale-95 border border-[#D9B978]/20"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
+
+          {/* UNIFIED SEGMENTED TYPE SWITCHER */}
+          <div className="flex items-center gap-1 p-1 bg-[#0A0D10] rounded-2xl border border-[#D9B978]/20 overflow-x-auto no-scrollbar">
+            <button
+              type="button"
+              onClick={() => handleTabChange('expense')}
+              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 shrink-0 ${
+                activeTab === 'expense'
+                  ? 'bg-[#C98387] text-[#0A0D10] shadow-sm'
+                  : 'text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:bg-white/5'
+              }`}
+            >
+              <ArrowDownLeft size={13} />
+              <span>{t.expenses || 'مصروف'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('income')}
+              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 shrink-0 ${
+                activeTab === 'income'
+                  ? 'bg-[#8EB9A7] text-[#0A0D10] shadow-sm'
+                  : 'text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:bg-white/5'
+              }`}
+            >
+              <ArrowUpRight size={13} />
+              <span>{t.income || 'دخل'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('transfer')}
+              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 shrink-0 ${
+                activeTab === 'transfer'
+                  ? 'bg-[#D9B978] text-[#0A0D10] shadow-sm'
+                  : 'text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:bg-white/5'
+              }`}
+            >
+              <ArrowLeftRight size={13} />
+              <span>{t.transfer || 'تحويل'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('debt')}
+              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 shrink-0 ${
+                activeTab === 'debt'
+                  ? 'bg-[#D9B978] text-[#0A0D10] shadow-sm'
+                  : 'text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:bg-white/5'
+              }`}
+            >
+              <Coins size={13} />
+              <span>{t.debts || 'ديون'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('adjustment')}
+              className={`flex-1 min-w-[62px] py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 shrink-0 ${
+                activeTab === 'adjustment'
+                  ? 'bg-[#D9B978] text-[#0A0D10] shadow-sm'
+                  : 'text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:bg-white/5'
+              }`}
+            >
+              <Scale size={13} />
+              <span>{t.adjustment || 'تسوية'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange('history')}
+              className={`py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1 shrink-0 ${
+                activeTab === 'history'
+                  ? 'bg-[#D9B978] text-[#0A0D10] shadow-sm'
+                  : 'text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:bg-white/5'
+              }`}
+              title={language === 'ar' ? 'سجل العمليات والتعديل' : 'History / Edit'}
+            >
+              <Edit3 size={13} />
+              <span>{language === 'ar' ? 'السجل' : 'Log'}</span>
+            </button>
+          </div>
+
+          {/* DEBT SUB-MODE SWITCHER (WHEN DEBT TAB IS ACTIVE) */}
+          {activeTab === 'debt' && (
+            <div className="flex items-center gap-1.5 p-1 bg-[#0A0D10] rounded-xl border border-[#D9B978]/15">
+              <button
+                type="button"
+                onClick={() => setDebtSubMode('to_me')}
+                className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                  debtSubMode === 'to_me'
+                    ? 'bg-[#8EB9A7]/25 text-[#8EB9A7] border border-[#8EB9A7]/40'
+                    : 'text-[#F4F1EA]/60 hover:text-[#F4F1EA]'
+                }`}
+              >
+                <UserPlus size={12} />
+                <span>{language === 'ar' ? 'دين لي (أطلب شخصاً)' : 'Debt To Me'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDebtSubMode('on_me')}
+                className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                  debtSubMode === 'on_me'
+                    ? 'bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/40'
+                    : 'text-[#F4F1EA]/60 hover:text-[#F4F1EA]'
+                }`}
+              >
+                <UserMinus size={12} />
+                <span>{language === 'ar' ? 'دين عليّ (التزام)' : 'Debt On Me'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDebtSubMode('repayment')}
+                className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                  debtSubMode === 'repayment'
+                    ? 'bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/40'
+                    : 'text-[#F4F1EA]/60 hover:text-[#F4F1EA]'
+                }`}
+              >
+                <CheckCircle2 size={12} />
+                <span>{language === 'ar' ? 'سداد دفعة' : 'Repayment'}</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ERROR BANNER */}
         {errorMessage && (
-          <div className="mx-4 mt-3 p-3 bg-[#C98387]/15 border border-[#C98387]/30 rounded-2xl flex items-center gap-2.5 text-[#C98387] text-xs font-bold shrink-0">
-            <AlertCircle size={16} className="shrink-0" />
+          <div className="mx-4 mt-2.5 p-2.5 bg-[#C98387]/15 border border-[#C98387]/30 rounded-2xl flex items-center gap-2.5 text-[#C98387] text-xs font-bold shrink-0">
+            <AlertCircle size={15} className="shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        {/* SCREEN 1: EVENT SELECTION GRID ("ماذا حدث؟") */}
-        {!selectedEvent && navStep === 'what_happened' && (
-          <div className="p-4 sm:p-6 space-y-4 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-              {/* 1. EXPENSE */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('expense')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#C98387] hover:bg-[#C98387]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] relative overflow-hidden shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#C98387] transition-colors">{t.expenses}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#C98387]/15 text-[#C98387] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#C98387]/30">
-                    <ArrowDownLeft size={18} />
+        {/* TAB 1 TO 5: UNIFIED DEDICATED TRANSACTION FORM */}
+        {activeTab !== 'history' && (
+          <form 
+            ref={formRef}
+            onSubmit={handleSubmit} 
+            className="p-4 sm:p-5 space-y-3.5 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10]"
+          >
+            {/* Travel Mode Prominent Exchange Rate Banner */}
+            {isTravelMode && (() => {
+              const baseCurrencyCode = baseCurrency?.code || 'SAR';
+              const currentLocalCode = inputCurrency || selectedSourceWallet?.currencyCode || baseCurrencyCode;
+              const fxResult = tryConvertCurrency(1, currentLocalCode, baseCurrencyCode, exchangeRates);
+              const conversionRate = fxResult.effectiveRate ?? 1;
+              return (
+                <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-between gap-2.5 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">💱</span>
+                    <div>
+                      <p className="text-[10px] font-bold text-amber-300">
+                        {language === 'ar' ? 'وضع السفر وصرف العملة' : 'Travel Mode Exchange Rate'}
+                      </p>
+                      <p className="text-xs font-bold text-white font-numeric">
+                        1 {getCurrencySymbol(currentLocalCode)} = {conversionRate.toLocaleString()} {getCurrencySymbol(baseCurrencyCode)}
+                      </p>
+                    </div>
                   </div>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-lg font-mono font-bold">
+                    {currentLocalCode} ➔ {baseCurrencyCode}
+                  </span>
                 </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.expenseDesc}</p>
-              </button>
+              );
+            })()}
 
-              {/* 2. INCOME */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('income')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#8EB9A7] hover:bg-[#8EB9A7]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#8EB9A7] transition-colors">{t.income}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#8EB9A7]/15 text-[#8EB9A7] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#8EB9A7]/30">
-                    <ArrowUpRight size={18} />
-                  </div>
+            {/* UNIFIED AMOUNT & CURRENCY BOX (EXCEPT FOR REPAYMENT / ADJUSTMENT SPECIAL CASES) */}
+            {activeTab !== 'adjustment' && (
+              <div className="p-3.5 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">
+                    {activeTab === 'expense' ? (t.expenseAmountAndCurrency || 'مبلغ المصروف والعملة') :
+                     activeTab === 'income' ? (t.incomeAmountAndCurrency || 'مبلغ الدخل والعملة') :
+                     activeTab === 'transfer' ? (t.amountToTransfer || 'المبلغ المراد تحويله') :
+                     debtSubMode === 'to_me' ? (t.debtAmountOwedToMe || 'مبلغ الدين المستحق لك') :
+                     debtSubMode === 'on_me' ? (t.debtAmountOwedByMe || 'مبلغ الالتزام المستحق عليك') :
+                     (t.repaymentAmount || 'مبلغ الدفعة المسددة')}
+                  </label>
+                  {isEditingExisting && (
+                    <span className="text-[10px] text-[#D9B978] bg-[#D9B978]/15 px-2 py-0.5 rounded-lg font-bold">
+                      {language === 'ar' ? 'تعديل قيد سابق' : 'Editing existing'}
+                    </span>
+                  )}
                 </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.incomeDesc}</p>
-              </button>
 
-              {/* 3. TRANSFER */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('transfer')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#D9B978] transition-colors">{t.transfer}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#D9B978]/30">
-                    <ArrowLeftRight size={18} />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={primaryInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    enterKeyHint="done"
+                    required
+                    placeholder="0.00"
+                    value={amount}
+                    onKeyDown={handleKeyDownPreventEnter}
+                    onChange={(e) => handleAmountChange(e.target.value)}
+                    className={`w-full bg-transparent text-2xl sm:text-3xl font-black focus:outline-none placeholder-[#F4F1EA]/25 font-numeric ${
+                      activeTab === 'expense' ? 'text-[#C98387]' :
+                      activeTab === 'income' ? 'text-[#8EB9A7]' :
+                      'text-[#D9B978]'
+                    }`}
+                  />
+                  <select
+                    value={inputCurrency}
+                    onChange={(e) => setInputCurrency(e.target.value)}
+                    className="bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#D9B978] font-bold focus:outline-none shrink-0"
+                  >
+                    {DEFAULT_CURRENCIES.map(c => (
+                      <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.transferDesc}</p>
-              </button>
 
-              {/* 4. DEBT TO ME */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('debt_to_me')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#8EB9A7] hover:bg-[#8EB9A7]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#8EB9A7] transition-colors">{t.youOweOthers}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#8EB9A7]/15 text-[#8EB9A7] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#8EB9A7]/30">
-                    <UserPlus size={18} />
-                  </div>
+                {/* Quick amount increment pills */}
+                <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar py-0.5">
+                  {[50, 100, 500, 1000].map(inc => (
+                    <button
+                      key={inc}
+                      type="button"
+                      onClick={() => addQuickAmount(inc)}
+                      className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
+                    >
+                      +{inc}
+                    </button>
+                  ))}
+                  {amount && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount('')}
+                      className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                    >
+                      {language === 'ar' ? 'مسح' : 'Clear'}
+                    </button>
+                  )}
                 </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.debtToMeDesc}</p>
-              </button>
+              </div>
+            )}
 
-              {/* 5. DEBT ON ME */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('debt_on_me')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#D9B978] transition-colors">{t.othersOweYou}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#D9B978]/30">
-                    <UserMinus size={18} />
-                  </div>
-                </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.debtOnMeDesc}</p>
-              </button>
+            {/* UNIFIED WALLET CONTROLS */}
+            {activeTab !== 'transfer' && activeTab !== 'debt' && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
+                  <WalletIcon size={14} className="text-[#D9B978]" />
+                  <span>
+                    {activeTab === 'expense' ? (t.payFromWallet || 'الدفع من محفظة:') :
+                     activeTab === 'income' ? (t.depositToWallet || 'الإيداع في محفظة:') :
+                     (t.selectWalletToCorrect || 'اختر المحفظة المراد تصحيح رصيدها:')}
+                  </span>
+                </label>
+                <select
+                  value={walletId}
+                  onChange={(e) => {
+                    setWalletId(e.target.value);
+                    if (activeTab === 'adjustment') {
+                      const target = wallets.find(w => w.id === e.target.value);
+                      if (target) {
+                        setActualRealBalance((target.currentBalance ?? target.openingBalance ?? 0).toString());
+                      }
+                    }
+                  }}
+                  className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
+                >
+                  {wallets.map(w => {
+                    const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
+                    const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                    return (
+                      <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">
+                        {w.name} ({wCurrLoc.symbol}) — {t.totalBalance || 'الرصيد'}: {curBal.toLocaleString()} {wCurrLoc.symbol}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
 
-              {/* 6. DEBT REPAYMENT */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('debt_repayment')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#D9B978] transition-colors">{t.debts}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#D9B978]/30">
-                    <CheckCircle2 size={18} />
-                  </div>
+            {/* TRANSFER WALLETS (SOURCE & DESTINATION) */}
+            {activeTab === 'transfer' && (
+              <div className="p-3.5 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-3">
+                <div className="flex items-center justify-between pb-1 border-b border-[#D9B978]/10">
+                  <span className="text-xs font-bold text-[#D9B978]">{t.transferWallet || 'تحويل مالي بين المحافظ'}</span>
+                  {wallets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={handleSwapWallets}
+                      className="px-2.5 py-1 rounded-xl bg-[#0A0D10] text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/30 hover:bg-[#D9B978]/20 flex items-center gap-1.5 transition-all active:scale-95"
+                    >
+                      <RefreshCw size={12} />
+                      <span>{language === 'ar' ? 'تبديل المحافظ' : 'Swap'}</span>
+                    </button>
+                  )}
                 </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.debtRepaymentDesc}</p>
-              </button>
 
-              {/* 7. BALANCE ADJUSTMENT */}
-              <button
-                type="button"
-                onClick={() => setSelectedEvent('balance_adjustment')}
-                className="p-4 rounded-2xl bg-[#11161C] border border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10 transition-all text-start group flex flex-col justify-between min-h-[95px] shadow-md"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#D9B978] transition-colors">{t.adjustment}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#D9B978]/30">
-                    <Scale size={18} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
+                      <ArrowDownLeft size={12} className="text-[#C98387]" />
+                      <span>{t.transferFromWallet || 'من محفظة (خصم):'}</span>
+                    </label>
+                    <select
+                      value={walletId}
+                      onChange={(e) => setWalletId(e.target.value)}
+                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                    >
+                      {wallets.map(w => {
+                        const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
+                        const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                        return (
+                          <option key={w.id} value={w.id} disabled={w.id === destinationWalletId} className="bg-[#0A0D10] text-[#F4F1EA]">
+                            {w.name} ({curBal.toLocaleString()} {wCurrLoc.symbol})
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
-                </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.balanceAdjustmentDesc}</p>
-              </button>
 
-              {/* 8. EDIT PREVIOUS TRANSACTION */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCameFromPreviousEditList(true);
-                  setSelectedTxForEdit('');
-                  setSelectedEvent(null);
-                  setNavStep('previous_transactions_list');
-                }}
-                className="p-4 rounded-2xl border transition-all text-start group flex flex-col justify-between min-h-[95px] relative overflow-hidden shadow-md bg-[#11161C] border-[#D9B978]/20 hover:border-[#D9B978] hover:bg-[#D9B978]/10"
-              >
-                <div className="flex items-center justify-between w-full">
-                  <span className="font-black text-[#F4F1EA] text-sm sm:text-base group-hover:text-[#D9B978] transition-colors">{t.editPrevious}</span>
-                  <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center group-hover:scale-110 transition-transform border border-[#D9B978]/30">
-                    <Edit3 size={18} />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
+                      <ArrowUpRight size={12} className="text-[#8EB9A7]" />
+                      <span>{t.transferToWallet || 'إلى محفظة (إيداع):'}</span>
+                    </label>
+                    <select
+                      value={destinationWalletId}
+                      onChange={(e) => setDestinationWalletId(e.target.value)}
+                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                    >
+                      {wallets.map(w => {
+                        const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
+                        const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                        return (
+                          <option key={w.id} value={w.id} disabled={w.id === walletId} className="bg-[#0A0D10] text-[#F4F1EA]">
+                            {w.name} ({curBal.toLocaleString()} {wCurrLoc.symbol})
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                 </div>
-                <p className="text-[10px] text-[#F4F1EA]/60 mt-2 font-medium">{t.editPreviousRegistered}</p>
-              </button>
+
+                {selectedSourceWallet?.currencyCode !== selectedDestWallet?.currencyCode && selectedDestWallet && (
+                  <div className="p-2.5 bg-[#0A0D10] border border-[#D9B978]/25 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-[#D9B978]">{t.receivedAmountTargetCurrency || 'المبلغ المستلم بالعملة المستهدفة:'}</span>
+                      <span className="text-[10px] text-[#F4F1EA]/60 font-bold">
+                        {getLocalizedCurrency(selectedDestWallet.currencyCode, undefined, undefined, language).symbol}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      enterKeyHint="done"
+                      placeholder="0.00"
+                      value={destinationAmount}
+                      onKeyDown={handleKeyDownPreventEnter}
+                      onChange={(e) => setDestinationAmount(sanitizeNumericInput(e.target.value))}
+                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-lg px-3 py-1.5 text-xs text-[#F4F1EA] font-bold focus:outline-none font-numeric"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CATEGORIES GRID (EXPENSE & INCOME) */}
+            {(activeTab === 'expense' || activeTab === 'income') && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
+                  <Tag size={13} className={activeTab === 'expense' ? 'text-[#C98387]' : 'text-[#8EB9A7]'} />
+                  <span>{activeTab === 'expense' ? (t.expenseCategory || 'تصنيف المصروف:') : (t.incomeSourceCategory || 'مصدر / تصنيف الدخل:')}</span>
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-36 overflow-y-auto custom-scrollbar p-0.5">
+                  {categories.filter(c => c.type === activeTab).map(cat => {
+                    const isSelected = categoryId === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setCategoryId(cat.id)}
+                        className={`p-2 rounded-2xl border text-xs font-bold flex flex-col items-center justify-center gap-1 transition-all text-center ${
+                          isSelected 
+                            ? activeTab === 'expense' 
+                              ? 'bg-[#C98387]/20 text-[#C98387] border-[#C98387] ring-1 ring-[#C98387]' 
+                              : 'bg-[#8EB9A7]/20 text-[#8EB9A7] border-[#8EB9A7] ring-1 ring-[#8EB9A7]'
+                            : 'bg-[#11161C] border-[#D9B978]/20 text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:border-[#D9B978]/40'
+                        }`}
+                      >
+                        <span className={isSelected ? (activeTab === 'expense' ? 'text-[#C98387]' : 'text-[#8EB9A7]') : 'text-[#D9B978]/80'}>
+                          {getIcon(cat.icon, 16)}
+                        </span>
+                        <span className="text-[10px] truncate max-w-full">{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* DEBT FIELDS (TO_ME, ON_ME, REPAYMENT) */}
+            {activeTab === 'debt' && (
+              <div className="space-y-3">
+                {debtSubMode !== 'repayment' ? (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
+                        {debtSubMode === 'to_me' ? <UserPlus size={13} className="text-[#8EB9A7]" /> : <UserMinus size={13} className="text-[#D9B978]" />}
+                        <span>{debtSubMode === 'to_me' ? (t.debtorPersonName || 'اسم الشخص المستدين (المدين):') : (t.creditorPersonName || 'اسم صاحب الدين (الدائن):')}</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder={language === 'ar' ? 'مثال: أحمد، شركة...' : 'e.g. Ahmad, Company...'}
+                        value={personName}
+                        onChange={(e) => setPersonName(e.target.value)}
+                        className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                      />
+                      {knownContacts.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {knownContacts.slice(0, 5).map(name => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => setPersonName(name)}
+                              className="px-2 py-0.5 rounded-lg bg-[#11161C] text-[10px] text-[#F4F1EA]/80 hover:text-[#F4F1EA] hover:bg-[#D9B978]/20 font-medium border border-[#D9B978]/20"
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-2.5 bg-[#11161C] rounded-xl border border-[#D9B978]/20 space-y-1.5">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={linkDebtToWallet}
+                          onChange={(e) => setLinkDebtToWallet(e.target.checked)}
+                          className="w-4 h-4 rounded text-[#D9B978] focus:ring-0 bg-[#0A0D10] border-[#D9B978]/30"
+                        />
+                        <span className="text-xs font-bold text-[#F4F1EA]">
+                          {debtSubMode === 'to_me' ? (t.deductWalletNow || 'خصم المبلغ من محفظة نقدية الآن') : (t.depositWalletNow || 'إيداع المبلغ في محفظة الآن')}
+                        </span>
+                      </label>
+                      {linkDebtToWallet && (
+                        <select
+                          value={walletId}
+                          onChange={(e) => setWalletId(e.target.value)}
+                          className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-1.5 text-xs text-[#F4F1EA] font-bold focus:outline-none mt-1"
+                        >
+                          {wallets.map(w => {
+                            const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
+                            const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                            return (
+                              <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">{w.name} ({curBal.toLocaleString()} {wCurrLoc.symbol})</option>
+                            );
+                          })}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.dueDateOptional || 'تاريخ الاستحقاق'}</label>
+                        <input
+                          type="date"
+                          value={debtDueDate}
+                          onChange={(e) => setDebtDueDate(e.target.value)}
+                          className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-1.5 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.phoneOptional || 'الهاتف (اختياري)'}</label>
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          placeholder="05XXXXXXXX"
+                          value={personPhone}
+                          onKeyDown={handleKeyDownPreventEnter}
+                          onChange={(e) => setPersonPhone(e.target.value)}
+                          className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-1.5 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* REPAYMENT SUBMODE */}
+                    {activeDebts.length === 0 ? (
+                      <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 text-center space-y-1.5">
+                        <CheckCircle2 size={24} className="text-[#8EB9A7] mx-auto" />
+                        <h4 className="font-bold text-[#F4F1EA] text-xs">{language === 'ar' ? 'لا توجد ديون نشطة تتطلب السداد' : 'No active debts'}</h4>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-[#F4F1EA]/70">{t.selectDebtToRepay || 'اختر الذمة المالية المراد سدادها:'}</label>
+                          <select
+                            value={selectedDebtIdForRepayment}
+                            onChange={(e) => {
+                              setSelectedDebtIdForRepayment(e.target.value);
+                              const target = debts.find(d => d.id === e.target.value);
+                              if (target) {
+                                const rem = Math.max(0, (target.originalAmount || target.amount) - (target.paidAmount || 0));
+                                setAmount(rem.toString());
+                              }
+                            }}
+                            className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                          >
+                            {activeDebts.map(d => {
+                              const rem = Math.max(0, (d.originalAmount || d.amount) - (d.paidAmount || 0));
+                              const dCurrLoc = getLocalizedCurrency(d.currency || 'SAR', undefined, undefined, language);
+                              return (
+                                <option key={d.id} value={d.id} className="bg-[#0A0D10] text-[#F4F1EA]">
+                                  {d.type === 'to_me' ? (language === 'ar' ? '[دين لي]' : '[To Me]') : (language === 'ar' ? '[دين عليّ]' : '[On Me]')} {d.personName} — {rem.toLocaleString()} {dCurrLoc.symbol}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+
+                        {currentSelectedDebt && (
+                          <div className="p-2.5 bg-[#11161C] border border-[#D9B978]/25 rounded-xl flex items-center justify-between text-xs">
+                            <span className="font-black text-[#F4F1EA]">{currentSelectedDebt.personName}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-[#F4F1EA]/60">{t.remainingBalance || 'المتبقي'}:</span>
+                              <span className="font-black text-[#D9B978] font-numeric">
+                                {Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0)).toLocaleString()} {getLocalizedCurrency(currentSelectedDebt.currency || 'SAR', undefined, undefined, language).symbol}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-[#F4F1EA]/70">
+                            {currentSelectedDebt?.type === 'to_me' ? (t.depositToWallet || 'الإيداع في محفظة:') : (t.payFromWallet || 'الدفع من محفظة:')}
+                          </label>
+                          <select
+                            value={walletId}
+                            onChange={(e) => setWalletId(e.target.value)}
+                            className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                          >
+                            {wallets.map(w => {
+                              const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
+                              const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                              return (
+                                <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">{w.name} ({curBal.toLocaleString()} {wCurrLoc.symbol})</option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* BALANCE ADJUSTMENT VIEW */}
+            {activeTab === 'adjustment' && adjustmentCalc && (
+              <div className="p-3.5 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2.5">
+                <div className="flex justify-between items-center text-xs pb-1.5 border-b border-[#D9B978]/10">
+                  <span className="text-[#F4F1EA]/70 font-bold">{t.ledgerBalanceApp || 'الرصيد الدفتري المسجل في التطبيق:'}</span>
+                  <span className="text-[#F4F1EA] font-black text-sm font-numeric">{adjustmentCalc.current.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol}</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-[#D9B978] block">{t.enterActualBalanceNow || 'أدخل الرصيد الفعلي الموجود لديك الآن:'}</label>
+                  <input
+                    ref={primaryInputRef}
+                    type="text"
+                    inputMode="decimal"
+                    enterKeyHint="done"
+                    required
+                    placeholder="0.00"
+                    value={actualRealBalance}
+                    onKeyDown={handleKeyDownPreventEnter}
+                    onChange={(e) => setActualRealBalance(sanitizeNumericInput(e.target.value))}
+                    className="w-full bg-[#0A0D10] border border-[#D9B978]/40 rounded-xl px-3 py-2 text-lg font-black text-[#F4F1EA] focus:outline-none font-numeric"
+                  />
+                </div>
+
+                {adjustmentCalc.actual !== null && Math.abs(adjustmentCalc.diff) > 0.001 && (
+                  <div className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-between ${
+                    adjustmentCalc.isIncrease 
+                      ? 'bg-[#8EB9A7]/15 border-[#8EB9A7]/30 text-[#8EB9A7]' 
+                      : 'bg-[#C98387]/15 border-[#C98387]/30 text-[#C98387]'
+                  }`}>
+                    <span>{t.discrepancyDiff || 'فارق التسوية والتصحيح:'}</span>
+                    <span className="font-black font-numeric">
+                      {adjustmentCalc.isIncrease ? '+' : '-'}{adjustmentCalc.absDiff?.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol} ({adjustmentCalc.isIncrease ? (t.increaseWord || 'زيادة') : (t.decreaseWord || 'عجز/نقص')})
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* UNIFIED DESCRIPTION / NOTE / "ماذا حدث؟" */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-[#F4F1EA]/80 flex items-center gap-1">
+                <StickyNote size={12} className="text-[#D9B978]" />
+                <span>{language === 'ar' ? 'ماذا حدث؟ (البيان / ملاحظة المعاملة)' : (t.noteOrEventDesc || 'Notes / Details')}</span>
+              </label>
+              <input
+                type="text"
+                placeholder={language === 'ar' ? 'اكتب بيان أو تفاصيل المعاملة...' : (t.notePlaceholderDetail || 'Detailed note...')}
+                value={note}
+                onKeyDown={handleKeyDownPreventEnter}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-medium focus:outline-none focus:border-[#D9B978]"
+              />
             </div>
-          </div>
+
+            {/* UNIFIED DATE & TIME */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
+                  <Calendar size={11} className="text-[#D9B978]" />
+                  <span>{t.dateWord || 'التاريخ'}</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-0.5">
+                <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
+                  <Clock size={11} className="text-[#D9B978]" />
+                  <span>{t.timeWord || 'الوقت'}</span>
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#F4F1EA] font-bold focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* RECEIPT ATTACHMENT */}
+            {activeTab === 'expense' && (
+              <div className="space-y-1">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                {!receipt ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-2 px-3 rounded-xl border border-dashed border-[#D9B978]/30 hover:border-[#D9B978] text-[#F4F1EA]/70 hover:text-[#F4F1EA] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors bg-[#11161C]"
+                  >
+                    <Camera size={14} className="text-[#D9B978]" />
+                    <span>{t.attachReceiptBtn || 'إرفاق صورة الفاتورة (اختياري)'}</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-[#11161C] border border-[#D9B978]/30">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon size={15} className="text-[#D9B978]" />
+                      <span className="text-xs text-[#F4F1EA] font-bold truncate max-w-[180px]">{receipt.fileName || 'Receipt'}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (receipt) {
+                            const url = await loadReceiptDataUrl(receipt);
+                            setPreviewUrl(url);
+                            setShowReceiptPreview(true);
+                          }
+                        }}
+                        className="px-2 py-0.5 bg-[#0A0D10] text-[10px] font-bold text-[#F4F1EA] rounded-lg border border-[#D9B978]/30"
+                      >
+                        {t.viewAll || 'عرض'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReceipt(undefined)}
+                        className="p-1 text-[#C98387]"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SUBMIT BUTTON */}
+            <div className="pt-2 pb-6 space-y-2 shrink-0">
+              <button
+                type="submit"
+                disabled={isSubmitting || (activeTab === 'debt' && debtSubMode === 'repayment' && activeDebts.length === 0)}
+                className="w-full min-h-[46px] py-3 px-4 rounded-2xl font-black text-xs sm:text-sm transition-all duration-150 shadow-md active:scale-[0.99] flex items-center justify-center gap-2 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10]"
+              >
+                <Check size={17} strokeWidth={3} />
+                <span>
+                  {initialData || isEditingExisting ? (t.saveChangesInLedger || 'حفظ التعديلات في القيود') :
+                   activeTab === 'expense' ? (t.recordExpenseLedger || 'تسجيل المصروف في القيود') :
+                   activeTab === 'income' ? (t.recordIncomeLedger || 'إيداع الدخل في القيود') :
+                   activeTab === 'transfer' ? (t.executeTransferLedger || 'تنفيذ التحويل المالي') :
+                   debtSubMode === 'to_me' ? (t.recordDebtLedger || 'قيد الدين والمستحق') :
+                   debtSubMode === 'on_me' ? (t.recordLiabilityLedger || 'قيد الالتزام المالي') :
+                   debtSubMode === 'repayment' ? (t.recordRepaymentLedger || 'تسجيل دفعة السداد') :
+                   (t.confirmBalanceAdjustmentLedger || 'تأكيد تصحيح وتسوية الرصيد')
+                  }
+                </span>
+              </button>
+
+              {(initialData || (isEditingExisting && selectedTxForEdit)) && onDelete && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full py-2.5 px-4 rounded-2xl font-bold text-xs text-[#C98387] bg-[#C98387]/10 hover:bg-[#C98387]/20 border border-[#C98387]/30 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 size={14} />
+                    <span>{t.deleteTransaction || 'حذف المعاملة'}</span>
+                  </button>
+
+                  <ConfirmDeleteModal
+                    isOpen={showDeleteConfirm}
+                    transaction={(initialData || transactions?.find(t => t.id === selectedTxForEdit) || {
+                      id: selectedTxForEdit || '',
+                      amount: parseArabicNumber(amount) || 0,
+                      currency: inputCurrency || 'SAR',
+                      type: (activeTab === 'income' ? 'income' : activeTab === 'transfer' ? 'transfer' : 'expense') as any,
+                      date,
+                      note,
+                      walletId: walletId,
+                      categoryId: categoryId,
+                    }) as Transaction}
+                    onClose={() => setShowDeleteConfirm(false)}
+                    onConfirm={handleDeleteCurrent}
+                    walletName={wallets.find(w => w.id === walletId)?.name}
+                    destWalletName={wallets.find(w => w.id === destinationWalletId)?.name}
+                    categoryName={categories.find(c => c.id === categoryId)?.name}
+                    language={language as any}
+                  />
+                </div>
+              )}
+            </div>
+          </form>
         )}
 
-        {/* SCREEN 1.5: PREVIOUS TRANSACTIONS LIST */}
-        {!selectedEvent && navStep === 'previous_transactions_list' && (
-          <div 
-            ref={listScrollRef} 
-            className="p-4 sm:p-6 space-y-3 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar"
-            style={{ paddingBottom: isKeyboardOpen ? 'calc(var(--keyboard-inset, 280px) + 2rem)' : '2rem' }}
-          >
+        {/* TAB 6: UNIFIED HISTORY & EDIT LIST */}
+        {activeTab === 'history' && (
+          <div className="p-4 sm:p-5 space-y-3 bg-[#0A0D10] flex-1 overflow-y-auto custom-scrollbar">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <span className="text-xs font-bold text-[#D9B978]">
-                {language === 'ar' ? 'اختر معاملة للتعديل من السجل' : 'Select a transaction to edit'}
+                {language === 'ar' ? 'اختر معاملة للتعديل أو الحذف من السجل' : 'Select a transaction to edit or remove'}
               </span>
               <span className="text-[11px] font-mono text-[#F4F1EA]/50">
                 {transactions.length} {language === 'ar' ? 'معاملة' : 'transactions'}
               </span>
             </div>
 
-            {transactions.length === 0 ? (
+            {/* Search Input */}
+            <div className="relative">
+              <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[#F4F1EA]/40" />
+              <input
+                type="text"
+                placeholder={language === 'ar' ? 'بحث بالبيان، التصنيف، أو المبلغ...' : 'Search transactions...'}
+                value={txSearchQuery}
+                onChange={(e) => setTxSearchQuery(e.target.value)}
+                className="w-full bg-[#11161C] border border-[#D9B978]/20 rounded-xl ps-9 pe-3 py-2 text-xs text-[#F4F1EA] placeholder-[#F4F1EA]/30 focus:outline-none focus:border-[#D9B978]"
+              />
+            </div>
+
+            {filteredPreviousTransactions.length === 0 ? (
               <div className="py-12 text-center space-y-3">
-                <div className="w-14 h-14 mx-auto rounded-2xl bg-[#11161C] border border-white/10 flex items-center justify-center text-[#F4F1EA]/40">
-                  <Edit3 size={24} />
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-[#11161C] border border-white/10 flex items-center justify-center text-[#F4F1EA]/40">
+                  <Edit3 size={20} />
                 </div>
                 <p className="text-xs font-bold text-[#F4F1EA]/70">
-                  {language === 'ar' ? 'لا توجد معاملات سابقة للتعديل' : 'No previous transactions to edit'}
+                  {language === 'ar' ? 'لا توجد معاملات سابقة مطابقة' : 'No matching previous transactions'}
                 </p>
                 <button
                   type="button"
-                  onClick={() => setNavStep('what_happened')}
+                  onClick={() => handleTabChange('expense')}
                   className="px-4 py-2 rounded-xl bg-[#D9B978] text-[#0A0D10] font-black text-xs"
                 >
-                  {language === 'ar' ? 'العودة' : 'Back'}
+                  {language === 'ar' ? 'تسجيل معاملة جديدة' : 'Add New'}
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
-                {transactions.map(tr => {
+                {filteredPreviousTransactions.map(tr => {
                   const cat = categories.find(c => c.id === tr.categoryId);
-                  const typeLabel = tr.type === 'expense' ? t.expenses : tr.type === 'income' ? t.income : tr.type === 'transfer' ? t.transfer : t.adjustment;
+                  const iconElement = cat?.icon ? getIcon(cat.icon, 16) : (tr.type === 'income' ? <ArrowUpRight size={16} /> : tr.type === 'expense' ? <ArrowDownLeft size={16} /> : <ArrowLeftRight size={16} />);
+                  const typeLabel = tr.type === 'expense' ? (t.expenses || 'مصروف') : tr.type === 'income' ? (t.income || 'دخل') : tr.type === 'transfer' ? (t.transfer || 'تحويل') : (t.adjustment || 'تسوية');
                   const trCurrLoc = getLocalizedCurrency(tr.currency || 'SAR', undefined, undefined, language);
                   return (
                     <button
                       key={tr.id}
                       type="button"
                       onClick={() => handleSelectTransactionItem(tr.id)}
-                      className="w-full text-start p-3.5 rounded-2xl bg-[#11161C] hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978]/40 transition-all flex items-center justify-between gap-3 group active:scale-98 shadow-sm"
+                      className="w-full text-start p-3 rounded-2xl bg-[#11161C] hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978]/40 transition-all flex items-center justify-between gap-3 group active:scale-[0.99] shadow-sm"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
                           tr.type === 'expense' ? 'bg-[#C98387]/15 text-[#C98387] border-[#C98387]/30' :
                           tr.type === 'income' ? 'bg-[#8EB9A7]/15 text-[#8EB9A7] border-[#8EB9A7]/30' :
                           'bg-[#D9B978]/15 text-[#D9B978] border-[#D9B978]/30'
                         }`}>
-                          {tr.type === 'expense' ? <ArrowDownLeft size={16} /> :
-                           tr.type === 'income' ? <ArrowUpRight size={16} /> :
-                           <ArrowLeftRight size={16} />}
+                          {iconElement}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="text-xs font-black text-[#F4F1EA] truncate">
                               {cat?.name || typeLabel}
                             </span>
                             <span className="text-[10px] font-mono text-[#F4F1EA]/50">
-                              {tr.date} {tr.time ? `• ${tr.time}` : ''}
+                              {tr.date}
                             </span>
                           </div>
                           <p className="text-[11px] text-[#F4F1EA]/60 truncate mt-0.5">
@@ -1057,9 +1513,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         }`}>
                           {tr.type === 'income' ? '+' : tr.type === 'expense' ? '-' : ''}{tr.amount.toLocaleString()} {trCurrLoc.symbol}
                         </span>
-                        <div className="flex items-center justify-end gap-1 text-[10px] text-[#D9B978] mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1 text-[10px] text-[#D9B978] mt-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
                           <span>{language === 'ar' ? 'تعديل' : 'Edit'}</span>
-                          <ChevronRight size={12} className={language === 'ar' ? 'rotate-180' : ''} />
+                          <ChevronRight size={11} className={language === 'ar' ? 'rotate-180' : ''} />
                         </div>
                       </div>
                     </button>
@@ -1068,1013 +1524,6 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
               </div>
             )}
           </div>
-        )}
-
-        {/* SCREEN 2: DEDICATED EVENT FORM */}
-        {selectedEvent && (
-          <form 
-            ref={formRef}
-            onSubmit={handleSubmit} 
-            className="p-4 sm:p-6 space-y-4 flex-1 overflow-y-auto overscroll-contain custom-scrollbar bg-[#0A0D10]"
-            style={{
-              paddingBottom: isKeyboardOpen ? 'calc(var(--keyboard-inset, 280px) + 3rem)' : '3rem'
-            }}
-          >
-            {/* Travel Mode Prominent Exchange Rate Banner */}
-            {isTravelMode && (() => {
-              const baseCurrencyCode = baseCurrency?.code || 'SAR';
-              const currentLocalCode = inputCurrency || selectedSourceWallet?.currencyCode || baseCurrencyCode;
-              const fxResult = tryConvertCurrency(1, currentLocalCode, baseCurrencyCode, exchangeRates);
-              const conversionRate = fxResult.effectiveRate ?? 1;
-              return (
-                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-emerald-500/15 to-transparent border border-amber-500/40 shadow-lg flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
-                      <span className="text-base font-bold">💱</span>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-amber-300 uppercase tracking-widest">
-                        {language === 'ar' ? 'سعر صرف العملة المحلية مقابل الأساسية (وضع السفر)' : 'Travel Mode Exchange Rate'}
-                      </p>
-                      <p className="text-xs font-bold text-white mt-0.5 font-numeric">
-                        1 {getCurrencySymbol(currentLocalCode)} = {conversionRate.toLocaleString()} {getCurrencySymbol(baseCurrencyCode)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-start">
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-xl font-mono font-bold border border-amber-500/30">
-                      {currentLocalCode} ➔ {baseCurrencyCode}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
-            
-            {/* === 1. EXPENSE VIEW === */}
-            {selectedEvent === 'expense' && (
-              <>
-                <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.expenseAmountAndCurrency}</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                      type="text"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      required
-                      autoFocus
-                      placeholder="0.00"
-                      value={amount}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#C98387] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
-                    />
-                    <select
-                      value={inputCurrency}
-                      onChange={(e) => setInputCurrency(e.target.value)}
-                      className="bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#D9B978] font-bold focus:outline-none shrink-0"
-                    >
-                      {DEFAULT_CURRENCIES.map(c => (
-                        <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Quick amount increment pills */}
-                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
-                    {[50, 100, 500, 1000].map(inc => (
-                      <button
-                        key={inc}
-                        type="button"
-                        onClick={() => addQuickAmount(inc)}
-                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
-                      >
-                        +{inc}
-                      </button>
-                    ))}
-                    {amount && (
-                      <button
-                        type="button"
-                        onClick={() => setAmount('')}
-                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
-                      >
-                        مسح
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <WalletIcon size={14} className="text-[#D9B978]" />
-                    <span>{t.payFromWallet}</span>
-                  </label>
-                  <select
-                    value={walletId}
-                    onChange={(e) => setWalletId(e.target.value)}
-                    className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                  >
-                    {wallets.map(w => {
-                      const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                      return (
-                        <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">
-                          {w.name} ({wCurrLoc.symbol}) — {t.totalBalance}: {(w.currentBalance ?? w.openingBalance ?? 0).toLocaleString()} {wCurrLoc.symbol}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <Tag size={14} className="text-[#C98387]" />
-                    <span>{t.expenseCategory}</span>
-                  </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-36 overflow-y-auto custom-scrollbar p-1">
-                    {categories.filter(c => c.type === 'expense').map(cat => {
-                      const isSelected = categoryId === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setCategoryId(cat.id)}
-                          className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                            isSelected 
-                              ? 'bg-[#C98387]/20 text-[#C98387] border-[#C98387] shadow-sm' 
-                              : 'bg-[#11161C] border-[#D9B978]/20 text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:border-[#D9B978]/40'
-                          }`}
-                        >
-                          <span className="text-[10px] truncate max-w-full">{cat.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* === 2. INCOME VIEW === */}
-            {selectedEvent === 'income' && (
-              <>
-                <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.incomeAmountAndCurrency}</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                      type="text"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      required
-                      autoFocus
-                      placeholder="0.00"
-                      value={amount}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
-                    />
-                    <select
-                      value={inputCurrency}
-                      onChange={(e) => setInputCurrency(e.target.value)}
-                      className="bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#8EB9A7] font-bold focus:outline-none shrink-0"
-                    >
-                      {DEFAULT_CURRENCIES.map(c => (
-                        <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Quick amount increment pills */}
-                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
-                    {[100, 500, 1000, 5000].map(inc => (
-                      <button
-                        key={inc}
-                        type="button"
-                        onClick={() => addQuickAmount(inc)}
-                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#8EB9A7]/20 text-[#8EB9A7] text-[11px] font-bold border border-[#8EB9A7]/25 shrink-0 active:scale-95 transition-all"
-                      >
-                        +{inc}
-                      </button>
-                    ))}
-                    {amount && (
-                      <button
-                        type="button"
-                        onClick={() => setAmount('')}
-                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
-                      >
-                        مسح
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <WalletIcon size={14} className="text-[#8EB9A7]" />
-                    <span>{t.depositToWallet}</span>
-                  </label>
-                  <select
-                    value={walletId}
-                    onChange={(e) => setWalletId(e.target.value)}
-                    className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#8EB9A7]"
-                  >
-                    {wallets.map(w => {
-                      const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                      return (
-                        <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">
-                          {w.name} ({wCurrLoc.symbol}) — {t.totalBalance}: {(w.currentBalance ?? w.openingBalance ?? 0).toLocaleString()} {wCurrLoc.symbol}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <Tag size={14} className="text-[#8EB9A7]" />
-                    <span>{t.incomeSourceCategory}</span>
-                  </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-36 overflow-y-auto custom-scrollbar p-1">
-                    {categories.filter(c => c.type === 'income').map(cat => {
-                      const isSelected = categoryId === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setCategoryId(cat.id)}
-                          className={`p-2 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
-                            isSelected 
-                              ? 'bg-[#8EB9A7]/20 text-[#8EB9A7] border-[#8EB9A7] shadow-sm' 
-                              : 'bg-[#11161C] border-[#D9B978]/20 text-[#F4F1EA]/70 hover:text-[#F4F1EA] hover:border-[#D9B978]/40'
-                          }`}
-                        >
-                          <span className="text-[10px] truncate max-w-full">{cat.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* === 3. TRANSFER VIEW === */}
-            {selectedEvent === 'transfer' && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
-                      <ArrowDownLeft size={13} className="text-[#C98387]" />
-                      <span>{t.transferFromWallet}</span>
-                    </label>
-                    <select
-                      value={walletId}
-                      onChange={(e) => setWalletId(e.target.value)}
-                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                    >
-                      {wallets.map(w => {
-                        const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                        return (
-                          <option key={w.id} value={w.id} disabled={w.id === destinationWalletId} className="bg-[#0A0D10] text-[#F4F1EA]">
-                            {w.name} ({wCurrLoc.symbol})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
-                      <ArrowUpRight size={13} className="text-[#8EB9A7]" />
-                      <span>{t.transferToWallet}</span>
-                    </label>
-                    <select
-                      value={destinationWalletId}
-                      onChange={(e) => setDestinationWalletId(e.target.value)}
-                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                    >
-                      {wallets.map(w => {
-                        const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                        return (
-                          <option key={w.id} value={w.id} disabled={w.id === walletId} className="bg-[#0A0D10] text-[#F4F1EA]">
-                            {w.name} ({wCurrLoc.symbol})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">
-                    {t.amountToTransfer} ({getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol})
-                  </label>
-                  <input
-                    ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                    type="text"
-                    inputMode="decimal"
-                    enterKeyHint="done"
-                    required
-                    autoFocus
-                    placeholder="0.00"
-                    value={amount}
-                    onFocus={handleInputFocus}
-                    onBlur={handleInputBlur}
-                    onKeyDown={handleKeyDownPreventEnter}
-                    onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                    className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
-                  />
-                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
-                    {[50, 100, 500, 1000].map(inc => (
-                      <button
-                        key={inc}
-                        type="button"
-                        onClick={() => addQuickAmount(inc)}
-                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
-                      >
-                        +{inc}
-                      </button>
-                    ))}
-                    {amount && (
-                      <button
-                        type="button"
-                        onClick={() => setAmount('')}
-                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
-                      >
-                        مسح
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {selectedSourceWallet?.currencyCode !== selectedDestWallet?.currencyCode && selectedDestWallet && (
-                  <div className="p-3 bg-[#D9B978]/10 border border-[#D9B978]/25 rounded-2xl space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#D9B978]">{t.receivedAmountTargetCurrency}</span>
-                      <span className="text-[10px] text-[#F4F1EA]/60 font-bold">
-                        {getLocalizedCurrency(selectedDestWallet.currencyCode, undefined, undefined, language).symbol} ({selectedDestWallet.currencyCode})
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      placeholder="0.00"
-                      value={destinationAmount}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setDestinationAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-sm text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978] font-numeric"
-                    />
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* === 4. DEBT TO ME === */}
-            {selectedEvent === 'debt_to_me' && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <UserPlus size={14} className="text-[#8EB9A7]" />
-                    <span>{t.debtorPersonName}</span>
-                  </label>
-                  <input
-                    ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                    type="text"
-                    required
-                    autoFocus
-                    placeholder="e.g. Ahmad, Company..."
-                    value={personName}
-                    onFocus={handleInputFocus}
-                    onBlur={handleInputBlur}
-                    onChange={(e) => setPersonName(e.target.value)}
-                    className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#8EB9A7]"
-                  />
-                  {knownContacts.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {knownContacts.slice(0, 5).map(name => (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => setPersonName(name)}
-                          className="px-2 py-0.5 rounded-lg bg-[#11161C] text-[10px] text-[#F4F1EA]/80 hover:text-[#F4F1EA] hover:bg-[#D9B978]/20 font-medium border border-[#D9B978]/20"
-                        >
-                          {name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.debtAmountOwedToMe}</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      required
-                      placeholder="0.00"
-                      value={amount}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#8EB9A7] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
-                    />
-                    <select
-                      value={inputCurrency}
-                      onChange={(e) => setInputCurrency(e.target.value)}
-                      className="bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#8EB9A7] font-bold focus:outline-none shrink-0"
-                    >
-                      {DEFAULT_CURRENCIES.map(c => (
-                        <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{c.symbol} - {c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
-                    {[100, 500, 1000, 5000].map(inc => (
-                      <button
-                        key={inc}
-                        type="button"
-                        onClick={() => addQuickAmount(inc)}
-                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#8EB9A7]/20 text-[#8EB9A7] text-[11px] font-bold border border-[#8EB9A7]/25 shrink-0 active:scale-95 transition-all"
-                      >
-                        +{inc}
-                      </button>
-                    ))}
-                    {amount && (
-                      <button
-                        type="button"
-                        onClick={() => setAmount('')}
-                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
-                      >
-                        مسح
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={linkDebtToWallet}
-                      onChange={(e) => setLinkDebtToWallet(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#8EB9A7] focus:ring-0 bg-[#0A0D10] border-[#D9B978]/30"
-                    />
-                    <span className="text-xs font-bold text-[#F4F1EA]">{t.deductWalletNow}</span>
-                  </label>
-                  {linkDebtToWallet && (
-                    <select
-                      value={walletId}
-                      onChange={(e) => setWalletId(e.target.value)}
-                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#8EB9A7] mt-2"
-                    >
-                      {wallets.map(w => {
-                        const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                        return (
-                          <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">{w.name} ({wCurrLoc.symbol})</option>
-                        );
-                      })}
-                    </select>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.dueDateOptional}</label>
-                    <input
-                      type="date"
-                      value={debtDueDate}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onChange={(e) => setDebtDueDate(e.target.value)}
-                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.phoneOptional}</label>
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="05XXXXXXXX"
-                      value={personPhone}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setPersonPhone(e.target.value)}
-                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* === 5. DEBT ON ME === */}
-            {selectedEvent === 'debt_on_me' && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <UserMinus size={14} className="text-[#D9B978]" />
-                    <span>{t.creditorPersonName}</span>
-                  </label>
-                  <input
-                    ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                    type="text"
-                    required
-                    autoFocus
-                    placeholder="e.g. Bank, Supplier..."
-                    value={personName}
-                    onFocus={handleInputFocus}
-                    onBlur={handleInputBlur}
-                    onChange={(e) => setPersonName(e.target.value)}
-                    className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                  />
-                  {knownContacts.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {knownContacts.slice(0, 5).map(name => (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => setPersonName(name)}
-                          className="px-2 py-0.5 rounded-lg bg-[#11161C] text-[10px] text-[#F4F1EA]/80 hover:text-[#F4F1EA] hover:bg-[#D9B978]/20 font-medium border border-[#D9B978]/20"
-                        >
-                          {name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.debtAmountOwedByMe}</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      enterKeyHint="done"
-                      required
-                      placeholder="0.00"
-                      value={amount}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                      className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
-                    />
-                    <select
-                      value={inputCurrency}
-                      onChange={(e) => setInputCurrency(e.target.value)}
-                      className="bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-2.5 py-1.5 text-xs text-[#D9B978] font-bold focus:outline-none shrink-0"
-                    >
-                      {DEFAULT_CURRENCIES.map(c => {
-                        const cLoc = getLocalizedCurrency(c.code, undefined, undefined, language);
-                        return (
-                          <option key={c.code} value={c.code} className="bg-[#0A0D10] text-[#F4F1EA]">{cLoc.symbol} - {cLoc.name}</option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto no-scrollbar py-0.5">
-                    {[100, 500, 1000, 5000].map(inc => (
-                      <button
-                        key={inc}
-                        type="button"
-                        onClick={() => addQuickAmount(inc)}
-                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
-                      >
-                        +{inc}
-                      </button>
-                    ))}
-                    {amount && (
-                      <button
-                        type="button"
-                        onClick={() => setAmount('')}
-                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
-                      >
-                        مسح
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="p-3 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={linkDebtToWallet}
-                      onChange={(e) => setLinkDebtToWallet(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#D9B978] focus:ring-0 bg-[#0A0D10] border-[#D9B978]/30"
-                    />
-                    <span className="text-xs font-bold text-[#F4F1EA]">{t.depositWalletNow}</span>
-                  </label>
-                  {linkDebtToWallet && (
-                    <select
-                      value={walletId}
-                      onChange={(e) => setWalletId(e.target.value)}
-                      className="w-full bg-[#0A0D10] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978] mt-2"
-                    >
-                      {wallets.map(w => {
-                        const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                        return (
-                          <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">{w.name} ({wCurrLoc.symbol})</option>
-                        );
-                      })}
-                    </select>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.dueDateSelected}</label>
-                    <input
-                      type="date"
-                      value={debtDueDate}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onChange={(e) => setDebtDueDate(e.target.value)}
-                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#F4F1EA]/70">{t.phoneOptional}</label>
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="05XXXXXXXX"
-                      value={personPhone}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      onKeyDown={handleKeyDownPreventEnter}
-                      onChange={(e) => setPersonPhone(e.target.value)}
-                      className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* === 6. DEBT REPAYMENT === */}
-            {selectedEvent === 'debt_repayment' && (
-              <>
-                {activeDebts.length === 0 ? (
-                  <div className="p-6 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 text-center space-y-2">
-                    <CheckCircle2 size={32} className="text-[#8EB9A7] mx-auto" />
-                    <h4 className="font-bold text-[#F4F1EA] text-sm">No active debts requiring settlement</h4>
-                    <p className="text-xs text-[#F4F1EA]/60">All debts are fully settled or no debts registered yet.</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-[#F4F1EA]/70">{t.selectDebtToRepay}</label>
-                      <select
-                        value={selectedDebtIdForRepayment}
-                        onChange={(e) => {
-                          setSelectedDebtIdForRepayment(e.target.value);
-                          const target = debts.find(d => d.id === e.target.value);
-                          if (target) {
-                            const rem = Math.max(0, (target.originalAmount || target.amount) - (target.paidAmount || 0));
-                            setAmount(rem.toString());
-                          }
-                        }}
-                        className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                      >
-                        {activeDebts.map(d => {
-                          const rem = Math.max(0, (d.originalAmount || d.amount) - (d.paidAmount || 0));
-                          const dCurrLoc = getLocalizedCurrency(d.currency || 'SAR', undefined, undefined, language);
-                          return (
-                            <option key={d.id} value={d.id} className="bg-[#0A0D10] text-[#F4F1EA]">
-                              {d.type === 'to_me' ? '[Owed To Me]' : '[Owed By Me]'} {d.personName} — Rem: {rem.toLocaleString()} {dCurrLoc.symbol} ({dCurrLoc.code})
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-
-                    {currentSelectedDebt && (
-                      <div className="p-3 bg-[#11161C] border border-[#D9B978]/30 rounded-2xl flex items-center justify-between text-xs">
-                        <div>
-                          <span className="text-[10px] font-bold text-[#F4F1EA]/60 block">
-                            {currentSelectedDebt.type === 'to_me' ? 'Collect installment' : 'Pay liability installment'}
-                          </span>
-                          <span className="font-black text-[#F4F1EA]">{currentSelectedDebt.personName}</span>
-                        </div>
-                        <div className="text-start">
-                          <span className="text-[10px] text-[#F4F1EA]/60 block">{t.remainingBalance}:</span>
-                          <span className="font-black text-[#D9B978] text-sm font-numeric">
-                            {Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0)).toLocaleString()} {getLocalizedCurrency(currentSelectedDebt.currency || 'SAR', undefined, undefined, language).symbol}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-2">
-                      <label className="text-[10px] font-bold text-[#F4F1EA]/70 uppercase tracking-wider block">{t.repaymentAmount}</label>
-                      <input
-                        ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                        type="text"
-                        inputMode="decimal"
-                        enterKeyHint="done"
-                        required
-                        placeholder="0.00"
-                        value={amount}
-                        onFocus={handleInputFocus}
-                        onBlur={handleInputBlur}
-                        onKeyDown={handleKeyDownPreventEnter}
-                        onChange={(e) => setAmount(sanitizeNumericInput(e.target.value))}
-                        className="w-full bg-transparent text-2xl sm:text-3xl font-black text-[#D9B978] focus:outline-none placeholder-[#F4F1EA]/30 font-numeric"
-                      />
-                      {currentSelectedDebt && (
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const rem = Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0));
-                              setAmount(rem.toString());
-                            }}
-                            className="px-2.5 py-1 bg-[#D9B978]/20 hover:bg-[#D9B978]/30 text-[#D9B978] rounded-lg text-[10px] font-bold border border-[#D9B978]/30"
-                          >
-                            {t.payFullAmount}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const rem = Math.max(0, (currentSelectedDebt.originalAmount || currentSelectedDebt.amount) - (currentSelectedDebt.paidAmount || 0));
-                              setAmount((rem / 2).toString());
-                            }}
-                            className="px-2.5 py-1 bg-[#11161C] hover:bg-[#D9B978]/10 text-[#F4F1EA]/80 rounded-lg text-[10px] font-bold border border-[#D9B978]/20"
-                          >
-                            {t.halfAmount50}
-                          </button>
-                          {amount && (
-                            <button
-                              type="button"
-                              onClick={() => setAmount('')}
-                              className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[10px] font-bold border border-[#C98387]/30 shrink-0"
-                            >
-                              مسح
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-[#F4F1EA]/70">
-                        {currentSelectedDebt?.type === 'to_me' ? t.depositToWallet : t.payFromWallet}
-                      </label>
-                      <select
-                        value={walletId}
-                        onChange={(e) => setWalletId(e.target.value)}
-                        className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                      >
-                        {wallets.map(w => {
-                          const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                          return (
-                            <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">{w.name} ({wCurrLoc.symbol})</option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-
-            {/* === 7. BALANCE ADJUSTMENT === */}
-            {selectedEvent === 'balance_adjustment' && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-[#F4F1EA]/70 flex items-center gap-1.5">
-                    <WalletIcon size={14} className="text-[#D9B978]" />
-                    <span>{t.selectWalletToCorrect}</span>
-                  </label>
-                  <select
-                    value={walletId}
-                    onChange={(e) => {
-                      setWalletId(e.target.value);
-                      const target = wallets.find(w => w.id === e.target.value);
-                      if (target) {
-                        const cur = target.currentBalance ?? target.openingBalance ?? 0;
-                        setActualRealBalance(cur.toString());
-                      }
-                    }}
-                    className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2.5 text-xs text-[#F4F1EA] font-bold focus:outline-none focus:border-[#D9B978]"
-                  >
-                    {wallets.map(w => {
-                      const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                      return (
-                        <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">
-                          {w.name} ({wCurrLoc.symbol}) — {t.totalBalance}: {(w.currentBalance ?? w.openingBalance ?? 0).toLocaleString()} {wCurrLoc.symbol}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                {adjustmentCalc && (
-                  <div className="p-4 bg-[#11161C] rounded-2xl border border-[#D9B978]/20 space-y-3">
-                    <div className="flex justify-between items-center text-xs pb-2 border-b border-[#D9B978]/10">
-                      <span className="text-[#F4F1EA]/70 font-bold">{t.ledgerBalanceApp}</span>
-                      <span className="text-[#F4F1EA] font-black text-sm font-numeric">{adjustmentCalc.current.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol}</span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-[#D9B978] block">{t.enterActualBalanceNow}</label>
-                      <input
-                        ref={primaryInputRef as React.RefObject<HTMLInputElement>}
-                        type="text"
-                        inputMode="decimal"
-                        enterKeyHint="done"
-                        required
-                        autoFocus
-                        placeholder="0.00"
-                        value={actualRealBalance}
-                        onFocus={handleInputFocus}
-                        onBlur={handleInputBlur}
-                        onKeyDown={handleKeyDownPreventEnter}
-                        onChange={(e) => setActualRealBalance(sanitizeNumericInput(e.target.value))}
-                        className="w-full bg-[#0A0D10] border border-[#D9B978]/40 rounded-xl px-3.5 py-2.5 text-xl font-black text-[#F4F1EA] focus:outline-none focus:border-[#D9B978] font-numeric"
-                      />
-                    </div>
-
-                    {adjustmentCalc.actual !== null && Math.abs(adjustmentCalc.diff) > 0.001 && (
-                      <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between ${
-                        adjustmentCalc.isIncrease 
-                          ? 'bg-[#8EB9A7]/15 border-[#8EB9A7]/30 text-[#8EB9A7]' 
-                          : 'bg-[#C98387]/15 border-[#C98387]/30 text-[#C98387]'
-                      }`}>
-                        <span>{t.discrepancyDiff}</span>
-                        <span className="font-black text-sm font-numeric">
-                          {adjustmentCalc.isIncrease ? '+' : '-'}{adjustmentCalc.absDiff?.toLocaleString()} {getLocalizedCurrency(selectedSourceWallet?.currencyCode || 'SAR', undefined, undefined, language).symbol} ({adjustmentCalc.isIncrease ? t.increaseWord : t.decreaseWord})
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* COMMON FIELDS: DATE & TIME & NOTES */}
-            <div className="grid grid-cols-2 gap-2.5 pt-1">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
-                  <Calendar size={12} className="text-[#D9B978]" />
-                  <span>{t.dateWord}</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={date}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
-                  <Clock size={12} className="text-[#D9B978]" />
-                  <span>{t.timeWord}</span>
-                </label>
-                <input
-                  type="time"
-                  required
-                  value={time}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  onChange={(e) => setTime(e.target.value)}
-                  className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] font-bold focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-[#F4F1EA]/70 flex items-center gap-1">
-                <StickyNote size={12} className="text-[#D9B978]" />
-                <span>{t.noteOrEventDesc}</span>
-              </label>
-              <input
-                type="text"
-                placeholder={t.notePlaceholderDetail}
-                value={note}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
-                onKeyDown={handleKeyDownPreventEnter}
-                onChange={(e) => setNote(e.target.value)}
-                className="w-full bg-[#11161C] border border-[#D9B978]/30 rounded-xl px-3.5 py-2 text-xs text-[#F4F1EA] font-medium focus:outline-none focus:border-[#D9B978]"
-              />
-            </div>
-
-            {selectedEvent === 'expense' && (
-              <div className="space-y-1.5 pt-1">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                {!receipt ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-2.5 px-3 rounded-xl border border-dashed border-[#D9B978]/30 hover:border-[#D9B978] text-[#F4F1EA]/70 hover:text-[#F4F1EA] text-xs font-bold flex items-center justify-center gap-2 transition-colors bg-[#11161C]"
-                  >
-                    <Camera size={15} className="text-[#D9B978]" />
-                    <span>{t.attachReceiptBtn}</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#11161C] border border-[#D9B978]/30">
-                    <div className="flex items-center gap-2">
-                      <ImageIcon size={16} className="text-[#D9B978]" />
-                      <span className="text-xs text-[#F4F1EA] font-bold truncate max-w-[180px]">{receipt.fileName || 'Receipt'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (receipt) {
-                            const url = await loadReceiptDataUrl(receipt);
-                            setPreviewUrl(url);
-                            setShowReceiptPreview(true);
-                          }
-                        }}
-                        className="px-2 py-1 bg-[#0A0D10] text-[10px] font-bold text-[#F4F1EA] rounded-lg border border-[#D9B978]/30"
-                      >
-                        {t.viewAll}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setReceipt(undefined)}
-                        className="p-1 text-[#C98387] hover:text-[#C98387]/80"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="pt-2 space-y-2">
-              <button
-                type="submit"
-                disabled={isSubmitting || (selectedEvent === 'debt_repayment' && activeDebts.length === 0)}
-                className="w-full min-h-[50px] py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm transition-all duration-200 shadow-lg active:scale-95 flex items-center justify-center gap-2 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] shadow-[#D9B978]/20"
-              >
-                <Check size={18} strokeWidth={3} />
-                <span>
-                  {initialData ? t.saveChangesInLedger 
-                    : selectedEvent === 'expense' ? t.recordExpenseLedger
-                    : selectedEvent === 'income' ? t.recordIncomeLedger
-                    : selectedEvent === 'transfer' ? t.executeTransferLedger
-                    : selectedEvent === 'debt_to_me' ? t.recordDebtLedger
-                    : selectedEvent === 'debt_on_me' ? t.recordLiabilityLedger
-                    : selectedEvent === 'debt_repayment' ? t.recordRepaymentLedger
-                    : t.confirmBalanceAdjustmentLedger
-                  }
-                </span>
-              </button>
-
-              {(initialData || (isEditingExisting && selectedTxForEdit)) && onDelete && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="w-full py-3.5 px-4 rounded-2xl font-bold text-xs sm:text-sm text-[#C98387] bg-[#C98387]/10 hover:bg-[#C98387]/20 border border-[#C98387]/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-xs"
-                  >
-                    <Trash2 size={16} />
-                    <span>{t.deleteTransaction}</span>
-                  </button>
-
-                  <ConfirmDeleteModal
-                    isOpen={showDeleteConfirm}
-                    transaction={(initialData || transactions?.find(t => t.id === selectedTxForEdit) || {
-                      id: selectedTxForEdit || '',
-                      amount: parseArabicNumber(amount) || 0,
-                      currency: inputCurrency || 'SAR',
-                      type: (selectedEvent === 'income' ? 'income' : selectedEvent === 'transfer' ? 'transfer' : 'expense') as any,
-                      date,
-                      note,
-                      walletId: walletId,
-                      categoryId: categoryId,
-                    }) as Transaction}
-                    onClose={() => setShowDeleteConfirm(false)}
-                    onConfirm={handleDeleteCurrent}
-                    walletName={wallets.find(w => w.id === walletId)?.name}
-                    destWalletName={wallets.find(w => w.id === destinationWalletId)?.name}
-                    categoryName={categories.find(c => c.id === categoryId)?.name}
-                    language={language}
-                  />
-                </div>
-              )}
-            </div>
-          </form>
         )}
 
         {showReceiptPreview && receipt && (
@@ -2096,8 +1545,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             </div>
           </div>
         )}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;

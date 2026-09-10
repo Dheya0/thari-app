@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3 } from 'lucide-react';
-import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule } from './types';
+import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
@@ -390,7 +390,10 @@ const App: React.FC = () => {
   // Wallet Filter State (null = All Wallets)
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
   const [timePeriodFilter, setTimePeriodFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
-  const [formDefaultType, setFormDefaultType] = useState<'expense' | 'income' | 'transfer' | 'adjustment' | undefined>(undefined);
+  const [formDefaultType, setFormDefaultType] = useState<FinancialEventType | TransactionType | undefined>(undefined);
+  const [formPrefillPerson, setFormPrefillPerson] = useState<string | undefined>(undefined);
+  const [formPrefillDebtId, setFormPrefillDebtId] = useState<string | undefined>(undefined);
+  const [formPrefillDebt, setFormPrefillDebt] = useState<Debt | null>(null);
   const [globalToast, setGlobalToast] = useState<ToastData | null>(null);
   const [transactionsSubView, setTransactionsSubView] = useState<'list' | 'analytics'>('list');
 
@@ -1834,7 +1837,34 @@ const App: React.FC = () => {
                   />
                 )}
                 {activeTab === 'budgets' && <BudgetManager budgets={state.budgets} categories={state.categories} transactions={filteredTransactions} onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} exchangeRates={state.exchangeRates} language={activeLanguage} />}
-                {activeTab === 'debts' && <DebtManager debts={state.debts} wallets={state.wallets} onAddDebt={handleAddDebt} onUpdateDebt={handleUpdateDebt} onSettleDebt={handleSettleDebt} onPayDebt={handlePayDebt} onDeleteDebt={(id) => setState(p => ({ ...p, debts: p.debts.filter(d => d.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} initialFilter={debtFilter} />}
+                {activeTab === 'debts' && (
+                  <DebtManager 
+                    debts={state.debts} 
+                    wallets={state.wallets} 
+                    onAddDebt={handleAddDebt} 
+                    onUpdateDebt={handleUpdateDebt} 
+                    onSettleDebt={handleSettleDebt} 
+                    onPayDebt={handlePayDebt} 
+                    onDeleteDebt={(id) => setState(p => ({ ...p, debts: p.debts.filter(d => d.id !== id) }))} 
+                    currencySymbol={localizedCurrency.symbol} 
+                    currencyCode={state.currency.code} 
+                    language={activeLanguage} 
+                    initialFilter={debtFilter}
+                    onOpenUnifiedDebtForm={(mode, debtId, prefillPerson, debt) => {
+                      setEditingTransaction(null);
+                      setFormPrefillDebtId(debtId);
+                      setFormPrefillPerson(prefillPerson);
+                      setFormPrefillDebt(debt || null);
+                      if (mode === 'to_me') setFormDefaultType('debt_to_me');
+                      else if (mode === 'on_me') setFormDefaultType('debt_on_me');
+                      else if (mode === 'repayment') setFormDefaultType('debt_repayment');
+                      else if (mode === 'edit' && debt) {
+                        setFormDefaultType(debt.type === 'to_me' ? 'debt_to_me' : 'debt_on_me');
+                      }
+                      setShowAddForm(true);
+                    }}
+                  />
+                )}
                 {activeTab === 'subscriptions' && <SubscriptionManager subscriptions={state.subscriptions} categories={state.categories} onAdd={(sub) => setState(p => ({ ...p, subscriptions: [{...sub, id: 's-'+Date.now()}, ...p.subscriptions] }))} onRemove={(id) => setState(p => ({ ...p, subscriptions: p.subscriptions.filter(s => s.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
                 {activeTab === 'zakat' && (
                   <ZakatCalculator 
@@ -2090,9 +2120,20 @@ const App: React.FC = () => {
                 onSubmit={handleSubmitTransaction} 
                 onDelete={handleDeleteTransaction}
                 onAddDebt={handleAddDebt}
+                onUpdateDebt={handleUpdateDebt}
                 onPayDebt={handlePayDebt}
-                onClose={() => { setShowAddForm(false); setEditingTransaction(null); setFormDefaultType(undefined); }} 
+                onClose={() => { 
+                  setShowAddForm(false); 
+                  setEditingTransaction(null); 
+                  setFormDefaultType(undefined);
+                  setFormPrefillPerson(undefined);
+                  setFormPrefillDebtId(undefined);
+                  setFormPrefillDebt(null);
+                }} 
                 initialData={editingTransaction} 
+                initialDebt={formPrefillDebt}
+                initialPersonName={formPrefillPerson}
+                initialDebtId={formPrefillDebtId}
                 defaultType={formDefaultType} 
                 exchangeRates={state.exchangeRates} 
                 isTravelMode={state.isTravelMode || state.showSeparateCurrencies}

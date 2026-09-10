@@ -6,6 +6,8 @@ import { Subscription, Category } from '../types';
 import { getIcon } from '../constants';
 import { getLocalizedCurrency, getTranslation, LanguageKey } from '../utils/translations';
 import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
+import { useBackNavigation } from '../utils/backNavigation';
+import { NativeHaptics } from '../services/nativeServices';
 
 interface SubscriptionManagerProps {
   subscriptions: Subscription[];
@@ -35,6 +37,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
   const [categoryId, setCategoryId] = useState('');
   const [nextBilling, setNextBilling] = useState('');
 
+  useBackNavigation(() => {
+    if (showAdd) {
+      setShowAdd(false);
+      return true;
+    }
+    return false;
+  }, showAdd, 15);
+
   const locCurr = useMemo(() => {
     return getLocalizedCurrency(currencyCode, undefined, currencySymbol, language);
   }, [currencyCode, currencySymbol, language]);
@@ -57,7 +67,10 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
       </div>
 
       <button 
-        onClick={() => setShowAdd(true)}
+        onClick={() => {
+          NativeHaptics.impact('LIGHT').catch(() => {});
+          setShowAdd(true);
+        }}
         className="w-full py-4 sm:py-4.5 bg-[#11161C] hover:bg-[#171D24] border border-[#D9B978]/30 hover:border-[#D9B978]/60 rounded-2xl flex items-center justify-center gap-2.5 font-bold text-[#D9B978] active:scale-[0.98] transition-all shadow-md"
       >
         <Plus size={18} /> <span>{t.addNewSubscription}</span>
@@ -90,7 +103,14 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 <div className="text-start sm:text-end font-numeric">
                   <p className="text-base sm:text-lg font-bold text-[#F4F1EA]">{formatFinancialNumber(sub.amount)} <span className="text-xs text-slate-400 font-normal">{resolvedSymbol}</span></p>
                 </div>
-                <button onClick={() => onRemove(sub.id)} className="p-2 text-slate-500 hover:text-[#C98387] rounded-xl hover:bg-white/5 transition-colors" title={t.delete}>
+                <button 
+                  onClick={() => {
+                    NativeHaptics.impact('MEDIUM').catch(() => {});
+                    onRemove(sub.id);
+                  }} 
+                  className="p-2 text-slate-500 hover:text-[#C98387] rounded-xl hover:bg-white/5 transition-colors" 
+                  title={t.delete}
+                >
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -143,6 +163,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
                 </select>
                 <button onClick={() => {
                   if (name && amount && categoryId) {
+                    NativeHaptics.notification('SUCCESS').catch(() => {});
                     onAdd({ name, amount: parseArabicNumber(amount), period, categoryId, nextBillingDate: nextBilling, isActive: true });
                     setShowAdd(false);
                     setName(''); setAmount(''); setNextBilling('');

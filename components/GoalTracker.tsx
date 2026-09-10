@@ -6,6 +6,7 @@ import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '
 import { getTranslation, LanguageKey } from '../utils/translations';
 import { safeDiv, safeMul, safeAdd, safeSub } from '../utils/mathPrecision';
 import { useBackNavigation } from '../utils/backNavigation';
+import { NativeHaptics } from '../services/nativeServices';
 
 interface GoalTrackerProps {
   goals: Goal[];
@@ -58,6 +59,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
     if (!depositGoalId || !depositAmount) return;
     const num = parseArabicNumber(depositAmount);
     if (isNaN(num) || num <= 0) return;
+    NativeHaptics.notification('SUCCESS').catch(() => {});
     onUpdateGoalAmount(depositGoalId, num);
     setDepositGoalId(null);
     setDepositAmount('');
@@ -70,7 +72,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
           <Target size={14} className="text-[#D9B978]" /> {t.goalsTitle}
         </h3>
         <button 
-          onClick={() => setShowAdd(true)} 
+          onClick={() => {
+            NativeHaptics.impact('LIGHT').catch(() => {});
+            setShowAdd(true);
+          }} 
           className="p-2.5 bg-[#D9B978]/10 hover:bg-[#D9B978]/20 text-[#D9B978] border border-[#D9B978]/20 rounded-xl active:scale-95 transition-all flex items-center gap-1.5 text-xs font-bold"
         >
           <Plus size={16} />
@@ -119,7 +124,10 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
                   {onDeleteGoal && (
                     <button
                       type="button"
-                      onClick={() => onDeleteGoal(goal.id)}
+                      onClick={() => {
+                        NativeHaptics.impact('MEDIUM').catch(() => {});
+                        onDeleteGoal(goal.id);
+                      }}
                       className="p-1.5 text-slate-500 hover:text-[#C98387] rounded-lg hover:bg-white/5 transition-colors"
                       title={isRtl ? 'حذف الهدف' : 'Delete Goal'}
                     >
@@ -145,6 +153,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      NativeHaptics.impact('LIGHT').catch(() => {});
                       setDepositGoalId(goal.id);
                       setDepositAmount('');
                     }}
@@ -218,6 +227,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
 
                <button onClick={() => {
                  if (name && target) {
+                   NativeHaptics.notification('SUCCESS').catch(() => {});
                    onAddGoal({ name, targetAmount: parseArabicNumber(target), currentAmount: 0, color: '#D9B978', icon: 'Star', walletId: selectedWallet });
                    setShowAdd(false); setName(''); setTarget('');
                  }

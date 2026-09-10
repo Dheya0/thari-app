@@ -34,6 +34,8 @@ import { StatsGrid } from './StatsGrid';
 import { AssetItemRow } from './AssetItemRow';
 import { ZakatAssetConfigModal, ZakatModalCategory } from './ZakatAssetConfigModal';
 import { safeAdd, safeSub, safeMul, safeDiv, safePercent, roundToCurrency } from '../utils/mathPrecision';
+import { useBackNavigation } from '../utils/backNavigation';
+import { NativeHaptics } from '../services/nativeServices';
 
 interface ZakatCalculatorProps {
   totalBalance?: number;
@@ -241,7 +243,28 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
   const [showHawlResetConfirm, setShowHawlResetConfirm] = useState<boolean>(false);
   const [editingProfileName, setEditingProfileName] = useState<string>('');
 
+  useBackNavigation(() => {
+    if (showConfigModal) {
+      setShowConfigModal(false);
+      return true;
+    }
+    if (showNewProfileModal) {
+      setShowNewProfileModal(false);
+      return true;
+    }
+    if (showPaymentModal) {
+      setShowPaymentModal(false);
+      return true;
+    }
+    if (showHawlResetConfirm) {
+      setShowHawlResetConfirm(false);
+      return true;
+    }
+    return false;
+  }, showConfigModal || showNewProfileModal || showPaymentModal || showHawlResetConfirm, 15);
+
   const openCategoryConfig = (cat: ZakatModalCategory) => {
+    NativeHaptics.impact('LIGHT').catch(() => {});
     setConfigModalCategory(cat);
     setShowConfigModal(true);
   };
@@ -406,6 +429,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
 
   const handleCreateProfile = () => {
     if (!editingProfileName.trim()) return;
+    NativeHaptics.notification('SUCCESS').catch(() => {});
     const newId = 'zp-' + Date.now();
     const newProfile: ZakatProfile = {
       id: newId,
@@ -444,12 +468,14 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
 
   const handleDeleteProfile = (id: string) => {
     if (profiles.length <= 1) return;
+    NativeHaptics.impact('MEDIUM').catch(() => {});
     const updated = profiles.filter(p => p.id !== id);
     updateProfiles(updated);
     setActiveProfileId(updated[0].id);
   };
 
   const handleStartNewCycle = () => {
+    NativeHaptics.notification('SUCCESS').catch(() => {});
     updateActiveProfile({
       hawlStartDate: formatLocalDateOnly(new Date()),
       lastCalculatedAt: new Date().toISOString()
@@ -460,6 +486,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
   const handleAddPayment = () => {
     const amt = parseArabicNumber(paymentAmount);
     if (!amt || amt <= 0) return;
+    NativeHaptics.notification('SUCCESS').catch(() => {});
 
     const newPayment: ZakatPaymentRecord = {
       id: 'zpay-' + Date.now(),
