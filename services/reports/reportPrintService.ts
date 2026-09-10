@@ -140,26 +140,38 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     </div>
   `;
 
-  const renderScopeGrid = () => `
-    <div class="info-grid">
-      <div class="info-item">
-        <span class="info-label">النطاق الزمني والفترة</span>
-        <span class="info-val">${esc(scope.periodLabelAr)} (${esc(formattedRange)})</span>
+  const renderScopeGrid = () => {
+    const periodVal = scope.periodLabelAr
+      ? (formattedRange !== 'كافة الفترات المسجلة' ? `${scope.periodLabelAr} (${formattedRange})` : scope.periodLabelAr)
+      : formattedRange;
+
+    const currencyVal = scope.currencyFilter
+      ? (scope.currencyMetadata?.nameAr || scope.currencyMetadata?.code || baseCode)
+      : `متعدد العملات (${scope.baseCurrency?.nameAr || baseCode})`;
+
+    const walletVal = scope.walletNameAr || 'كافة المحافظ المالية';
+
+    return `
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">النطاق الزمني والفترة</span>
+          <span class="info-val" title="${esc(periodVal)}">${esc(periodVal)}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">عملة التقييم المعيارية</span>
+          <span class="info-val" title="${esc(currencyVal)}">${esc(currencyVal)}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">المحفظة / الحساب</span>
+          <span class="info-val" title="${esc(walletVal)}">${esc(walletVal)}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">حالة الفرز والتدقيق</span>
+          <span class="info-val">${transactions.length} قيد محاسبي</span>
+        </div>
       </div>
-      <div class="info-item">
-        <span class="info-label">عملة التقييم المعيارية</span>
-        <span class="info-val">${esc(scope.baseCurrency?.nameAr || baseCode)} (${esc(baseCode)} - ${esc(baseSymbol)})</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">المحفظة / الحساب</span>
-        <span class="info-val">${esc(scope.walletNameAr || 'كافة المحافظ المالية المدمجة')}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">حالة الفرز والتدقيق</span>
-        <span class="info-val">${transactions.length} قيد محاسبي معتمد</span>
-      </div>
-    </div>
-  `;
+    `;
+  };
 
   const renderKpiGrid = () => `
     <div class="kpi-grid">
@@ -223,16 +235,16 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const renderDetailedTableHeader = () => `
     <thead>
       <tr>
-        <th style="width: 28px; text-align: center;">#</th>
-        <th style="width: 66px; text-align: right;">التاريخ</th>
-        <th style="width: 50px; text-align: center;">النوع</th>
-        <th style="width: 82px; text-align: right;">التصنيف</th>
-        <th style="width: 72px; text-align: right;">المحفظة</th>
+        <th style="width: 26px; text-align: center;">#</th>
+        <th style="width: 70px; text-align: right;">التاريخ</th>
+        <th style="width: 48px; text-align: center;">النوع</th>
+        <th style="width: 78px; text-align: right;">التصنيف</th>
+        <th style="width: 62px; text-align: right;">المحفظة</th>
         <th style="text-align: right;">البيان / تفاصيل القيد</th>
-        <th style="width: 44px; text-align: center;">العملة</th>
-        <th style="width: 82px; text-align: left;">المبلغ الأصلي</th>
-        <th style="width: 88px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
-        <th style="width: 82px; text-align: left;">الرصيد التراكمي</th>
+        <th style="width: 58px; text-align: center;">العملة</th>
+        <th style="width: 76px; text-align: left;">المبلغ الأصلي</th>
+        <th style="width: 76px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
+        <th style="width: 70px; text-align: left;">الرصيد التراكمي</th>
       </tr>
     </thead>
   `;
@@ -253,7 +265,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     return `
       <tr>
         <td style="text-align: center; color: #64748b; font-family: monospace; font-size: 8px;">${idx + 1}</td>
-        <td style="text-align: right; font-family: monospace; font-size: 8px; color: #334155;">${esc(tx.formattedDateAr || tx.date)}</td>
+        <td style="text-align: right; font-family: monospace; font-size: 8px; color: #334155; white-space: nowrap;">${esc(tx.formattedDateAr || tx.date)}</td>
         <td style="text-align: center;">${typeBadge}</td>
         <td style="text-align: right; font-weight: 700; color: #1e293b;">
           <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -262,19 +274,19 @@ export function buildPrintableReportHTML(model: ReportModel): string {
           </div>
         </td>
         <td style="text-align: right; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(tx.walletName)}</td>
-        <td style="text-align: right; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        <td style="text-align: right; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${esc(tx.note || tx.categoryName)}">
           <span>${esc(tx.note || tx.categoryName)}</span>
         </td>
         <td style="text-align: center;">
-          <span class="curr-badge">${esc(tx.currencyCode)}</span>
+          <span class="curr-badge" title="${esc(tx.currencyCode)}">${esc(tx.currencyCode)}</span>
         </td>
-        <td style="text-align: left; font-family: monospace; direction: ltr; font-weight: 700;" class="${amtColorClass}">
+        <td style="text-align: left; font-family: monospace; direction: ltr; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" class="${amtColorClass}">
           ${amtSign}${formatNum(tx.originalAmount)}
         </td>
-        <td style="text-align: left; font-family: monospace; direction: ltr; font-weight: 900; color: #0f172a;">
+        <td style="text-align: left; font-family: monospace; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           ${amtSign}${formatNum(tx.convertedAmount)}
         </td>
-        <td style="text-align: left; font-family: monospace; direction: ltr; font-weight: 700; color: #334155;">
+        <td style="text-align: left; font-family: monospace; direction: ltr; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           ${tx.runningBalance !== undefined ? formatNum(tx.runningBalance) : '-'}
         </td>
       </tr>
@@ -1046,7 +1058,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     }
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -1058,15 +1070,20 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       display: flex;
       flex-direction: column;
       gap: 1px;
+      min-width: 0;
+      overflow: hidden;
     }
     .info-label {
       font-size: 7.5px;
       font-weight: bold;
       color: #64748b;
       text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .info-val {
-      font-size: 9px;
+      font-size: 8.5px;
       font-weight: 800;
       color: #0f172a;
       white-space: nowrap;
@@ -1075,7 +1092,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 5px;
       margin-bottom: 8px;
     }
@@ -1085,6 +1102,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       border-radius: 6px;
       padding: 5px 6px;
       text-align: center;
+      min-width: 0;
+      overflow: hidden;
     }
     .kpi-card.highlight {
       background: #f0fdf4;
@@ -1103,6 +1122,9 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       font-weight: bold;
       color: #64748b;
       margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .kpi-amount {
       font-size: 10px;
@@ -1110,6 +1132,9 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       color: #0f172a;
       direction: ltr;
       font-family: monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .curr-unit {
       font-size: 8px;
@@ -1138,6 +1163,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       padding: 5px 4px;
       border: 1px solid #1e293b;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     table.report-table td {
       padding: 4px 4px;
@@ -1145,6 +1172,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       color: #1e293b;
       vertical-align: middle;
       font-size: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     table.report-table tbody tr:nth-child(even) td {
       background-color: #f8fafc;
@@ -1158,7 +1187,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     }
     .curr-badge {
       display: inline-block;
-      padding: 1px 4px;
+      padding: 1px 3px;
       border-radius: 3px;
       background: #f1f5f9;
       border: 1px solid #cbd5e1;
@@ -1166,13 +1195,21 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       font-size: 7.5px;
       font-weight: bold;
       color: #475569;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .badge-type {
       display: inline-block;
-      padding: 1px 4px;
+      padding: 1px 3px;
       border-radius: 3px;
       font-size: 7.5px;
       font-weight: bold;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .type-income { background: #dcfce7; color: #15803d; }
     .type-expense { background: #ffe4e6; color: #be123c; }

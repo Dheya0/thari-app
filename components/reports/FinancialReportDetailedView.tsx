@@ -13,60 +13,60 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
     <div className="space-y-6">
       {/* 1. Scope Profile Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نطاق الكشف</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.walletNameAr}</p>
+          <p className="text-xs font-black text-slate-900 truncate" title={scope.walletNameAr}>{scope.walletNameAr}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">العملة المعيارية</span>
-          <p className="text-xs font-black text-amber-700 truncate">
+          <p className="text-xs font-black text-amber-700 truncate" title={scope.currencyFilter ? `${scope.currencyMetadata?.nameAr} (${scope.currencyMetadata?.code})` : `متعدد العملات (${baseCurrency.code})`}>
             {scope.currencyFilter
               ? `${scope.currencyMetadata?.nameAr} (${scope.currencyMetadata?.code})`
-              : `متعدد العملات (تقييم بـ ${baseCurrency.code})`}
+              : `متعدد العملات (${baseCurrency.code})`}
           </p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">الفترة الزمنية</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.periodLabelAr}</p>
+          <p className="text-xs font-black text-slate-900 truncate" title={scope.periodLabelAr}>{scope.periodLabelAr}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">إجمالي القيود</span>
-          <p className="text-xs font-black text-slate-900">{transactions.length} قيد محاسبي</p>
+          <p className="text-xs font-black text-slate-900 truncate">{transactions.length} قيد محاسبي</p>
         </div>
       </div>
 
       {/* 2. Ledger Summary Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3">
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-          <span className="text-[10px] font-bold text-emerald-800 uppercase block">إجمالي المقبوضات (دائن)</span>
-          <p className="text-base font-black text-emerald-950 dir-ltr text-right mt-1">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 min-w-0">
+          <span className="text-[10px] font-bold text-emerald-800 uppercase block truncate">إجمالي المقبوضات (دائن)</span>
+          <p className="text-base font-black text-emerald-950 dir-ltr text-right mt-1 truncate">
             +{Math.round(kpis.totalIncome).toLocaleString()} <span className="text-[10px] font-bold">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] text-emerald-700 font-semibold">{kpis.incomeCount} قيد</span>
+          <span className="text-[9.5px] text-emerald-700 font-semibold block truncate">{kpis.incomeCount} قيد</span>
         </div>
 
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
-          <span className="text-[10px] font-bold text-rose-800 uppercase block">إجمالي المنصرفات (مدين)</span>
-          <p className="text-base font-black text-rose-950 dir-ltr text-right mt-1">
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 min-w-0">
+          <span className="text-[10px] font-bold text-rose-800 uppercase block truncate">إجمالي المنصرفات (مدين)</span>
+          <p className="text-base font-black text-rose-950 dir-ltr text-right mt-1 truncate">
             -{Math.round(kpis.totalExpense).toLocaleString()} <span className="text-[10px] font-bold">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] text-rose-700 font-semibold">{kpis.expenseCount + kpis.transferCount} قيد</span>
+          <span className="text-[9.5px] text-rose-700 font-semibold block truncate">{kpis.expenseCount + kpis.transferCount} قيد</span>
         </div>
 
-        <div className="bg-slate-100 border border-slate-300 rounded-xl p-3">
-          <span className="text-[10px] font-bold text-slate-700 uppercase block">صافي حركة الفترة</span>
-          <p className={`text-base font-black dir-ltr text-right mt-1 ${kpis.netSavings >= 0 ? 'text-slate-950' : 'text-rose-950'}`}>
+        <div className="bg-slate-100 border border-slate-300 rounded-xl p-3 min-w-0">
+          <span className="text-[10px] font-bold text-slate-700 uppercase block truncate">صافي حركة الفترة</span>
+          <p className={`text-base font-black dir-ltr text-right mt-1 truncate ${kpis.netSavings >= 0 ? 'text-slate-950' : 'text-rose-950'}`}>
             {kpis.netSavings >= 0 ? '+' : ''}{Math.round(kpis.netSavings).toLocaleString()} <span className="text-[10px] font-bold">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] text-slate-500 font-semibold">معدل الادخار: {kpis.savingsRatePercent}%</span>
+          <span className="text-[9.5px] text-slate-500 font-semibold block truncate">ادخار: {kpis.savingsRatePercent}%</span>
         </div>
 
-        <div className="bg-slate-900 text-white rounded-xl p-3">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">الرصيد الختامي</span>
-          <p className="text-base font-black text-amber-400 dir-ltr text-right mt-1">
+        <div className="bg-slate-900 text-white rounded-xl p-3 min-w-0">
+          <span className="text-[10px] font-bold text-slate-400 uppercase block truncate">الرصيد الختامي</span>
+          <p className="text-base font-black text-amber-400 dir-ltr text-right mt-1 truncate">
             {Math.round(kpis.closingBalance).toLocaleString()} <span className="text-[10px] font-bold text-slate-300">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] text-slate-400 font-semibold">
+          <span className="text-[9.5px] text-slate-400 font-semibold block truncate">
             {kpis.openingBalance !== 0 ? `افتتاحي: ${Math.round(kpis.openingBalance).toLocaleString()} ${baseCurrency.symbol}` : 'رصيد محتسب'}
           </span>
         </div>

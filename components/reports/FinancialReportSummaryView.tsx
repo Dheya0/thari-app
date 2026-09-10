@@ -15,25 +15,25 @@ export const FinancialReportSummaryView: React.FC<SummaryViewProps> = ({ model }
     <div className="space-y-6">
       {/* 1. Scope & Profile Information Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نطاق المحفظة</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.walletNameAr}</p>
+          <p className="text-xs font-black text-slate-900 truncate" title={scope.walletNameAr}>{scope.walletNameAr}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نطاق العملة</span>
-          <p className="text-xs font-black text-amber-700 truncate">
+          <p className="text-xs font-black text-amber-700 truncate" title={scope.currencyFilter ? `${scope.currencyMetadata?.nameAr} (${scope.currencyMetadata?.code})` : `متعدد العملات (${baseCurrency.code})`}>
             {scope.currencyFilter
               ? `${scope.currencyMetadata?.nameAr} (${scope.currencyMetadata?.code})`
-              : `متعدد العملات (تقييم بـ ${baseCurrency.code})`}
+              : `متعدد العملات (${baseCurrency.code})`}
           </p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">الفترة الزمنية</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.periodLabelAr}</p>
+          <p className="text-xs font-black text-slate-900 truncate" title={scope.periodLabelAr}>{scope.periodLabelAr}</p>
         </div>
-        <div>
+        <div className="min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">إجمالي الحركات</span>
-          <p className="text-xs font-black text-slate-900">{kpis.totalTransactions} حركة مسجلة</p>
+          <p className="text-xs font-black text-slate-900 truncate">{kpis.totalTransactions} حركة مسجلة</p>
         </div>
       </div>
 
