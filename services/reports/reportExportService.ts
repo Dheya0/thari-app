@@ -740,8 +740,8 @@ export function buildExcelReportHTML(model: ReportModel): string {
 /**
  * Builds a clean, self-contained printable HTML document styled for A4 PDF rendering.
  */
-import { buildPrintableReportHTML, generatePdfBlobFromModel } from "./reportPrintService";
-export { buildPrintableReportHTML, generatePdfBlobFromModel };
+import { buildPrintableReportHTML, generatePdfBlobFromModel, printHtmlViaIframe } from "./reportPrintService";
+export { buildPrintableReportHTML, generatePdfBlobFromModel, printHtmlViaIframe };
 
 let isExportingActive = false;
 
@@ -770,7 +770,16 @@ export async function printOrShareFinancialReport(
       return;
     }
 
-    // Generate real PDF blob for print or share actions (fully guarded operation)
+    // If on desktop/web browser, printHtmlViaIframe gives instant native vector print dialog
+    if (preferredAction === 'print' && !Capacitor.isNativePlatform()) {
+      const html = buildPrintableReportHTML(model);
+      const printed = await printHtmlViaIframe(html);
+      if (printed) {
+        return;
+      }
+    }
+
+    // Generate real PDF blob for share actions or mobile fallback
     const pdfBlob = await generatePdfBlobFromModel(model);
     const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.pdf`;
     const dialogTitle = preferredAction === 'share' ? 'مشاركة التقرير المالي (PDF)' : 'حفظ وطباعة التقرير المالي (PDF)';
