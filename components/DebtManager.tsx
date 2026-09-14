@@ -139,7 +139,9 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     totalIOwe?: number;
     netBalance?: number;
   } | null>(null);
-  const [reminderTemplateType, setReminderTemplateType] = useState<'friendly' | 'formal' | 'urgent' | 'statement'>('friendly');
+  const [reminderTemplateType, setReminderTemplateType] = useState<
+    'friendly' | 'commercial' | 'formal' | 'firm' | 'urgent' | 'pre_due' | 'statement'
+  >('friendly');
   const [customReminderText, setCustomReminderText] = useState('');
   const [reminderRecipientPhone, setReminderRecipientPhone] = useState('');
   const [copiedSuccess, setCopiedSuccess] = useState(false);
@@ -202,7 +204,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       .sort((a, b) => a.diffDays - b.diffDays);
   }, [debts]);
 
-  // Helper to generate formatted reminder text
+  // Helper to generate formatted reminder text with rich, powerful and varied tones
   const generateReminderMessage = (
     data: {
       personName: string;
@@ -216,7 +218,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       totalIOwe?: number;
       netBalance?: number;
     },
-    template: 'friendly' | 'formal' | 'urgent' | 'statement'
+    template: 'friendly' | 'commercial' | 'formal' | 'firm' | 'urgent' | 'pre_due' | 'statement'
   ): string => {
     const formattedAmount = data.amount.toLocaleString();
     const currSym = getDebtCurrencySymbol(data.currency);
@@ -229,37 +231,85 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       const net = data.netBalance || 0;
       const isPos = net > 0;
       return isRtl
-        ? `السلام عليكم ورحمة الله،\nكشف حساب مالي للأخ/الأخت: ${data.personName}\n\n• إجمالي المستحق لك: ${(data.totalIOwe || 0).toLocaleString()} ${currSym}\n• إجمالي المستحق عليك: ${(data.totalOwedToMe || 0).toLocaleString()} ${currSym}\n• صافي الرصيد الحالي: ${Math.abs(net).toLocaleString()} ${currSym} (${isPos ? 'مستحق لك' : 'مستحق عليك'})\n\nشاكرين ومقدرين حسن تعاونكم الدائم.`
+        ? `السلام عليكم ورحمة الله،\n📊 كشف حساب مالي تفصيلي ومطابقة أرصدة:\nالطرف: ${data.personName}\n\n• إجمالي المستحق لك: ${(data.totalIOwe || 0).toLocaleString()} ${currSym}\n• إجمالي المستحق عليك: ${(data.totalOwedToMe || 0).toLocaleString()} ${currSym}\n• صافي الرصيد الحالي: ${Math.abs(net).toLocaleString()} ${currSym} (${isPos ? 'مستحق لك' : 'مستحق عليك'})\n\nشاكرين ومقدرين حسن تعاونكم الدائم ومطابقة الحسابات.`
         : `Financial Statement Summary\nContact: ${data.personName}\n\n• Owed To You: ${(data.totalIOwe || 0).toLocaleString()} ${currSym}\n• Owed By You: ${(data.totalOwedToMe || 0).toLocaleString()} ${currSym}\n• Net Position: ${Math.abs(net).toLocaleString()} ${currSym} (${isPos ? 'Receivable' : 'Payable'})\n\nThank you for your cooperation.`;
     }
 
     if (data.type === 'to_me') {
       switch (template) {
+        case 'commercial':
+          return isRtl
+            ? `السادة / ${data.personName} المحترمون،\nتحية طيبة وبعد،،\nنود إحاطتكم بوجود رصيد مستحق طرفكم بمبلغ وقدره (${formattedAmount} ${currSym}) ومحدد استحقاقه بتاريخ (${dateStr}).${docNoteStr}\nنرجو التكرم بالمطابقة وإجراء التحويل لحسابنا البنكي المعتمد لإتمام التسوية الدورية.\nشاكرين ومقدرين حسن تعاونكم التجاري الدائم.`
+            : `Dear ${data.personName},\nBusiness Account Notice:\nPlease be advised that there is an outstanding balance of (${formattedAmount} ${currSym}) due on (${dateStr}).${docNoteStr}\nKindly arrange for payment to our authorized bank account for periodic settlement.\nThank you for your business cooperation.`;
+
         case 'formal':
           return isRtl
-            ? `إشعار مالي / تذكير استحقاق:\nإلى الأخ/الأخت: ${data.personName}\nالمبلغ المتبقي: ${formattedAmount} ${currSym}\nتاريخ الاستحقاق: ${dateStr}${docNoteStr}\nنرجو التكرم بالاطلاع والتنسيق للسداد عند الإمكان، شاكرين لكم طيب تعاونكم.`
-            : `Payment Reminder Notice:\nTo: ${data.personName}\nOutstanding Amount: ${formattedAmount} ${currSym}\nDue Date: ${dateStr}${docNoteStr}\nPlease arrange for payment at your convenience. Thank you.`;
+            ? `إشعار مالي ومطابقة رصيد:\nالمكرم / ${data.personName} المحترم،\nنفيدكم بموجب السجلات المحاسبية بأن الرصيد المتبقي المستحق طرفكم هو (${formattedAmount} ${currSym}) والمحدد استحقاقه بتاريخ (${dateStr}).${docNoteStr}\nنرجو التكرم بالاطلاع والتنسيق لإجراء السداد، وتقبلوا فائق التحية والتقدير.`
+            : `Payment Reminder Notice:\nTo: ${data.personName}\nOutstanding Amount: ${formattedAmount} ${currSym}\nDue Date: ${dateStr}${docNoteStr}\nPlease arrange for payment at your earliest convenience. Best regards.`;
+
+        case 'firm':
+          return isRtl
+            ? `الأخ / ${data.personName} المحترم،\nتحية طيبة وبعد،\nأود التأكيد بشكل جاد ومباشر على ضرورة سداد مبلغ (${formattedAmount} ${currSym}) المستحق بتاريخ (${dateStr}).${docNoteStr}\nنظراً لترتيب التزامات مالية قائمة وضرورة توفر السيولة، أرجو المبادرة بالتحويل دون أي تأخير.\nشاكراً تفهمكم واهتمامكم السريع.`
+            : `Dear ${data.personName},\nDirect Payment Follow-up:\nI am writing to firmly request the settlement of (${formattedAmount} ${currSym}) which is due on (${dateStr}).${docNoteStr}\nDue to pending financial commitments, please initiate transfer without delay. Thank you for your prompt response.`;
+
         case 'urgent':
           return isRtl
-            ? `تذكير هام وعاجل:\nالأخ/الأخت ${data.personName}، نود لفت عنايتكم الكريمة بحلول موعد سداد الدين المستحق بتاريخ ${dateStr} بمبلغ ${formattedAmount} ${currSym}.${docNoteStr}\nنرجو المبادرة بالسداد في أقرب فرصة ممكنة، جزاكم الله خيراً.`
-            : `Urgent Payment Reminder:\nDear ${data.personName}, this is an urgent reminder that payment of ${formattedAmount} ${currSym} was due on ${dateStr}.${docNoteStr}\nPlease initiate payment as soon as possible.`;
+            ? `⚠️ إشعار عاجل وهام جداً (مطالبة بالسداد):\nإلى الأخ / ${data.personName}،\nنلفت عنايتكم بأن موعد سداد الدين المستحق عليكم بمبلغ (${formattedAmount} ${currSym}) قد حان/تجاوز موعده المقرر بتاريخ (${dateStr}) ولم يتم السداد حتى الآن.${docNoteStr}\nنرجو المبادرة بالسداد الفوري وتصفية الحساب اليوم دون أي تأخير إضافي، تجنباً لأي حرج أو اضطرار لاتخاذ إجراءات أخرى لضمان الحقوق.\nوجزاكم الله خيراً.`
+            : `⚠️ URGENT FINAL PAYMENT NOTICE:\nTo: ${data.personName}\nThis is a strict reminder that the payment of (${formattedAmount} ${currSym}) due on (${dateStr}) is past due and unpaid.${docNoteStr}\nPlease arrange immediate settlement today to clear your balance and avoid further escalation. Thank you.`;
+
+        case 'pre_due':
+          return isRtl
+            ? `السلام عليكم أخي الكريم ${data.personName}،\nتذكير مبكر ولطيف بقرب موعد استحقاق المبلغ وقدره (${formattedAmount} ${currSym}) والمحدد بتاريخ (${dateStr}).${docNoteStr}\nنرجو الترتيب المسبق للسداد عند حلول الأجل، ودمتم بكل خير وبركة.`
+            : `Hello ${data.personName},\nThis is an advance courtesy reminder that the payment of (${formattedAmount} ${currSym}) is scheduled for (${dateStr}).${docNoteStr}\nThank you for planning ahead!`;
+
+        case 'statement':
+          return isRtl
+            ? `📊 كشف مطالبة مالية:\nالطرف المدين: ${data.personName}\nالمبلغ المستحق: ${formattedAmount} ${currSym}\nتاريخ الاستحقاق: ${dateStr}${docNoteStr}\nنرجو تأكيد الاستلام وجدولة السداد شاكرين لكم.`
+            : `Statement Notice:\nDebtor: ${data.personName}\nAmount Due: ${formattedAmount} ${currSym}\nDue: ${dateStr}${docNoteStr}\nPlease confirm receipt and scheduling.`;
+
         case 'friendly':
         default:
           return isRtl
-            ? `السلام عليكم ورحمة الله أخي الكريم ${data.personName}،\nأتمنى أن تكون بأتم الصحة والعافية.\nأود تذكيرك بلطف بمبلغ ${formattedAmount} ${currSym} المستحق بتاريخ ${dateStr}.${docNoteStr}\nجزاك الله خيراً وبارك فيك.`
+            ? `السلام عليكم ورحمة الله أخي الكريم ${data.personName}،\nأتمنى أن تكون بأتم الصحة والعافية.\nأود تذكيرك بلطف بمبلغ ${formattedAmount} ${currSym} المستحق بتاريخ ${dateStr}.${docNoteStr}\nجزاك الله خيراً وبارك فيك وفي رزقك.`
             : `Hello ${data.personName},\nHope you're doing well! Just a friendly reminder regarding the remaining balance of ${formattedAmount} ${currSym} due on ${dateStr}.${docNoteStr}\nThank you so much!`;
       }
     } else {
       // on_me (I owe them)
       switch (template) {
+        case 'commercial':
+          return isRtl
+            ? `السادة / ${data.personName} المحترمون،\nتحية طيبة وبعد،،\nنود إفادتكم باعتماد قيد المبلغ المستحق لكم وقدره (${formattedAmount} ${currSym})، وجاري جدولة التحويل البنكي لحسابكم المعتمد بتاريخ (${dateStr}) لإتمام التسوية المحاسبية.${docNoteStr}\nوتفضلوا بقبول فائق الاحترام والتقدير.`
+            : `Dear ${data.personName},\nWe confirm approval of the payable balance of (${formattedAmount} ${currSym}). The bank transfer is scheduled on (${dateStr}) for account settlement.${docNoteStr}\nBest regards.`;
+
         case 'formal':
           return isRtl
-            ? `إشعار تأكيد سداد والتزام مالي:\nإلى: ${data.personName}\nأؤكد لكم التزامي بسداد المبلغ المستحق لكم وقدره ${formattedAmount} ${currSym}، والمحدد بتاريخ ${dateStr}.${docNoteStr}\nسأقوم بالتحويل وفق الموعد بإذن الله.`
+            ? `إشعار تأكيد سداد والتزام مالي:\nإلى المكرم / ${data.personName} المحترم،\nأؤكد لكم التزامي التام بسداد المبلغ المستحق لكم وقدره (${formattedAmount} ${currSym}) في تاريخ الاستحقاق المحدد (${dateStr}).${docNoteStr}\nشاكراً لكم حسن تعاونكم وثقتكم الكريمة.`
             : `Payment Confirmation Notice:\nTo: ${data.personName}\nConfirming my commitment to settle the balance of ${formattedAmount} ${currSym} on or before ${dateStr}.${docNoteStr}\nThank you for your patience.`;
+
+        case 'firm':
+          return isRtl
+            ? `الأخ / ${data.personName} المحترم،\nأؤكد لك حرصي التام على الوفاء بالدين المستحق لك وقدره (${formattedAmount} ${currSym})، وسأقوم بتحويل المبلغ كاملاً دون أي تأخير في موعده المحدد (${dateStr}) بإذن الله تعالى.${docNoteStr}\nشكراً لثقتك وصبرك.`
+            : `Dear ${data.personName},\nI confirm that the full amount of ${formattedAmount} ${currSym} will be transferred strictly on time (${dateStr}) without delay.${docNoteStr}\nThank you for your trust.`;
+
+        case 'urgent':
+          return isRtl
+            ? `⚠️ إشعار عاجل لتسوية الدين:\nالأخ / ${data.personName}، أبلغك بأنني أضع سداد مبلغكم المستحق وقدره (${formattedAmount} ${currSym}) كأولوية قصوى وجاري إتمام التحويل اليوم لإنهاء القيد وتصفية الحساب بالكامل بإذن الله.${docNoteStr}`
+            : `Priority Payment Notice:\nDear ${data.personName}, settling your balance of ${formattedAmount} ${currSym} is our top priority and is being processed today.${docNoteStr}`;
+
+        case 'pre_due':
+          return isRtl
+            ? `السلام عليكم أخي ${data.personName}،\nتأكيد مسبق بقرب موعد سداد المبلغ المستحق لكم وقدره (${formattedAmount} ${currSym}) بتاريخ (${dateStr}).${docNoteStr}\nوأحببت إعلامكم بأن الأمور مرتبة وجاهزة للتحويل في الموعد المحدد بإذن الله.`
+            : `Hello ${data.personName},\nAdvance confirmation: your payment of ${formattedAmount} ${currSym} is set for ${dateStr}.${docNoteStr}\nThank you!`;
+
+        case 'statement':
+          return isRtl
+            ? `📊 تأكيد التزام مالي:\nالدائن: ${data.personName}\nالمبلغ الملتزم به: ${formattedAmount} ${currSym}\nموعد السداد المعتمد: ${dateStr}${docNoteStr}\nمع خالص التحية والتقدير.`
+            : `Liability Statement:\nPayee: ${data.personName}\nAmount: ${formattedAmount} ${currSym}\nDue: ${dateStr}${docNoteStr}`;
+
         case 'friendly':
         default:
           return isRtl
-            ? `السلام عليكم أخي ${data.personName}،\nأحببت طمأنتك وتذكيرك بأنني أرتب لسداد المبلغ المستحق لكم وقدره ${formattedAmount} ${currSym} في موعده بإذن الله (${dateStr}).${docNoteStr}\nشاكراً لك سعة صدرك.`
+            ? `السلام عليكم أخي ${data.personName}،\nأحببت طمأنتك وتأكيد التزامي بسداد المبلغ المستحق لكم وقدره (${formattedAmount} ${currSym}) في موعده المحدد بإذن الله (${dateStr}).${docNoteStr}\nشاكراً لك حسن صبرك وطيب تعاملك.`
             : `Hello ${data.personName},\nJust reassuring you that I am arranging to settle the payment of ${formattedAmount} ${currSym} on schedule (${dateStr}).${docNoteStr}\nThanks for your patience!`;
       }
     }
@@ -1354,12 +1404,15 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">
                   {isRtl ? 'اختر صيغة ونبرة التذكير المناسبة' : 'Choose Reminder Tone'}
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-1.5">
                   {[
                     { id: 'friendly', label: isRtl ? 'ودّي ولطيف' : 'Friendly', icon: '🌟' },
-                    { id: 'formal', label: isRtl ? 'رسمي ومفصل' : 'Formal', icon: '📄' },
-                    { id: 'urgent', label: isRtl ? 'استحقاق عاجل' : 'Urgent', icon: '⚠️' },
-                    { id: 'statement', label: isRtl ? 'كشف مالي' : 'Statement', icon: '📊' },
+                    { id: 'commercial', label: isRtl ? 'تجاري ومهني' : 'Commercial', icon: '💼' },
+                    { id: 'formal', label: isRtl ? 'رسمي وموثق' : 'Formal', icon: '📄' },
+                    { id: 'firm', label: isRtl ? 'حازم ومباشر' : 'Firm', icon: '⚡' },
+                    { id: 'urgent', label: isRtl ? 'حاد ومشدد' : 'Urgent', icon: '🚨' },
+                    { id: 'pre_due', label: isRtl ? 'تذكير مبكر' : 'Pre-Due', icon: '⏳' },
+                    { id: 'statement', label: isRtl ? 'كشف ومطابقة' : 'Statement', icon: '📊' },
                   ].map(tmpl => (
                     <button
                       key={tmpl.id}
@@ -1367,12 +1420,12 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       onClick={() => handleTemplateChange(tmpl.id as any)}
                       className={`p-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 ${
                         reminderTemplateType === tmpl.id
-                          ? 'bg-[#D9B978] text-slate-950 font-black shadow-md'
+                          ? 'bg-[#D9B978] text-slate-950 font-black shadow-md ring-2 ring-[#D9B978]/40'
                           : 'bg-[#0A0D10] text-slate-400 hover:text-white border border-white/10'
                       }`}
                     >
                       <span className="text-sm">{tmpl.icon}</span>
-                      <span>{tmpl.label}</span>
+                      <span className="truncate w-full text-center">{tmpl.label}</span>
                     </button>
                   ))}
                 </div>

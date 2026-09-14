@@ -203,12 +203,12 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const renderOfficialSeal = () => `
     <div class="footer-seal">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="width: 28px; height: 28px; border: 1.5px solid #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #d97706; background: #fffbeb;">
+        <div style="width: 28px; height: 28px; border: 1.5px solid #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #d97706; background: #fffbeb; flex-shrink: 0;">
           ✓
         </div>
         <div>
-          <p style="margin: 0; font-weight: 900; color: #0f172a; font-size: 8.5px;">تم التوليد إلكترونياً وبشكل مشفر وموثق عبر تطبيق ثـري المالي</p>
-          <p style="margin: 1px 0 0 0; font-size: 7.5px; color: #64748b;">جميع الحقوق محفوظة © ${new Date().getFullYear()} • بصمة التحقق الرقمية: ${esc(metadata.fingerprint)}</p>
+          <p style="margin: 0; font-weight: 900; color: #0f172a; font-size: 8.5px; line-height: 1.3;">تم التوليد إلكترونياً وبشكل مشفر وموثق عبر تطبيق ثـري المالي</p>
+          <p style="margin: 2px 0 0 0; font-size: 7.5px; color: #64748b; line-height: 1.3;">جميع الحقوق محفوظة © ${new Date().getFullYear()} • بصمة التحقق الرقمية: ${esc(metadata.fingerprint)}</p>
         </div>
       </div>
       <div style="text-align: left; font-family: monospace; font-size: 7.5px; color: #475569; direction: ltr; line-height: 1.3;">
@@ -235,16 +235,16 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const renderDetailedTableHeader = () => `
     <thead>
       <tr>
-        <th style="width: 26px; text-align: center;">#</th>
-        <th style="width: 70px; text-align: right;">التاريخ</th>
-        <th style="width: 48px; text-align: center;">النوع</th>
-        <th style="width: 78px; text-align: right;">التصنيف</th>
-        <th style="width: 62px; text-align: right;">المحفظة</th>
+        <th style="width: 28px; text-align: center;">#</th>
+        <th style="width: 82px; text-align: right;">التاريخ</th>
+        <th style="width: 52px; text-align: center;">النوع</th>
+        <th style="width: 82px; text-align: right;">التصنيف</th>
+        <th style="width: 68px; text-align: right;">المحفظة</th>
         <th style="text-align: right;">البيان / تفاصيل القيد</th>
-        <th style="width: 58px; text-align: center;">العملة</th>
-        <th style="width: 76px; text-align: left;">المبلغ الأصلي</th>
-        <th style="width: 76px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
-        <th style="width: 70px; text-align: left;">الرصيد التراكمي</th>
+        <th style="width: 68px; text-align: center;">العملة</th>
+        <th style="width: 78px; text-align: left;">المبلغ الأصلي</th>
+        <th style="width: 78px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
+        <th style="width: 76px; text-align: left;">الرصيد التراكمي</th>
       </tr>
     </thead>
   `;
@@ -969,24 +969,32 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 <head>
   <meta charset="UTF-8">
   <title>تقرير ثري المالي - ${esc(metadata.reportId)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
   <style>
     @page {
       size: A4 portrait;
       margin: 0;
     }
-    * {
-      box-sizing: border-box;
+    *, *:before, *:after {
+      box-sizing: border-box !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
+    body, .report-page, .report-page * {
+      font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Almarai", Tahoma, sans-serif !important;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: normal;
+    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", "Tajawal", "Almarai", Tahoma, sans-serif;
       background: #f1f5f9;
       color: #0f172a;
       direction: rtl;
       margin: 0;
       padding: 0;
-      line-height: 1.4;
+      line-height: 1.5;
       font-size: 9px;
     }
     .report-page {
@@ -1004,6 +1012,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       break-after: page;
       position: relative;
       overflow: hidden;
+      direction: rtl;
+      text-align: right;
     }
     .report-page:last-child {
       page-break-after: avoid;
@@ -1041,68 +1051,83 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     }
     .badge-account {
       font-size: 8.5px;
+      line-height: 1.3;
       font-weight: bold;
       color: #334155;
       background: #f8fafc;
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 4px;
       border: 1px solid #cbd5e1;
+      display: inline-block;
     }
     .badge-page {
       font-size: 8.5px;
+      line-height: 1.3;
       font-weight: 800;
       color: #ffffff;
       background: #0f172a;
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 4px;
+      display: inline-block;
     }
     .info-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 6px;
+      gap: 8px;
       background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 6px 8px;
-      margin-bottom: 8px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      min-height: 48px;
     }
     .info-item {
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      justify-content: center;
       min-width: 0;
       overflow: hidden;
     }
     .info-label {
-      font-size: 7.5px;
-      font-weight: bold;
+      font-size: 8px;
+      line-height: 1.4;
+      font-weight: 700;
       color: #64748b;
       text-transform: uppercase;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: block;
+      margin-bottom: 2px;
     }
     .info-val {
-      font-size: 8.5px;
+      font-size: 9.5px;
+      line-height: 1.4;
       font-weight: 800;
       color: #0f172a;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: block;
     }
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 5px;
-      margin-bottom: 8px;
+      gap: 6px;
+      margin-bottom: 10px;
+      min-height: 52px;
     }
     .kpi-card {
       background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      padding: 5px 6px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 6px;
       text-align: center;
       min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
       overflow: hidden;
     }
     .kpi-card.highlight {
@@ -1118,28 +1143,35 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       border-color: #fef3c7;
     }
     .kpi-title {
-      font-size: 7.5px;
-      font-weight: bold;
+      font-size: 8px;
+      line-height: 1.4;
+      font-weight: 700;
       color: #64748b;
-      margin-bottom: 2px;
+      margin-bottom: 3px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: block;
+      width: 100%;
     }
     .kpi-amount {
-      font-size: 10px;
+      font-size: 11px;
+      line-height: 1.3;
       font-weight: 900;
       color: #0f172a;
       direction: ltr;
-      font-family: monospace;
+      font-family: 'Cairo', monospace, sans-serif;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: block;
+      width: 100%;
     }
     .curr-unit {
-      font-size: 8px;
+      font-size: 8.5px;
       font-weight: bold;
       color: #64748b;
+      margin-inline-start: 2px;
     }
     .income-val { color: #15803d !important; }
     .expense-val { color: #be123c !important; }
@@ -1148,7 +1180,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       width: 100%;
       border-collapse: collapse;
       font-size: 8.5px;
-      line-height: 1.3;
+      line-height: 1.4;
       margin-bottom: 4px;
       table-layout: fixed;
     }
@@ -1159,19 +1191,21 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       background-color: #0f172a;
       color: #ffffff;
       font-weight: 800;
-      font-size: 8px;
-      padding: 5px 4px;
+      font-size: 8.5px;
+      line-height: 1.4;
+      padding: 6px 5px;
       border: 1px solid #1e293b;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     table.report-table td {
-      padding: 4px 4px;
+      padding: 5px 5px;
       border: 1px solid #e2e8f0;
       color: #1e293b;
       vertical-align: middle;
-      font-size: 8px;
+      font-size: 8.5px;
+      line-height: 1.4;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -1183,18 +1217,20 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       border-top: 1.5px solid #0f172a;
       font-weight: 900;
       font-size: 8.5px;
-      padding: 5px 4px;
+      line-height: 1.4;
+      padding: 6px 5px;
     }
     .curr-badge {
       display: inline-block;
-      padding: 1px 3px;
-      border-radius: 3px;
+      padding: 2px 6px;
+      border-radius: 4px;
       background: #f1f5f9;
       border: 1px solid #cbd5e1;
-      font-family: monospace;
-      font-size: 7.5px;
-      font-weight: bold;
-      color: #475569;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace, sans-serif;
+      font-size: 8px;
+      line-height: 1.25;
+      font-weight: 800;
+      color: #334155;
       white-space: nowrap;
       max-width: 100%;
       overflow: hidden;
@@ -1202,10 +1238,11 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     }
     .badge-type {
       display: inline-block;
-      padding: 1px 3px;
-      border-radius: 3px;
-      font-size: 7.5px;
-      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 8px;
+      line-height: 1.3;
+      font-weight: 800;
       white-space: nowrap;
       max-width: 100%;
       overflow: hidden;
@@ -1232,6 +1269,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       justify-content: space-between;
       align-items: center;
       font-size: 7.5px;
+      line-height: 1.4;
       color: #94a3b8;
     }
   </style>
@@ -1253,8 +1291,11 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
   const container = document.createElement('div');
   container.id = 'thari-pdf-container-' + Date.now();
   container.style.position = 'fixed';
-  container.style.top = '-10000px';
-  container.style.left = '-10000px';
+  container.style.top = '0';
+  container.style.left = '0';
+  container.style.zIndex = '-99999';
+  container.style.opacity = '0';
+  container.style.pointerEvents = 'none';
   container.style.width = '794px';
   container.style.background = '#ffffff';
   container.style.direction = 'rtl';
@@ -1262,7 +1303,14 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
   document.body.appendChild(container);
 
   try {
-    // Wait for DOM layout and styling to settle
+    // Wait for web fonts & DOM layout
+    if (document.fonts && document.fonts.ready) {
+      try {
+        await document.fonts.ready;
+      } catch (e) {
+        console.warn('Fonts ready check error:', e);
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 350));
 
     const pageElements = Array.from(container.querySelectorAll('.report-page')) as HTMLElement[];

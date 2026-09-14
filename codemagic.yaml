@@ -140,7 +140,6 @@ workflows:
       email:
         recipients:
           - thari-app@inbox.ru
-          - Dia840990@gmail.com
         notify:
           success: true
           failure: true
@@ -290,7 +289,6 @@ workflows:
       email:
         recipients:
           - thari-app@inbox.ru
-          - Dia840990@gmail.com
         notify:
           success: true
           failure: true
@@ -377,7 +375,6 @@ workflows:
       email:
         recipients:
           - thari-app@inbox.ru
-          - Dia840990@gmail.com
         notify:
           success: true
           failure: true
