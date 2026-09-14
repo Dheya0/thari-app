@@ -37,10 +37,6 @@ const STRINGS = {
         title: 'العمليات الدورية والمجدولة',
         desc: 'أتمتة المصاريف والرواتب والاشتراكات المتكررة تلقائياً'
       },
-      zakat: {
-        title: 'محفظة وحاسبة الزكاة الشرعية',
-        desc: 'حساب زكاة المال وعروض التجارة والذهب وتتبع سجل الإخراج'
-      },
       budgets: {
         title: 'الميزانيات والإنفاق الذكي',
         desc: 'تحديد سقوف المصاريف لكل تصنيف وتنبيهات ترشيد الاستهلاك'
@@ -73,10 +69,6 @@ const STRINGS = {
       recurring: {
         title: 'Recurring & Scheduled Rules',
         desc: 'Automate repetitive expenses, salaries & recurring bills'
-      },
-      zakat: {
-        title: 'Zakat & Purification Calculator',
-        desc: 'Calculate Zakat on liquid assets, gold, and commercial goods'
       },
       budgets: {
         title: 'Budgets & Smart Limits',
