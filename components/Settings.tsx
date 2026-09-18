@@ -84,7 +84,7 @@ const ColorPicker = ({ selected, onSelect, t }: { selected: string, onSelect: (c
 const ToastNotification = ({ toast }: { toast: { message: string, type: 'success' | 'error' } | null }) => {
   if (!toast) return null;
   const content = (
-    <div className="fixed top-20 left-0 right-0 z-[99999] flex justify-center items-center pointer-events-none px-4 no-print">
+    <div className="fixed top-20 left-0 right-0 z-[100005] flex justify-center items-center pointer-events-none px-4 no-print">
       <div className={`pointer-events-auto max-w-xs sm:max-w-sm px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-3 border backdrop-blur-xl animate-slide-down ${
         toast.type === 'success' 
           ? 'bg-[#11161C]/95 border-emerald-500/40 text-emerald-400 shadow-[0_10px_25px_rgba(16,185,129,0.2)]' 
@@ -106,7 +106,7 @@ const ConfirmDialog = ({ confirmData, onCancel, t }: { confirmData: { message: s
   
   const dialogContent = (
     <div 
-      className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-fade"
+      className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-sm z-[100002] flex items-center justify-center p-4 animate-fade"
       onClick={(e) => {
         if (e.target === e.currentTarget) onCancel();
       }}
@@ -123,8 +123,20 @@ const ConfirmDialog = ({ confirmData, onCancel, t }: { confirmData: { message: s
             <p className="text-slate-400 font-bold text-sm leading-relaxed">{confirmData.message}</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
-           <button onClick={onCancel} className="py-4 bg-[#0A0D10] text-slate-400 rounded-2xl font-black text-sm hover:bg-[#11161C] transition-colors">{t.cancel}</button>
-           <button onClick={() => { confirmData.action(); onCancel(); }} className={`py-4 rounded-2xl font-black text-sm shadow-lg transition-colors ${isDanger ? 'bg-rose-500 text-white shadow-rose-500/20 hover:bg-rose-400' : 'bg-[#D9B978] text-[#0A0D10] shadow-[#D9B978]/20 hover:bg-[#c9a764]'}`}>{t.confirm || 'تأكيد'}</button>
+           <button type="button" onClick={onCancel} className="py-4 bg-[#0A0D10] text-slate-400 rounded-2xl font-black text-sm hover:bg-[#11161C] transition-colors">{t.cancel || 'إلغاء'}</button>
+           <button 
+             type="button" 
+             onClick={() => { 
+               try {
+                 confirmData.action();
+               } finally {
+                 onCancel();
+               }
+             }} 
+             className={`py-4 rounded-2xl font-black text-sm shadow-lg transition-colors ${isDanger ? 'bg-rose-500 text-white shadow-rose-500/20 hover:bg-rose-400' : 'bg-[#D9B978] text-[#0A0D10] shadow-[#D9B978]/20 hover:bg-[#c9a764]'}`}
+           >
+             {t.confirm || 'تأكيد'}
+           </button>
         </div>
       </div>
     </div>
@@ -827,13 +839,33 @@ export default function Settings({
                     <ColorPicker selected={walletData.color} onSelect={c => setWalletData({...walletData, color: c})} t={t} />
                     <div className="flex gap-3">
                         {editingWallet && (
-                            <button onClick={() => triggerConfirm(`${t.deleteWallet} ${editingWallet.name}؟`, () => { onRemoveWallet(editingWallet.id); setShowWalletForm(false); }, t.deleteWallet, "danger")} className="p-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl active:scale-95"><Trash2 size={24} /></button>
+                            <button 
+                              type="button"
+                              onClick={() => triggerConfirm(
+                                `${t.deleteWallet} ${editingWallet.name}؟`, 
+                                () => { 
+                                  onRemoveWallet(editingWallet.id); 
+                                  setShowWalletForm(false); 
+                                  showToast(localLanguage === 'en' ? `Wallet "${editingWallet.name}" deleted` : `تم حذف محفظة "${editingWallet.name}" بنجاح`, 'success');
+                                }, 
+                                t.deleteWallet, 
+                                "danger"
+                              )} 
+                              className="p-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl active:scale-95"
+                              title={t.deleteWallet}
+                            >
+                              <Trash2 size={24} />
+                            </button>
                         )}
                         <ActionButton label={t.saveWallet} onClick={saveWallet} />
                     </div>
                 </div>
             </Modal>
         )}
+
+        {/* Toast & Confirmation Dialogs for Wallets Section */}
+        <ToastNotification toast={toast} />
+        <ConfirmDialog confirmData={confirmData} onCancel={() => setConfirmData(null)} t={t} />
       </div>
     );
   }
@@ -901,13 +933,33 @@ export default function Settings({
                     <ColorPicker selected={categoryData.color} onSelect={c => setCategoryData({...categoryData, color: c})} t={t} />
                     <div className="flex gap-3">
                         {editingCategory && (
-                            <button type="button" onClick={() => triggerConfirm(`${t.deleteCategory} ${editingCategory.name}؟`, () => { onRemoveCategory(editingCategory.id); setShowCategoryForm(false); }, t.deleteCategory, "danger")} className="p-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl active:scale-95"><Trash2 size={24} /></button>
+                            <button 
+                              type="button" 
+                              onClick={() => triggerConfirm(
+                                `${t.deleteCategory} ${editingCategory.name}؟`, 
+                                () => { 
+                                  onRemoveCategory(editingCategory.id); 
+                                  setShowCategoryForm(false); 
+                                  showToast(localLanguage === 'en' ? `Category "${editingCategory.name}" deleted` : `تم حذف تصنيف "${editingCategory.name}" بنجاح`, 'success');
+                                }, 
+                                t.deleteCategory, 
+                                "danger"
+                              )} 
+                              className="p-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl active:scale-95"
+                              title={t.deleteCategory}
+                            >
+                              <Trash2 size={24} />
+                            </button>
                         )}
                         <ActionButton label={t.saveCategory} onClick={saveCategory} />
                     </div>
                 </div>
             </Modal>
         )}
+
+        {/* Toast & Confirmation Dialogs for Categories Section */}
+        <ToastNotification toast={toast} />
+        <ConfirmDialog confirmData={confirmData} onCancel={() => setConfirmData(null)} t={t} />
       </div>
     );
   }
@@ -1018,8 +1070,26 @@ export default function Settings({
 
                     {c.code !== currency?.code && !isBase && (
                       <button 
-                        onClick={() => triggerConfirm(`${t.deleteCurrency} ${loc.name}؟`, () => onRemoveCurrency(c.code), t.deleteCurrency, "danger")} 
-                        className="p-2.5 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-xl border border-rose-500/20 active:scale-95 transition-all"
+                        type="button"
+                        onClick={() => {
+                          const walletUsingCurrency = (appState?.wallets || wallets || []).find((w: any) => w.currencyCode === c.code || w.currency === c.code);
+                          const confirmMsg = walletUsingCurrency 
+                            ? (isArabic 
+                                ? `تنبيه: العملة مرتبطة بمحفظة (${walletUsingCurrency.name}). هل أنت متأكد من حذف ${loc.name}؟` 
+                                : `Warning: Currency is linked to wallet (${walletUsingCurrency.name}). Delete ${loc.name}?`)
+                            : (isArabic ? `هل أنت متأكد من حذف عملة ${loc.name} (${c.code})؟` : `${t.deleteCurrency} ${loc.name}?`);
+
+                          triggerConfirm(
+                            confirmMsg, 
+                            () => {
+                              onRemoveCurrency(c.code);
+                              showToast(isArabic ? `تم حذف عملة ${loc.name} بنجاح` : `Currency ${loc.name} deleted successfully`, 'success');
+                            }, 
+                            t.deleteCurrency, 
+                            "danger"
+                          );
+                        }} 
+                        className="p-2.5 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-xl border border-rose-500/20 active:scale-95 transition-all flex items-center justify-center min-w-[38px] min-h-[38px]"
                         title={t.deleteCurrency}
                       >
                         <Trash2 size={16} />
@@ -1273,6 +1343,10 @@ export default function Settings({
             </div>
           </Modal>
         )}
+
+        {/* Toast & Confirmation Dialogs for Currencies Section */}
+        <ToastNotification toast={toast} />
+        <ConfirmDialog confirmData={confirmData} onCancel={() => setConfirmData(null)} t={t} />
       </div>
     );
   }
@@ -1959,7 +2033,19 @@ export default function Settings({
                 <p className="text-[10px] text-slate-400 leading-relaxed">
                     {t.clearDataWarning}
                 </p>
-                <button type="button" onClick={() => triggerConfirm(t.clearDataConfirm, onClearData, t.clearDataTitle, "danger")} className="w-full py-4 text-rose-500 font-bold text-xs border border-rose-500/20 bg-rose-500/5 rounded-2xl active:scale-95 flex items-center justify-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => triggerConfirm(
+                    t.clearDataConfirm, 
+                    () => {
+                      onClearData();
+                      showToast(localLanguage === 'en' ? 'All financial records cleared successfully' : 'تم مسح كافة السجلات المالية بنجاح', 'success');
+                    }, 
+                    t.clearDataTitle, 
+                    "danger"
+                  )} 
+                  className="w-full py-4 text-rose-500 font-bold text-xs border border-rose-500/20 bg-rose-500/5 rounded-2xl active:scale-95 flex items-center justify-center gap-2"
+                >
                   <Trash2 size={16} /> {t.clearAllFinancialRecords}
                 </button>
             </div>

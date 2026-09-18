@@ -1960,7 +1960,20 @@ const App: React.FC = () => {
                         appState={state} 
                         onUpdateSettings={(updates) => setState(p => ({...p, ...updates}))} 
                         onAddCurrency={(c) => setState(p => ({...p, currencies: [...p.currencies, c]}))} 
-                        onRemoveCurrency={(code) => setState(p => ({...p, currencies: p.currencies.filter(c => c.code !== code)}))} 
+                        onRemoveCurrency={(code) => setState(p => {
+                            const nextCurrencies = p.currencies.filter(c => c.code !== code);
+                            const nextRates = { ...(p.exchangeRates || {}) };
+                            delete nextRates[code];
+                            const nextWallets = p.wallets.map(w => w.currencyCode === code ? { ...w, currencyCode: 'SAR' } : w);
+                            const nextCurrency = p.currency?.code === code ? (nextCurrencies[0] || { code: 'SAR', name: 'ريال سعودي', symbol: 'ر.س' }) : p.currency;
+                            return {
+                                ...p,
+                                currencies: nextCurrencies,
+                                exchangeRates: nextRates,
+                                wallets: nextWallets,
+                                currency: nextCurrency
+                            };
+                        })} 
                         onAddWallet={(w) => setState(p => ({ ...p, wallets: [...p.wallets, { ...w, id: 'w-' + Date.now() }] }))} 
                         onUpdateWallet={(id, updates) => setState(p => ({ ...p, wallets: p.wallets.map(w => w.id === id ? { ...w, ...updates } : w) }))}
                         onRemoveWallet={(id) => setState(p => ({ ...p, wallets: p.wallets.filter(w => w.id !== id) }))} 
