@@ -15,6 +15,8 @@ interface SwipeableRowProps {
   disabled?: boolean;
 }
 
+const SWIPE_OPEN_EVENT = 'thari:swipe-row-opened';
+
 export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   id,
   onEdit,
@@ -23,98 +25,116 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   children,
   editLabel = 'تعديل',
   deleteLabel = 'حذف',
-  confirmDeleteText = 'تأكيد الحذف؟',
   className = '',
   disabled = false,
 }) => {
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
-  
+  const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const dragDistanceRef = useRef(0);
   const dragEndTimeRef = useRef(0);
 
-  // If component re-mounts or ID changes, reset swipe offset safely
+  // If component re-mounts or ID changes, reset swipe offset
   useEffect(() => {
     setSwipeOffset(0);
-    setDragDirection(null);
   }, [id]);
+
+  // Coordinate so only one swipe row is open across the entire app
+  useEffect(() => {
+    const handleOtherRowOpen = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string }>;
+      if (customEvent.detail?.id !== id) {
+        setSwipeOffset(0);
+      }
+    };
+    window.addEventListener(SWIPE_OPEN_EVENT, handleOtherRowOpen);
+    return () => {
+      window.removeEventListener(SWIPE_OPEN_EVENT, handleOtherRowOpen);
+    };
+  }, [id]);
+
+  // Auto-close when tapping anywhere outside the active row
+  useEffect(() => {
+    if (swipeOffset === 0) return;
+    const handleGlobalPointer = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setSwipeOffset(0);
+      }
+    };
+    window.addEventListener('pointerdown', handleGlobalPointer, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleGlobalPointer);
+    };
+  }, [swipeOffset]);
 
   const handleDragStart = () => {
     isDraggingRef.current = true;
     dragDistanceRef.current = 0;
-    setIsDragging(true);
   };
 
   const handleDrag = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    // Keep track of movement distance without updating state (0 re-renders during drag)
     dragDistanceRef.current = Math.abs(info.offset.x);
-    if (info.offset.x > 5) {
-      setDragDirection('right');
-    } else if (info.offset.x < -5) {
-      setDragDirection('left');
-    }
   };
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    setIsDragging(false);
     dragEndTimeRef.current = Date.now();
-    
-    // Maintain dragging flag for 350ms to swallow trailing synthetic clicks on mobile
     setTimeout(() => {
       isDraggingRef.current = false;
-    }, 350);
+    }, 280);
 
     const x = info.offset.x;
     const velocity = info.velocity.x;
 
     if (swipeOffset !== 0) {
       // If currently open on Edit (offset < 0) and dragged rightwards, snap closed
-      if (swipeOffset < 0 && (x > 15 || velocity > 35)) {
+      if (swipeOffset < 0 && (x > 20 || velocity > 150)) {
         setSwipeOffset(0);
-        setDragDirection(null);
         return;
       }
       // If currently open on Delete (offset > 0) and dragged leftwards, snap closed
-      if (swipeOffset > 0 && (x < -15 || velocity < -35)) {
+      if (swipeOffset > 0 && (x < -20 || velocity < -150)) {
         setSwipeOffset(0);
-        setDragDirection(null);
         return;
       }
-      // If user pulled further in the open direction, keep it open
+      // User held or pulled slightly further in open direction: maintain open
       if ((swipeOffset < 0 && x < -10) || (swipeOffset > 0 && x > 10)) {
         return;
       }
     }
 
     // Determine snap state from closed initial position
-    // Swipe left (x < -18 or fast flick) reveals Edit on the right
-    if (x < -18 || velocity < -35) {
-      setSwipeOffset(-92);
-      setDragDirection('left');
+    // Swipe left (x < -32 or quick flick) reveals Edit on the right
+    if (x < -32 || velocity < -200) {
+      setSwipeOffset(-84);
+      window.dispatchEvent(new CustomEvent(SWIPE_OPEN_EVENT, { detail: { id } }));
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(8); } catch {}
+      }
     } 
-    // Swipe right (x > 18 or fast flick) reveals Delete on the left
-    else if (x > 18 || velocity > 35) {
-      setSwipeOffset(92);
-      setDragDirection('right');
+    // Swipe right (x > 32 or quick flick) reveals Delete on the left
+    else if (x > 32 || velocity > 200) {
+      setSwipeOffset(84);
+      window.dispatchEvent(new CustomEvent(SWIPE_OPEN_EVENT, { detail: { id } }));
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(8); } catch {}
+      }
     } 
-    // Otherwise snap closed
+    // Otherwise smoothly snap closed
     else {
       setSwipeOffset(0);
-      setDragDirection(null);
     }
   };
 
   const handleRowClick = () => {
-    // If a touch drag completed recently or significant drag movement happened, ignore click
-    if (Date.now() - dragEndTimeRef.current < 350 || dragDistanceRef.current > 8) {
+    // If a touch drag completed recently or movement was detected, ignore click
+    if (Date.now() - dragEndTimeRef.current < 280 || dragDistanceRef.current > 10) {
       return;
     }
 
     if (swipeOffset !== 0) {
-      // If already open, tapping closes the revealed actions
+      // If already open, tapping snaps it back closed
       setSwipeOffset(0);
-      setDragDirection(null);
     } else if (onClick) {
       onClick();
     }
@@ -123,66 +143,58 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSwipeOffset(0);
-    setDragDirection(null);
     if (onEdit) onEdit();
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSwipeOffset(0);
-    setDragDirection(null);
     if (onDelete) onDelete();
   };
 
-  const showRightEdit = (swipeOffset < 0) || (isDragging && dragDirection === 'left');
-  const showLeftDelete = (swipeOffset > 0) || (isDragging && dragDirection === 'right');
-
   return (
     <div 
+      ref={containerRef}
       id={`swipe-container-${id}`} 
       className={`relative overflow-hidden select-none rounded-2xl sm:rounded-3xl bg-[#0A0D10] h-full ${className}`}
       style={{ touchAction: 'pan-y' }}
     >
-      {/* Right Action Layer (Edit) - Revealed when swiping left (offset < 0) */}
+      {/* Right Action Layer (Edit) - Revealed when swiping left */}
       <div 
-        className={`absolute top-0 bottom-0 right-0 w-[92px] flex items-center justify-center z-0 bg-[#161D26] border-l border-white/10 rounded-r-2xl sm:rounded-r-3xl transition-opacity duration-200 ${
-          showRightEdit ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        aria-hidden={!showRightEdit}
+        className="absolute inset-y-0 right-0 w-[84px] flex items-center justify-center z-0 bg-gradient-to-l from-[#D9B978]/25 via-[#171E27] to-[#11161C] border-s border-[#D9B978]/20 rounded-e-2xl sm:rounded-e-3xl"
+        aria-hidden={swipeOffset >= 0}
       >
         {onEdit && (
           <button
             type="button"
             onClick={handleEditClick}
-            className="flex flex-col items-center justify-center gap-1 w-full h-full text-[#D9B978] hover:bg-[#D9B978]/15 active:scale-95 transition-all cursor-pointer font-bold"
+            className="flex flex-col items-center justify-center gap-1.5 w-full h-full text-[#D9B978] hover:bg-[#D9B978]/10 active:scale-90 transition-transform cursor-pointer select-none"
             title={editLabel}
           >
-            <div className="w-8 h-8 rounded-full bg-[#D9B978] text-[#0A0D10] flex items-center justify-center shadow-md">
+            <div className="w-8 h-8 rounded-full bg-[#D9B978] text-[#0A0D10] flex items-center justify-center shadow-lg shadow-[#D9B978]/20">
               <Edit2 size={15} strokeWidth={2.5} />
             </div>
-            <span className="text-[11px] font-black">{editLabel}</span>
+            <span className="text-[11px] font-black tracking-tight">{editLabel}</span>
           </button>
         )}
       </div>
 
-      {/* Left Action Layer (Delete) - Revealed when swiping right (offset > 0) */}
+      {/* Left Action Layer (Delete) - Revealed when swiping right */}
       <div 
-        className={`absolute top-0 bottom-0 left-0 w-[92px] flex items-center justify-center z-0 bg-[#1F1517] border-r border-[#C98387]/20 rounded-l-2xl sm:rounded-l-3xl transition-all duration-200 ${
-          showLeftDelete ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        aria-hidden={!showLeftDelete}
+        className="absolute inset-y-0 left-0 w-[84px] flex items-center justify-center z-0 bg-gradient-to-r from-rose-500/25 via-[#23171A] to-[#11161C] border-e border-rose-500/20 rounded-s-2xl sm:rounded-s-3xl"
+        aria-hidden={swipeOffset <= 0}
       >
         {onDelete && (
           <button
             type="button"
             onClick={handleDeleteClick}
-            className="flex flex-col items-center justify-center gap-1 w-full h-full text-[#C98387] hover:bg-[#C98387]/15 active:scale-95 transition-all cursor-pointer font-bold"
+            className="flex flex-col items-center justify-center gap-1.5 w-full h-full text-rose-400 hover:bg-rose-500/10 active:scale-90 transition-transform cursor-pointer select-none"
             title={deleteLabel}
           >
-            <div className="w-8 h-8 rounded-full bg-[#C98387] text-white flex items-center justify-center shadow-md">
+            <div className="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/25">
               <Trash2 size={15} strokeWidth={2.5} />
             </div>
-            <span className="text-[11px] font-black">{deleteLabel}</span>
+            <span className="text-[11px] font-black tracking-tight">{deleteLabel}</span>
           </button>
         )}
       </div>
@@ -190,17 +202,17 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       {/* Foreground Draggable Card */}
       <motion.div
         drag={disabled ? false : 'x'}
-        dragDirectionLock={false}
-        dragConstraints={{ left: -92, right: 92 }}
-        dragElastic={0.18}
+        dragDirectionLock={true}
+        dragConstraints={{ left: -84, right: 84 }}
+        dragElastic={0.25}
         dragMomentum={false}
         onDragStart={handleDragStart}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
         animate={{ x: swipeOffset }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.6 }}
         onClick={handleRowClick}
-        className="relative z-10 w-full cursor-grab active:cursor-grabbing will-change-transform bg-[#11161C] rounded-2xl sm:rounded-3xl shadow-sm"
+        className="relative z-10 w-full cursor-grab active:cursor-grabbing will-change-transform bg-[#11161C] rounded-2xl sm:rounded-3xl shadow-xs"
         style={{ touchAction: 'pan-y' }}
       >
         {children}
@@ -208,3 +220,4 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
     </div>
   );
 };
+

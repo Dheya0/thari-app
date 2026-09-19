@@ -280,8 +280,9 @@ const App: React.FC = () => {
                   // User mutations occurred during migration: safely merge only receipt paths without overwriting newer state
                   setState(currentState => {
                     let hasMergeChanges = false;
+                    const migTxs = Array.isArray(migrated?.transactions) ? migrated.transactions : [];
                     const updatedTransactions = currentState.transactions.map(currTx => {
-                      const migTx = migrated.transactions.find((t: Transaction) => t.id === currTx.id);
+                      const migTx = migTxs.find((t: Transaction) => t.id === currTx.id);
                       if (migTx && migTx.receipt && migTx.receipt.receiptPath && !currTx.receipt?.receiptPath) {
                         hasMergeChanges = true;
                         return { ...currTx, receipt: migTx.receipt };
@@ -1647,9 +1648,11 @@ const App: React.FC = () => {
                     const clear = () => {
                       clearTimeout(timer);
                       target.removeEventListener('touchend', clear);
+                      target.removeEventListener('touchcancel', clear);
                       target.removeEventListener('touchmove', clear);
                     };
                     target.addEventListener('touchend', clear, { once: true });
+                    target.addEventListener('touchcancel', clear, { once: true });
                     target.addEventListener('touchmove', clear, { once: true });
                   }}
                 >
@@ -1723,8 +1726,8 @@ const App: React.FC = () => {
         )}
 
         <main 
-          className="flex-1 overflow-y-auto no-scrollbar smooth-scroll overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full"
-          style={{ paddingTop: activeTab === 'dashboard' ? '0px' : 'calc(env(safe-area-inset-top, 0px) + 1.15rem)' }}
+          className="flex-1 overflow-y-auto no-scrollbar overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full overscroll-contain"
+          style={{ paddingTop: activeTab === 'dashboard' ? '0px' : 'calc(env(safe-area-inset-top, 0px) + 1.15rem)', WebkitOverflowScrolling: 'touch' }}
         >
           <div className="py-4 sm:py-6 max-w-7xl mx-auto w-full">
             {isUpdateAvailable && (

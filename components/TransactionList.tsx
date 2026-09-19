@@ -130,6 +130,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
   const [scrollTop, setScrollTop] = useState(0);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const scrollRafRef = React.useRef<number | null>(null);
   const ROW_HEIGHT = 90; // px per transaction card in virtualized mode
   const overscan = 6;
   const containerHeight = 650;
@@ -139,6 +140,26 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
   const endIndex = Math.min(totalCount, startIndex + Math.ceil(containerHeight / ROW_HEIGHT) + overscan * 2);
   const visibleSlice = sortedTransactions.slice(startIndex, endIndex);
+
+  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (!isLargeDataset) return;
+    const currentScrollTop = e.currentTarget.scrollTop;
+    if (scrollRafRef.current !== null) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
+    scrollRafRef.current = requestAnimationFrame(() => {
+      setScrollTop(currentScrollTop);
+      scrollRafRef.current = null;
+    });
+  }, [isLargeDataset]);
+
+  React.useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
 
   // Reset scrollTop when search or filters change
   useEffect(() => {
@@ -498,7 +519,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
       {/* Transaction Cards List with True Virtualization */}
       <div
         ref={scrollContainerRef}
-        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        onScroll={isLargeDataset ? handleScroll : undefined}
         className="space-y-2.5 overflow-y-auto relative pr-1 custom-scrollbar"
         style={{ 
           maxHeight: 'calc(var(--vh, 100dvh) - 240px)',
