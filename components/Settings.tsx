@@ -205,6 +205,8 @@ interface SettingsProps {
   onShowPrivacyPolicy: () => void;
   onOpenWalkthrough?: () => void;
   onOpenTrash?: () => void;
+  onOpenCurrencySelector?: () => void;
+  onSelectCurrency?: (currency: Currency) => void;
   trashCount?: number;
   onPrint?: (...args: any[]) => void;
   onShare?: (...args: any[]) => void;
@@ -218,7 +220,7 @@ export default function Settings({
   userName = '', pin = '', currency, currencies, wallets, categories, exchangeRates = {}, appState = {}, onUpdateSettings, 
   onAddCurrency, onRemoveCurrency, onAddWallet, onUpdateWallet, onRemoveWallet,
   onAddCategory, onUpdateCategory, onRemoveCategory,
-  onRestore, onClearData, onShowPrivacyPolicy, onOpenWalkthrough, onOpenTrash, trashCount = 0, onPrint, onShare, onExportExcel,
+  onRestore, onClearData, onShowPrivacyPolicy, onOpenWalkthrough, onOpenTrash, onOpenCurrencySelector, onSelectCurrency, trashCount = 0, onPrint, onShare, onExportExcel,
   installPrompt = null, isUpdateAvailable = false, swRegistration = null,
 }: SettingsProps) {
   const safeCurrencies = currencies || [];
@@ -245,6 +247,7 @@ export default function Settings({
   const [isExporting, setIsExporting] = useState(false);
   const [activeSection, setActiveSection] = useState<'main' | 'wallets' | 'categories' | 'currencies'>('main');
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showBaseCurrencySelectorModal, setShowBaseCurrencySelectorModal] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string | null>(null);
   
   const [showEmailBackupModal, setShowEmailBackupModal] = useState(false);
@@ -1671,8 +1674,14 @@ export default function Settings({
             <div className="space-y-5 divide-y divide-white/5">
                 <div className="pb-4">
                     <button 
-                        onClick={() => setShowCurrencyModal(true)}
-                        className="w-full bg-[#0A0D10] p-4 rounded-2xl border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-[#D9B978]/30"
+                        onClick={() => {
+                          if (onOpenCurrencySelector) {
+                            onOpenCurrencySelector();
+                          } else {
+                            setShowBaseCurrencySelectorModal(true);
+                          }
+                        }}
+                        className="w-full bg-[#0A0D10] p-4 rounded-2xl border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-[#D9B978]/30 cursor-pointer"
                         type="button"
                     >
                         <div className="flex items-center gap-4">
@@ -1681,7 +1690,7 @@ export default function Settings({
                              </div>
                              <div className="text-start">
                                  <p className="text-[9px] font-black text-slate-400 uppercase">{t.baseCurrency}</p>
-                                 <p className="text-[#F4F1EA] font-bold text-xs">{getLocalizedCurrency(currency?.code || 'SAR', currency?.name, currency?.symbol, localLanguage || 'ar').name}</p>
+                                 <p className="text-[#F4F1EA] font-bold text-xs">{getLocalizedCurrency(currency?.code || 'SAR', currency?.name, currency?.symbol, localLanguage || 'ar').name} ({currency?.code || 'SAR'})</p>
                              </div>
                         </div>
                         <ChevronDown size={16} className="text-slate-400" />
@@ -2080,6 +2089,60 @@ export default function Settings({
 
       <ToastNotification toast={toast} />
       <ConfirmDialog confirmData={confirmData} onCancel={() => setConfirmData(null)} t={t} />
+
+      {/* Select Base Currency Modal */}
+      {showBaseCurrencySelectorModal && (
+        <Modal title={localLanguage === 'en' ? 'Select Primary Base Currency' : 'اختر العملة الأساسية للتطبيق'} onClose={() => setShowBaseCurrencySelectorModal(false)}>
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400 font-medium leading-relaxed">
+              {localLanguage === 'en'
+                ? 'All financial summaries, reports, and consolidated liquidity figures will be converted and displayed in this primary currency.'
+                : 'سيتم تحويل وعرض كافة الإجماليات، التقارير، والمركز المالي بهذه العملة المرجعية الأساسية.'}
+            </p>
+            <div className="grid gap-2 max-h-[50vh] overflow-y-auto no-scrollbar py-1">
+              {safeCurrencies.map(c => {
+                const loc = getLocalizedCurrency(c.code, c.name, c.symbol, localLanguage || 'ar');
+                const isSelected = currency?.code === c.code;
+
+                return (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => {
+                      const newCurr = { code: c.code, name: loc.name, symbol: loc.symbol };
+                      if (onSelectCurrency) onSelectCurrency(newCurr);
+                      onUpdateSettings({ currency: newCurr });
+                      setShowBaseCurrencySelectorModal(false);
+                    }}
+                    className={`w-full p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 text-start active:scale-[0.98] cursor-pointer ${
+                      isSelected 
+                        ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978] shadow-md ring-1 ring-[#D9B978]/30' 
+                        : 'bg-[#0A0D10] border-white/10 hover:border-white/20 text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`min-w-[44px] h-10 px-2 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                        isSelected ? 'bg-[#D9B978] text-slate-950 font-black' : 'bg-white/5 text-[#D9B978] border border-white/10'
+                      }`}>
+                        {loc.symbol}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white">{loc.name}</p>
+                        <p className="text-[10px] font-mono text-slate-400">{c.code}</p>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#D9B978] text-slate-950">
+                        {localLanguage === 'en' ? 'Active' : 'نشطة'}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

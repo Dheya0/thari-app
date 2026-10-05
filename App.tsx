@@ -112,9 +112,15 @@ function normalizeStoredState(parsed: any): AppState {
     activeCurrency = DEFAULT_CURRENCIES[0];
   }
 
-  const currencies = (parsed.currencies && Array.isArray(parsed.currencies) && parsed.currencies.length > 0)
+  const rawCurrencies = (parsed.currencies && Array.isArray(parsed.currencies) && parsed.currencies.length > 0)
     ? parsed.currencies
     : DEFAULT_CURRENCIES;
+
+  const defaultCodes = new Set(DEFAULT_CURRENCIES.map(c => c.code));
+  const currencies = [
+    ...DEFAULT_CURRENCIES,
+    ...rawCurrencies.filter((c: any) => c && c.code && !defaultCodes.has(c.code))
+  ];
 
   const categories = (parsed.categories && Array.isArray(parsed.categories) && parsed.categories.length > 0)
     ? parsed.categories
@@ -2336,6 +2342,8 @@ const App: React.FC = () => {
                         onShowPrivacyPolicy={() => setShowPrivacyPolicy(true)} 
                         onOpenWalkthrough={() => setShowWalkthroughModal(true)}
                         onOpenTrash={() => setShowTrashModal(true)}
+                        onOpenCurrencySelector={() => setShowCurrencySelector(true)}
+                        onSelectCurrency={(curr) => setState(p => ({ ...p, currency: curr }))}
                         trashCount={state.trashTransactions?.length || 0}
                         onPrint={handlePrint}
                         onShare={handleShare}
