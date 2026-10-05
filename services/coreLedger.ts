@@ -293,7 +293,20 @@ export function generateCoreLedger(
     }
   });
 
-  // 2. TRANSACTIONS (Expense, Income, Transfer, Adjustment)
+  // Track known debt payments and financing debts to prevent double-counting
+  const knownPaymentIds = new Set<string>();
+  const debtsWithInitialFundingTx = new Set<string>();
+
+  activeTxs.forEach(tx => {
+    if (tx.debtPaymentId) {
+      knownPaymentIds.add(tx.debtPaymentId);
+    }
+    if (tx.debtId && !tx.debtPaymentId && tx.isFinancing) {
+      debtsWithInitialFundingTx.add(tx.debtId);
+    }
+  });
+
+  // 2. TRANSACTIONS (Expense, Income, Transfer, Adjustment, and Financing/Debt movements)
   activeTxs.forEach(tx => {
     const amount = Number(tx.amount) || 0;
     if (amount <= 0) return;
@@ -307,6 +320,140 @@ export function generateCoreLedger(
     const amountInSourceWallet = conversion.sourceAmountInWalletCurrency;
     const rate = conversion.effectiveRate;
     const baseAmount = calcBaseAmount(conversion.sourceAmount, conversion.sourceCurrency, rate);
+
+    // Financing flow: Debt Payment or Initial Loan/Borrowing directly on wallet
+    if (tx.isFinancing) {
+      if (tx.debtPaymentId && tx.debtId) {
+        // Debt Repayment linked to wallet: Dr/Cr Asset vs Cr/Dr Receivable or Payable
+        const isRepaymentReceived = tx.type === 'income'; // Debt to me repaid
+        journal.push({
+          id: `entry-tx-financing-${tx.id}`,
+          eventId: tx.id,
+          eventType: 'debt_repayment',
+          date: tx.date,
+          timestamp: tx.createdAt || `${tx.date}T12:00:00.000Z`,
+          description: tx.note || (isRepaymentReceived ? 'استرداد دفعة دين' : 'سداد دفعة دين'),
+          sourceWalletId: tx.walletId,
+          debtId: tx.debtId,
+          lines: isRepaymentReceived ? [
+            {
+              id: `line-tx-fin-dr-${tx.id}`,
+              accountId: tx.walletId,
+              accountName: sourceWallet?.name || 'محفظة',
+              accountType: 'asset',
+              debit: amountInSourceWallet,
+              credit: 0,
+              currency: walletCurrency,
+              rateSnapshot: getRateSnapshot(walletCurrency),
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            },
+            {
+              id: `line-tx-fin-cr-${tx.id}`,
+              accountId: `rec-${tx.debtId}`,
+              accountName: 'مستحق دين',
+              accountType: 'receivable',
+              debit: 0,
+              credit: amount,
+              currency: txCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            }
+          ] : [
+            {
+              id: `line-tx-fin-dr-${tx.id}`,
+              accountId: `pay-${tx.debtId}`,
+              accountName: 'مستحق دين',
+              accountType: 'payable',
+              debit: amount,
+              credit: 0,
+              currency: txCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            },
+            {
+              id: `line-tx-fin-cr-${tx.id}`,
+              accountId: tx.walletId,
+              accountName: sourceWallet?.name || 'محفظة',
+              accountType: 'asset',
+              debit: 0,
+              credit: amountInSourceWallet,
+              currency: walletCurrency,
+              rateSnapshot: getRateSnapshot(walletCurrency),
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            }
+          ]
+        });
+      } else if (tx.debtId) {
+        // Initial Loan/Borrowing directly on wallet: Dr/Cr Receivable or Payable vs Cr/Dr Asset
+        const isLending = tx.type === 'expense'; // Lent money to someone
+        journal.push({
+          id: `entry-tx-initial-debt-${tx.id}`,
+          eventId: tx.id,
+          eventType: isLending ? 'debt_to_me' : 'debt_on_me',
+          date: tx.date,
+          timestamp: tx.createdAt || `${tx.date}T12:00:00.000Z`,
+          description: tx.note || (isLending ? 'إقراض مبلغ من المحفظة' : 'استلاف مبلغ للمحفظة'),
+          sourceWalletId: tx.walletId,
+          debtId: tx.debtId,
+          lines: isLending ? [
+            {
+              id: `line-tx-init-dr-${tx.id}`,
+              accountId: `rec-${tx.debtId}`,
+              accountName: 'مستحق دين',
+              accountType: 'receivable',
+              debit: amount,
+              credit: 0,
+              currency: txCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            },
+            {
+              id: `line-tx-init-cr-${tx.id}`,
+              accountId: tx.walletId,
+              accountName: sourceWallet?.name || 'محفظة',
+              accountType: 'asset',
+              debit: 0,
+              credit: amountInSourceWallet,
+              currency: walletCurrency,
+              rateSnapshot: getRateSnapshot(walletCurrency),
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            }
+          ] : [
+            {
+              id: `line-tx-init-dr-${tx.id}`,
+              accountId: tx.walletId,
+              accountName: sourceWallet?.name || 'محفظة',
+              accountType: 'asset',
+              debit: amountInSourceWallet,
+              credit: 0,
+              currency: walletCurrency,
+              rateSnapshot: getRateSnapshot(walletCurrency),
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            },
+            {
+              id: `line-tx-init-cr-${tx.id}`,
+              accountId: `pay-${tx.debtId}`,
+              accountName: 'مستحق دين',
+              accountType: 'payable',
+              debit: 0,
+              credit: amount,
+              currency: txCurrency,
+              rateSnapshot: rate,
+              amountInBaseCurrency: baseAmount,
+              note: tx.note
+            }
+          ]
+        });
+      }
+      return;
+    }
 
     if (tx.type === 'expense' || tx.type === 'transfer_to_goal') {
       // EXPENSE: Debit Expense Category Account, Credit Asset Wallet
@@ -481,7 +628,9 @@ export function generateCoreLedger(
     const baseAmount = calcBaseAmount(originalAmount, debtCurrency, rate);
 
     // Initial Debt Event
-    if (debt.type === 'to_me') {
+    if (debtsWithInitialFundingTx.has(debt.id)) {
+      // The initial funding was already recorded from the financing transaction in activeTxs
+    } else if (debt.type === 'to_me') {
       // DEBT TO ME (Receivable Asset): Dr. Receivable, Cr. Initial / Funding
       journal.push({
         id: `entry-debt-${debt.id}`,
@@ -563,6 +712,10 @@ export function generateCoreLedger(
     const detailedPaymentsSum = (debt.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
     if (debt.payments && debt.payments.length > 0) {
       debt.payments.forEach(pay => {
+        if (knownPaymentIds.has(pay.id)) {
+          // This payment was already recorded from the financing transaction in activeTxs
+          return;
+        }
         const payAmount = Number(pay.amount) || 0;
         if (payAmount <= 0) return;
 
@@ -816,6 +969,13 @@ export function calculateLedgerBalances(
           if (line.credit > 0) wBal.transfersOut += line.credit;
         } else if (entry.eventType === 'balance_adjustment' && entry.id.startsWith('entry-tx-')) {
           wBal.adjustments += (line.debit - line.credit);
+        } else if (entry.eventType === 'debt_repayment') {
+          if (line.debit > 0) wBal.inflows += line.debit;
+          if (line.credit > 0) wBal.outflows += line.credit;
+        } else if (entry.eventType === 'debt_to_me' && line.credit > 0) {
+          wBal.outflows += line.credit;
+        } else if (entry.eventType === 'debt_on_me' && line.debit > 0) {
+          wBal.inflows += line.debit;
         }
       }
 

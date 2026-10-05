@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Target, TriangleAlert, Award, TrendingUp, Sparkles, AlertCircle, Coins, ShieldCheck, Play, Trash2 } from 'lucide-react';
-import { Budget, Category, Transaction } from '../types';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Target, TriangleAlert, Award, TrendingUp, Sparkles, AlertCircle, Coins, ShieldCheck, Play, Trash2, Calendar, Wallet as WalletIcon, Filter } from 'lucide-react';
+import { Budget, Category, Transaction, Wallet } from '../types';
 import { getLocalizedCurrency, getTranslation, LanguageKey } from '../utils/translations';
 import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 import { convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
@@ -11,18 +11,28 @@ interface BudgetManagerProps {
   budgets: Budget[];
   categories: Category[];
   transactions: Transaction[];
+  wallets?: Wallet[];
+  selectedWalletId?: string | null;
   onSetBudget: (catId: string, amount: number) => void;
+  onDeleteBudget?: (catId: string) => void;
+  onShowToast?: (message: string, type?: 'success' | 'info' | 'error') => void;
   currencySymbol: string;
   currencyCode?: string;
   exchangeRates?: Record<string, number>;
   language?: LanguageKey;
 }
 
+type BudgetPeriod = 'current_month' | 'last_month' | 'all_time';
+
 const BudgetManager: React.FC<BudgetManagerProps> = ({ 
   budgets, 
   categories, 
   transactions, 
+  wallets = [],
+  selectedWalletId,
   onSetBudget, 
+  onDeleteBudget,
+  onShowToast,
   currencySymbol,
   currencyCode = 'SAR',
   exchangeRates = DEFAULT_EXCHANGE_RATES,
@@ -30,8 +40,11 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
 }) => {
   const t = getTranslation(language);
   const isRtl = language === 'ar';
+  const isEn = language === 'en';
   const [selectedCat, setSelectedCat] = useState('');
   const [amount, setAmount] = useState('');
+  const [periodFilter, setPeriodFilter] = useState<BudgetPeriod>('current_month');
+  const [activeWalletFilter, setActiveWalletFilter] = useState<string>(selectedWalletId || 'all');
 
   const locCurr = useMemo(() => {
     return getLocalizedCurrency(currencyCode, undefined, currencySymbol, language);
@@ -40,10 +53,30 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
 
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
-  // Filter active operating transactions
+  // Filter active operating transactions by period & wallet
   const activeTxs = useMemo(() => {
-    return (transactions || []).filter(t => !t.isDeleted && !t.isFinancing);
-  }, [transactions]);
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastYearMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+    return (transactions || []).filter(tx => {
+      if (tx.isDeleted || tx.isFinancing) return false;
+      
+      // Wallet filter
+      if (activeWalletFilter !== 'all' && tx.walletId !== activeWalletFilter) {
+        return false;
+      }
+
+      // Period filter
+      if (periodFilter === 'current_month') {
+        return tx.date && tx.date.startsWith(currentYearMonth);
+      } else if (periodFilter === 'last_month') {
+        return tx.date && tx.date.startsWith(lastYearMonth);
+      }
+      return true; // all_time
+    });
+  }, [transactions, periodFilter, activeWalletFilter]);
 
   // 1. Calculate General Financial KPIs & Abundance Score (تنمية العوائد والادخار)
   const abundanceData = useMemo(() => {
@@ -59,15 +92,11 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
       }
     });
     
-    // Calculate investments or savings allocation (e.g. transactions categorized as investment or savings)
-    // For general tracking, we treat (Total Income - Total Expense) as general savings allocation
+    // Calculate investments or savings allocation
     const savings = Math.max(0, safeSub(totalIncome, totalExpense));
     const savingsRate = totalIncome > 0 ? safeMul(safeDiv(savings, totalIncome), 100) : 0;
     
     // Abundance score out of 100
-    // +40 points: savings rate (up to 30% savings rate yields max points)
-    // +30 points: having active strategic investment allocations
-    // +30 points: maintaining budget limits
     const savingsScore = Math.min(40, (savingsRate / 30) * 40);
     
     let activeBudgetsExceeded = 0;
@@ -83,11 +112,9 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
     });
 
     const adherenceScore = Math.max(0, 30 - (activeBudgetsExceeded * 10));
-    const investmentScore = totalIncome > 0 ? 30 : 15; // default base points represent focus on development
+    const investmentScore = totalIncome > 0 ? 30 : 15;
 
     const finalAbundanceScore = Math.round(savingsScore + adherenceScore + investmentScore);
-    
-    // Burn Rate (معدل الحرق المالي)
     const burnRate = totalExpense;
 
     return {
@@ -109,14 +136,104 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
           const conv = convertCurrency(Number(t.amount) || 0, t.currency || currencyCode, currencyCode, exchangeRates);
           spent = safeAdd(spent, conv);
         });
-      const percentage = b.amount > 0 ? Math.min(safeMul(safeDiv(spent, b.amount), 100), 100) : 0;
+      const percentage = b.amount > 0 ? safeMul(safeDiv(spent, b.amount), 100) : 0;
       
       return { ...b, category, spent: roundToCurrency(spent), percentage };
     });
   }, [budgets, categories, activeTxs, currencyCode, exchangeRates]);
 
+  // Categories exceeding 80% limit threshold
+  const categoriesOver80 = useMemo(() => {
+    return budgetStats.filter(b => b.percentage >= 80 && b.amount > 0);
+  }, [budgetStats]);
+
+  // Ref to track notified 80%+ categories to prevent repeated spam toasts
+  const notifiedCategoriesRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    categoriesOver80.forEach(b => {
+      const catName = b.category?.name || (isEn ? 'Category' : 'فئة إدراج');
+      const roundedPct = Math.round(b.percentage);
+      const key = `${b.categoryId}_${roundedPct}_${b.spent}`;
+      
+      if (!notifiedCategoriesRef.current.has(key)) {
+        notifiedCategoriesRef.current.add(key);
+        if (onShowToast) {
+          const isExceeded = b.percentage >= 100;
+          const msg = isEn
+            ? `Budget Warning: "${catName}" has reached ${formatFinancialNumber(roundedPct)}% of limit (${formatFinancialNumber(b.spent)} / ${formatFinancialNumber(b.amount)} ${resolvedSymbol})`
+            : `تحذير ميزانية: فئة "${catName}" تجاوزت ${formatFinancialNumber(roundedPct)}% من الحد المالي (${formatFinancialNumber(b.spent)} / ${formatFinancialNumber(b.amount)} ${resolvedSymbol})`;
+          onShowToast(msg, isExceeded ? 'error' : 'info');
+        }
+      }
+    });
+  }, [categoriesOver80, onShowToast, isEn, resolvedSymbol]);
+
   return (
-    <div className="space-y-6 pb-24 animate-luxury-pop">
+    <div className="space-y-6 pb-24 animate-luxury-pop text-start" dir={isRtl ? 'rtl' : 'ltr'}>
+      {/* Period and Wallet Filter Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#11161C] p-3.5 rounded-2xl border border-white/10 shadow-sm">
+        {/* Period Selector */}
+        <div className="flex items-center gap-1.5 bg-[#0A0D10] p-1 rounded-xl border border-white/5">
+          <Calendar size={14} className="text-[#D9B978] mr-1.5 ml-1" />
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              setPeriodFilter('current_month');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              periodFilter === 'current_month' ? 'bg-[#D9B978] text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {isEn ? 'Current Month' : 'الشهر الحالي'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              setPeriodFilter('last_month');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              periodFilter === 'last_month' ? 'bg-[#D9B978] text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {isEn ? 'Last Month' : 'الشهر السابق'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              setPeriodFilter('all_time');
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              periodFilter === 'all_time' ? 'bg-[#D9B978] text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {isEn ? 'All Time' : 'كل الفترات'}
+          </button>
+        </div>
+
+        {/* Wallet Selector */}
+        {wallets.length > 0 && (
+          <div className="flex items-center gap-2">
+            <WalletIcon size={14} className="text-[#8EB9A7]" />
+            <select
+              value={activeWalletFilter}
+              onChange={e => {
+                NativeHaptics.selection().catch(() => {});
+                setActiveWalletFilter(e.target.value);
+              }}
+              className="bg-[#0A0D10] border border-white/10 text-white text-xs font-bold py-2 px-3 rounded-xl outline-none focus:border-[#8EB9A7]/50 transition-colors"
+            >
+              <option value="all">{isEn ? 'All Accounts' : 'جميع الحسابات والمحافظ'}</option>
+              {wallets.map(w => (
+                <option key={w.id} value={w.id}>{w.name} ({w.currencyCode})</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
       
       {/* Abundance & Investment Reward Score Card */}
       <div className="relative overflow-hidden bg-gradient-to-br from-[#171D24] via-[#11161C] to-[#0A0D10] p-5 sm:p-7 rounded-2xl md:rounded-3xl shadow-2xl text-white group border border-white/10">
@@ -227,6 +344,48 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
         </div>
       </div>
 
+      {/* Visual Warning Banner for Categories Exceeding 80% Limit */}
+      {categoriesOver80.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-[#171D24] to-[#171D24] border border-amber-500/40 text-amber-200 shadow-xl space-y-3 animate-fade">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0 border border-amber-500/30">
+              <AlertCircle size={20} className="animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-amber-200">
+                {isEn ? 'Spending Warning: Categories Exceeded 80% Limit' : 'تحذير إنفاق: تصنيفات تجاوزت 80% من سقف الميزانية'}
+              </h4>
+              <p className="text-[11px] text-amber-300/80 mt-0.5">
+                {isRtl 
+                  ? `تنبيه مبكر: يوجد ${categoriesOver80.length} تصنيف تجاوز نسبة 80% من الحد المالي المعتمد.`
+                  : `Early alert: ${categoriesOver80.length} categories exceeded 80% of defined budget limit.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-amber-500/20">
+            {categoriesOver80.map(b => (
+              <div 
+                key={b.categoryId}
+                className={`text-[11px] font-bold px-3 py-1.5 rounded-xl flex items-center gap-2 font-numeric shadow-xs ${
+                  b.percentage >= 100 
+                    ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300' 
+                    : 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                }`}
+              >
+                <span>{b.category?.name || 'تصنيف'}</span>
+                <span className="font-numeric">
+                  {formatFinancialNumber(b.spent)} / {formatFinancialNumber(b.amount)} {resolvedSymbol}
+                </span>
+                <span className="bg-white/10 px-1.5 py-0.5 rounded-md text-[10px]">
+                  {formatFinancialNumber(Math.round(b.percentage))}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Monitoring Budgets with high design fidelity */}
       <div className="space-y-4">
         <h4 className="font-bold text-[#F4F1EA] px-2 text-xs uppercase tracking-widest text-slate-400">{isRtl ? 'رصد حدود الإنفاق والتشغيل الحالية بالبوابات' : 'Current Spending Limits'}</h4>
@@ -239,22 +398,27 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
         
         <div className="grid gap-4 md:grid-cols-2">
           {budgetStats.map(b => {
-            const isCritical = b.percentage >= 90;
-            const isWarning = b.percentage >= 75 && b.percentage < 90;
+            const isExceeded = b.percentage >= 100;
+            const isOver80 = b.percentage >= 80;
+            const isWarning = isOver80 && !isExceeded;
 
             return (
-              <div key={b.categoryId} className={`bg-[#11161C] p-4 sm:p-5 rounded-2xl space-y-4 border transition-all ${isCritical ? 'border-[#C98387]/40 bg-[#C98387]/5' : 'border-white/10 hover:border-white/20'}`}>
+              <div key={b.categoryId} className={`bg-[#11161C] p-4 sm:p-5 rounded-2xl space-y-4 border transition-all ${
+                isExceeded ? 'border-rose-500/50 bg-rose-500/5 shadow-md shadow-rose-500/5' : isWarning ? 'border-amber-500/50 bg-amber-500/5 shadow-md shadow-amber-500/5' : 'border-white/10 hover:border-white/20'
+              }`}>
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div 
-                      className={`p-3 rounded-xl transition-all duration-300 ${isCritical ? 'bg-[#C98387]/20 text-[#C98387]' : 'bg-[#0A0D10] text-[#D9B978] border border-white/5'}`}
+                      className={`p-3 rounded-xl transition-all duration-300 ${
+                        isExceeded ? 'bg-rose-500/20 text-rose-400' : isWarning ? 'bg-amber-500/20 text-amber-400' : 'bg-[#0A0D10] text-[#D9B978] border border-white/5'
+                      }`}
                     >
-                      {isCritical ? <TriangleAlert size={18} className="animate-pulse" /> : <Target size={18} />}
+                      {isExceeded ? <TriangleAlert size={18} className="animate-pulse" /> : isWarning ? <AlertCircle size={18} className="animate-pulse" /> : <Target size={18} />}
                     </div>
                     <div>
                       <span className="font-bold text-[#F4F1EA] text-sm block leading-none mb-1">{b.category?.name}</span>
-                      {isCritical && <span className="text-[9px] font-bold text-[#C98387] uppercase tracking-widest">{isRtl ? 'تجاوز لسقف الميزانية المعتمد!' : 'Budget Limit Exceeded!'}</span>}
-                      {isWarning && !isCritical && <span className="text-[9px] font-bold text-[#D9B978] uppercase tracking-widest">{isRtl ? 'تنبيه بالاقتراب من السقف' : 'Approaching Budget Limit'}</span>}
+                      {isExceeded && <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest">{isRtl ? 'تجاوز لسقف الميزانية المعتمد (100%+)' : 'Budget Limit Exceeded (100%+)'}</span>}
+                      {isWarning && <span className="text-[9px] font-bold text-amber-400 uppercase tracking-widest">{isRtl ? 'تحذير: تجاوز 80% من الميزانية!' : 'Warning: Exceeded 80% Limit!'}</span>}
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
@@ -262,17 +426,21 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                        <p className="text-xs font-bold text-[#F4F1EA]">
                         {formatFinancialNumber(b.spent)} / {formatFinancialNumber(b.amount)} <span className="text-[10px] text-slate-400">{resolvedSymbol}</span>
                       </p>
-                      <p className={`text-[11px] font-medium mt-1.5 ${isCritical ? 'text-[#C98387]' : 'text-slate-400'}`}>
-                        {isCritical ? (isRtl ? 'سقف مستهلك' : 'Limit exceeded') : (isRtl ? `تبقي ${formatFinancialNumber(safeSub(b.amount, b.spent))} ${resolvedSymbol}` : `Remaining ${formatFinancialNumber(safeSub(b.amount, b.spent))} ${resolvedSymbol}`)}
+                      <p className={`text-[11px] font-medium mt-1.5 ${isExceeded ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-slate-400'}`}>
+                        {isExceeded ? (isRtl ? 'سقف مستهلك بالكامل' : 'Limit exceeded') : (isRtl ? `تبقي ${formatFinancialNumber(safeSub(b.amount, b.spent))} ${resolvedSymbol}` : `Remaining ${formatFinancialNumber(safeSub(b.amount, b.spent))} ${resolvedSymbol}`)}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => {
                         NativeHaptics.impact('MEDIUM').catch(() => {});
-                        onSetBudget(b.categoryId, 0);
+                        if (onDeleteBudget) {
+                          onDeleteBudget(b.categoryId);
+                        } else {
+                          onSetBudget(b.categoryId, 0);
+                        }
                       }}
-                      className="p-1.5 text-slate-500 hover:text-[#C98387] rounded-lg hover:bg-white/5 transition-colors"
+                      className="p-1.5 text-slate-500 hover:text-[#C98387] rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
                       title={isRtl ? 'إزالة حد الميزانية' : 'Remove budget limit'}
                     >
                       <Trash2 size={14} />
@@ -283,16 +451,18 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({
                 <div className="relative pt-1">
                   <div className="flex mb-2 items-center justify-between font-numeric">
                     <div>
-                      <span className={`text-[10px] font-bold inline-block py-1 px-2.5 rounded-lg ${isCritical ? 'bg-[#C98387] text-[#0A0D10]' : isWarning ? 'bg-[#D9B978] text-[#0A0D10]' : 'bg-[#8EB9A7] text-[#0A0D10]'}`}>
+                      <span className={`text-[10px] font-bold inline-block py-1 px-2.5 rounded-lg ${
+                        isExceeded ? 'bg-rose-500 text-slate-950 font-black' : isWarning ? 'bg-amber-400 text-slate-950 font-black' : 'bg-[#8EB9A7] text-[#0A0D10]'
+                      }`}>
                         {formatFinancialNumber(Math.round(b.percentage))}% مستخدم
                       </span>
                     </div>
                   </div>
                   <div className="overflow-hidden h-2.5 text-xs flex rounded-full bg-[#0A0D10] border border-white/5">
                     <div 
-                      style={{ width: `${b.percentage}%` }}
+                      style={{ width: `${Math.min(100, b.percentage)}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-1000 ${
-                        isCritical ? 'bg-[#C98387]' : isWarning ? 'bg-[#D9B978]' : 'bg-[#8EB9A7]'
+                        isExceeded ? 'bg-rose-500' : isWarning ? 'bg-amber-400' : 'bg-[#8EB9A7]'
                       }`}
                     />
                   </div>

@@ -174,8 +174,12 @@ export interface Subscription {
   amount: number;
   period: 'monthly' | 'yearly';
   categoryId: string;
+  walletId?: string; // Linked wallet / account
+  currency?: string; // Currency code
   nextBillingDate: string;
+  lastPaymentDate?: string;
   isActive: boolean;
+  autoRenew?: boolean;
 }
 
 export interface DebtInstallment {

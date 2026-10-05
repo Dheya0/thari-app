@@ -12,8 +12,11 @@ interface GoalTrackerProps {
   goals: Goal[];
   wallets: Wallet[];
   transactions: Transaction[];
+  selectedWalletId?: string | null;
   onAddGoal: (goal: Omit<Goal, 'id'>) => void;
   onUpdateGoalAmount: (id: string, amount: number) => void;
+  onDepositToGoal?: (goalId: string, amount: number, walletId?: string, deductFromWallet?: boolean) => void;
+  onWithdrawFromGoal?: (goalId: string, amount: number, walletId?: string, creditToWallet?: boolean) => void;
   onDeleteGoal?: (id: string) => void;
   currencySymbol: string;
   language?: LanguageKey;
@@ -23,22 +26,34 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
   goals, 
   wallets, 
   transactions, 
+  selectedWalletId,
   onAddGoal, 
   onUpdateGoalAmount,
+  onDepositToGoal,
+  onWithdrawFromGoal,
   onDeleteGoal,
   currencySymbol, 
   language = 'ar' 
 }) => {
   const t = getTranslation(language);
   const isRtl = language === 'ar';
+  const isEn = language === 'en';
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
-  const [selectedWallet, setSelectedWallet] = useState(wallets[0]?.id || '');
+  const [selectedWallet, setSelectedWallet] = useState(selectedWalletId || wallets[0]?.id || '');
   
   // Deposit modal state
   const [depositGoalId, setDepositGoalId] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState('');
+  const [depositWalletId, setDepositWalletId] = useState(selectedWalletId || wallets[0]?.id || '');
+  const [deductFromWallet, setDeductFromWallet] = useState(true);
+
+  // Withdraw modal state
+  const [withdrawGoalId, setWithdrawGoalId] = useState<string | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawWalletId, setWithdrawWalletId] = useState(selectedWalletId || wallets[0]?.id || '');
+  const [creditToWallet, setCreditToWallet] = useState(true);
   
   useBackNavigation(() => {
     if (depositGoalId) {
@@ -46,23 +61,45 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
       setDepositAmount('');
       return true;
     }
+    if (withdrawGoalId) {
+      setWithdrawGoalId(null);
+      setWithdrawAmount('');
+      return true;
+    }
     if (showAdd) {
       setShowAdd(false);
       return true;
     }
     return false;
-  }, showAdd || Boolean(depositGoalId), 15);
+  }, showAdd || Boolean(depositGoalId) || Boolean(withdrawGoalId), 15);
 
   const activeDepositGoal = goals.find(g => g.id === depositGoalId);
+  const activeWithdrawGoal = goals.find(g => g.id === withdrawGoalId);
 
   const handleDepositSubmit = () => {
     if (!depositGoalId || !depositAmount) return;
     const num = parseArabicNumber(depositAmount);
     if (isNaN(num) || num <= 0) return;
     NativeHaptics.notification('SUCCESS').catch(() => {});
-    onUpdateGoalAmount(depositGoalId, num);
+    if (onDepositToGoal) {
+      onDepositToGoal(depositGoalId, num, depositWalletId, deductFromWallet);
+    } else {
+      onUpdateGoalAmount(depositGoalId, num);
+    }
     setDepositGoalId(null);
     setDepositAmount('');
+  };
+
+  const handleWithdrawSubmit = () => {
+    if (!withdrawGoalId || !withdrawAmount) return;
+    const num = parseArabicNumber(withdrawAmount);
+    if (isNaN(num) || num <= 0) return;
+    NativeHaptics.notification('SUCCESS').catch(() => {});
+    if (onWithdrawFromGoal) {
+      onWithdrawFromGoal(withdrawGoalId, num, withdrawWalletId, creditToWallet);
+    }
+    setWithdrawGoalId(null);
+    setWithdrawAmount('');
   };
 
   return (
@@ -148,21 +185,40 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
               </div>
 
               {/* Action buttons on goal */}
-              <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5">
-                {!isCompleted ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/5">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       NativeHaptics.impact('LIGHT').catch(() => {});
                       setDepositGoalId(goal.id);
+                      setDepositWalletId(goal.walletId || selectedWalletId || wallets[0]?.id || '');
                       setDepositAmount('');
                     }}
-                    className="px-3.5 py-2 rounded-xl bg-[#D9B978]/10 hover:bg-[#D9B978]/20 text-[#D9B978] border border-[#D9B978]/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all"
+                    className="px-3.5 py-2 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978] text-[#D9B978] hover:text-slate-950 border border-[#D9B978]/30 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-sm"
                   >
                     <ArrowUpRight size={14} />
                     <span>{isRtl ? '+ إيداع في الهدف' : '+ Deposit into Goal'}</span>
                   </button>
-                ) : (
+
+                  {currentAmt > 0 && onWithdrawFromGoal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        NativeHaptics.impact('LIGHT').catch(() => {});
+                        setWithdrawGoalId(goal.id);
+                        setWithdrawWalletId(goal.walletId || selectedWalletId || wallets[0]?.id || '');
+                        setWithdrawAmount('');
+                      }}
+                      className="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <ArrowDownLeft size={14} className="text-[#C98387]" />
+                      <span>{isRtl ? 'سحب / استرداد' : 'Withdraw / Refund'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {isCompleted && (
                   <div className="flex items-center gap-1.5 text-xs font-bold text-[#8EB9A7]">
                     <CheckCircle2 size={16} />
                     <span>{isRtl ? 'تم تحقيق الهدف بنجاح!' : 'Goal Achieved!'}</span>
@@ -279,12 +335,141 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
                 />
               </div>
 
+              {/* Source Wallet Selector */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 block text-start">
+                  {isRtl ? 'المحفظة / الحساب المخصوم منه' : 'Source Account / Wallet'}
+                </label>
+                <select
+                  value={depositWalletId}
+                  onChange={e => setDepositWalletId(e.target.value)}
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-xs text-[#F4F1EA] font-medium border border-white/10 outline-none focus:border-[#D9B978]/50 transition-colors"
+                >
+                  {wallets.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.currencyCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Deduct from wallet checkbox */}
+              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#0A0D10] border border-white/10 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={deductFromWallet} 
+                  onChange={e => setDeductFromWallet(e.target.checked)}
+                  className="rounded text-[#D9B978] focus:ring-0 w-4 h-4 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-300">
+                  {isRtl ? 'خصم المبلغ وقيده من رصيد المحفظة في الحسابات' : 'Deduct amount & record outflow in wallet accounts'}
+                </span>
+              </label>
+
               <button 
                 onClick={handleDepositSubmit}
                 disabled={!depositAmount || parseArabicNumber(depositAmount) <= 0}
-                className="w-full mt-2 py-3.5 sm:py-4 bg-[#D9B978] hover:bg-[#E5C98D] disabled:opacity-40 text-[#0A0D10] font-bold rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#D9B978]/20 active:scale-95 transition-all"
+                className="w-full mt-2 py-3.5 sm:py-4 bg-[#D9B978] hover:bg-[#E5C98D] disabled:opacity-40 text-[#0A0D10] font-bold rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#D9B978]/20 active:scale-95 transition-all cursor-pointer"
               >
                 {isRtl ? 'تأكيد الإيداع' : 'Confirm Deposit'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Withdraw / Refund from Goal Modal */}
+      {withdrawGoalId && activeWithdrawGoal && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) { setWithdrawGoalId(null); setWithdrawAmount(''); } }}
+        >
+          <div 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden" 
+            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b border-white/10">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-[#F4F1EA]">
+                  {isRtl ? 'سحب واسترداد من الهدف' : 'Withdraw from Goal'}
+                </h3>
+                <p className="text-xs text-[#C98387] mt-0.5">{activeWithdrawGoal.name}</p>
+              </div>
+              <button onClick={() => { setWithdrawGoalId(null); setWithdrawAmount(''); }} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-3 bg-[#0A0D10] rounded-2xl border border-white/5 flex justify-between items-center text-xs">
+                <span className="text-slate-400">{isRtl ? 'الرصيد المدخر في الهدف' : 'Saved Balance in Goal'}</span>
+                <span className="font-bold text-[#8EB9A7] font-numeric">
+                  {formatFinancialNumber(activeWithdrawGoal.currentAmount)} {currencySymbol}
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{isRtl ? 'مبلغ السحب' : 'Withdrawal Amount'}</label>
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawAmount(String(activeWithdrawGoal.currentAmount || 0))}
+                    className="text-[10px] text-[#D9B978] hover:underline font-bold"
+                  >
+                    {isRtl ? 'سحب كامل المبلغ' : 'Full Amount'}
+                  </button>
+                </div>
+                <input 
+                  type="text" 
+                  inputMode="decimal" 
+                  autoFocus
+                  value={withdrawAmount} 
+                  onChange={e => setWithdrawAmount(sanitizeNumericInput(e.target.value))} 
+                  placeholder="0.00" 
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-[#F4F1EA] font-bold text-sm border border-white/10 outline-none focus:border-[#C98387]/50 text-center transition-colors font-numeric" 
+                />
+              </div>
+
+              {/* Destination Wallet Selector */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 block text-start">
+                  {isRtl ? 'المحفظة / الحساب المستلم للمبلغ' : 'Receiving Account / Wallet'}
+                </label>
+                <select
+                  value={withdrawWalletId}
+                  onChange={e => setWithdrawWalletId(e.target.value)}
+                  className="w-full p-3.5 rounded-xl bg-[#0A0D10] text-xs text-[#F4F1EA] font-medium border border-white/10 outline-none focus:border-[#8EB9A7]/50 transition-colors"
+                >
+                  {wallets.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.currencyCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Credit to wallet checkbox */}
+              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-[#0A0D10] border border-white/10 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={creditToWallet} 
+                  onChange={e => setCreditToWallet(e.target.checked)}
+                  className="rounded text-[#8EB9A7] focus:ring-0 w-4 h-4 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-300">
+                  {isRtl ? 'إيداع المبلغ وقيده في رصيد المحفظة كاسترداد مدخرات' : 'Deposit amount & record inflow in wallet accounts'}
+                </span>
+              </label>
+
+              <button 
+                onClick={handleWithdrawSubmit}
+                disabled={!withdrawAmount || parseArabicNumber(withdrawAmount) <= 0 || parseArabicNumber(withdrawAmount) > (activeWithdrawGoal.currentAmount || 0)}
+                className="w-full mt-2 py-3.5 sm:py-4 bg-[#C98387] hover:bg-[#d89296] disabled:opacity-40 text-slate-950 font-bold rounded-2xl text-xs sm:text-sm shadow-lg shadow-[#C98387]/20 active:scale-95 transition-all cursor-pointer"
+              >
+                {isRtl ? 'تأكيد السحب والاسترداد' : 'Confirm Withdrawal'}
               </button>
             </div>
           </div>

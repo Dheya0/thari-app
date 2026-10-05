@@ -35,6 +35,8 @@ interface TransactionListProps {
   exchangeRates?: Record<string, number>;
   showFilters?: boolean;
   language?: LanguageKey;
+  initialWalletId?: string | null;
+  onWalletFilterChange?: (walletId: string | null) => void;
 }
 
 const TransactionList: React.FC<TransactionListProps> = ({
@@ -48,14 +50,24 @@ const TransactionList: React.FC<TransactionListProps> = ({
   currencies = DEFAULT_CURRENCIES,
   exchangeRates = {},
   showFilters = false,
-  language = 'ar'
+  language = 'ar',
+  initialWalletId,
+  onWalletFilterChange
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all');
-  const [walletFilter, setWalletFilter] = useState<string>('all');
+  const [walletFilter, setWalletFilter] = useState<string>(initialWalletId || 'all');
   const [currencyFilter, setCurrencyFilter] = useState<string>('all');
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(50);
+
+  useEffect(() => {
+    if (initialWalletId) {
+      setWalletFilter(initialWalletId);
+    } else if (initialWalletId === null) {
+      setWalletFilter('all');
+    }
+  }, [initialWalletId]);
 
   // Reset visibleCount when search or filters change
   useEffect(() => {
@@ -452,7 +464,11 @@ const TransactionList: React.FC<TransactionListProps> = ({
               <div className="flex-1 min-w-0">
                 <select
                   value={walletFilter}
-                  onChange={(e) => setWalletFilter(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setWalletFilter(val);
+                    onWalletFilterChange?.(val === 'all' ? null : val);
+                  }}
                   className="w-full bg-transparent text-[#F4F1EA] text-xs font-bold outline-none cursor-pointer truncate text-right"
                 >
                   <option value="all" className="bg-[#11161C] text-white">

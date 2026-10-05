@@ -13,6 +13,9 @@ interface WalletSelectorModalProps {
   selectedWalletId: string | null;
   onSelectWallet: (walletId: string | null) => void;
   onOpenSettingsWallets?: () => void;
+  walletBalances?: Record<string, { currentBalance: number; currencyCode?: string }>;
+  totalLiquidity?: number;
+  baseCurrencySymbol?: string;
   language?: LanguageKey;
   t: any;
 }
@@ -24,6 +27,9 @@ export const WalletSelectorModal: React.FC<WalletSelectorModalProps> = ({
   selectedWalletId,
   onSelectWallet,
   onOpenSettingsWallets,
+  walletBalances = {},
+  totalLiquidity,
+  baseCurrencySymbol = 'ر.س',
   language = 'ar',
   t
 }) => {
@@ -123,16 +129,30 @@ export const WalletSelectorModal: React.FC<WalletSelectorModalProps> = ({
                 </div>
               </div>
 
-              {selectedWalletId === null && (
-                <div className="w-6 h-6 rounded-full bg-[#8EB9A7] text-slate-950 flex items-center justify-center shrink-0">
-                  <Check size={14} strokeWidth={3} />
-                </div>
-              )}
+              <div className="flex items-center gap-2.5">
+                {typeof totalLiquidity === 'number' && (
+                  <div className="text-end">
+                    <span className="text-xs sm:text-sm font-bold text-[#8EB9A7] font-numeric block">
+                      {totalLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block font-normal">{baseCurrencySymbol}</span>
+                  </div>
+                )}
+                {selectedWalletId === null && (
+                  <div className="w-6 h-6 rounded-full bg-[#8EB9A7] text-slate-950 flex items-center justify-center shrink-0">
+                    <Check size={14} strokeWidth={3} />
+                  </div>
+                )}
+              </div>
             </motion.button>
 
             {/* Individual Wallets */}
             {wallets.map((wallet) => {
               const isSelected = selectedWalletId === wallet.id;
+              const summary = walletBalances[wallet.id];
+              const balance = summary !== undefined ? summary.currentBalance : (Number(wallet.openingBalance) || 0);
+              const walletCurrLoc = getLocalizedCurrency(wallet.currencyCode, wallet.currencyCode, undefined, language || 'ar');
+
               return (
                 <motion.button
                   key={wallet.id}
@@ -159,16 +179,25 @@ export const WalletSelectorModal: React.FC<WalletSelectorModalProps> = ({
                         {wallet.name}
                       </h4>
                       <p className="text-[11px] text-slate-400 capitalize">
-                        {wallet.type === 'bank' ? (t.bankAccount || 'حساب بنكي') : wallet.type === 'cash' ? (t.cashWallet || 'نقد (كاش)') : wallet.type === 'savings' ? (t.savingsAccount || 'حساب توفير') : (t.investmentAssets || 'استثمار وأصول')} • {getLocalizedCurrency(wallet.currencyCode, wallet.currencyCode, undefined, language || 'ar').symbol} ({wallet.currencyCode})
+                        {wallet.type === 'bank' ? (t.bankAccount || 'حساب بنكي') : wallet.type === 'cash' ? (t.cashWallet || 'نقد (كاش)') : wallet.type === 'savings' ? (t.savingsAccount || 'حساب توفير') : (t.investmentAssets || 'استثمار وأصول')} • {walletCurrLoc.symbol} ({wallet.currencyCode})
                       </p>
                     </div>
                   </div>
 
-                  {isSelected && (
-                    <div className="w-6 h-6 rounded-full bg-[#8EB9A7] text-slate-950 flex items-center justify-center shrink-0">
-                      <Check size={14} strokeWidth={3} />
+                  <div className="flex items-center gap-2.5">
+                    <div className="text-end">
+                      <span className={`text-xs sm:text-sm font-bold font-numeric block ${balance < 0 ? 'text-[#C98387]' : 'text-[#F4F1EA]'}`}>
+                        {balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block font-normal">{walletCurrLoc.symbol}</span>
                     </div>
-                  )}
+
+                    {isSelected && (
+                      <div className="w-6 h-6 rounded-full bg-[#8EB9A7] text-slate-950 flex items-center justify-center shrink-0">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
                 </motion.button>
               );
             })}

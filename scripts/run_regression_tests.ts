@@ -20,9 +20,9 @@ import { safeAdd, safeSub, safeMul, safeDiv, roundToCurrency } from '../utils/ma
 import { tryConvertCurrency, convertCurrency, DEFAULT_EXCHANGE_RATES } from '../constants';
 import { resolveHistoricalConversion, generateCoreLedger, calculateLedgerBalances } from '../services/coreLedger';
 import { BackNavigationManager } from '../utils/backNavigation';
-import { Debt, RecurringRule, Transaction, AppState } from '../types';
+import { Debt, RecurringRule, Transaction, AppState, Wallet } from '../types';
 import { validateAndInspectBackup, mergeRestoredState, runBackupServiceTests } from '../services/backupService';
-import { recordAuditLog, getAuditLogs, clearAuditLogs } from '../services/balanceEngine';
+import { recordAuditLog, getAuditLogs, clearAuditLogs, calculateWalletBalances, calculateConsolidatedPosition } from '../services/balanceEngine';
 import { buildExcelReportCSV } from '../services/reports/reportExportService';
 import { generateFinancialReportSync } from '../services/reports/reportService';
 import { saveSecureStateSync, loadSecureState } from '../utils/secureStorage';
@@ -741,6 +741,91 @@ console.log('\n--- Test Suite 12: Real Production Secure Persistence Path ---');
   const cashBalance = reloadedBalances.walletBalances['w-cash']?.currentBalance;
   
   assert(cashBalance === 3500, 'Real persistence load-and-recompute cycle yields exact net cash position (3500 SAR)');
+}
+
+// -------------------------------------------------------------
+// Test Suite 14: Multi-Wallet Isolation, Currency Separation, and Anti-Double-Counting Invariants
+// -------------------------------------------------------------
+console.log('\n--- Test Suite 14: Multi-Wallet Isolation, Currency Separation, & Anti-Double-Counting ---');
+{
+  const testWallets: Wallet[] = [
+    { id: 'w-sar', name: 'Al Rajhi SAR', currencyCode: 'SAR', color: '#10b981', openingBalance: 1000 },
+    { id: 'w-usd', name: 'US Bank USD', currencyCode: 'USD', color: '#3b82f6', openingBalance: 500 },
+  ];
+
+  const testDebt: Debt = {
+    id: 'debt-borrow-1',
+    personName: 'Supplier ABC',
+    amount: 300,
+    originalAmount: 300,
+    paidAmount: 100,
+    currency: 'SAR',
+    note: 'Borrowing',
+    type: 'on_me',
+    createdAt: '2026-09-01',
+    isPaid: false,
+    payments: [
+      {
+        id: 'pay-1',
+        debtId: 'debt-borrow-1',
+        amount: 100,
+        date: '2026-09-02',
+        walletId: 'w-sar',
+        createdAt: '2026-09-02T10:00:00Z',
+      }
+    ]
+  };
+
+  // Transaction created when paying the debt in app
+  const testTxs: Transaction[] = [
+    {
+      id: 'tx-pay-1',
+      walletId: 'w-sar',
+      debtId: 'debt-borrow-1',
+      debtPaymentId: 'pay-1',
+      isFinancing: true,
+      type: 'expense',
+      amount: 100,
+      currency: 'SAR',
+      categoryId: '4',
+      date: '2026-09-02',
+      note: 'Payment to Supplier ABC',
+      frequency: 'once'
+    }
+  ];
+
+  // 1. Invariant: Anti-Double-Counting on Wallet Balance
+  const walletBalances = calculateWalletBalances(testWallets, testTxs, DEFAULT_EXCHANGE_RATES, [testDebt]);
+  const sarBal = walletBalances['w-sar']?.currentBalance;
+  assert(sarBal === 900, `Anti-Double-Counting: Wallet balance is 1000 - 100 = 900 SAR (Actual: ${sarBal})`);
+
+  // 2. Invariant: Wallet Isolation when selecting a single wallet
+  const singleWalletPosition = calculateConsolidatedPosition(
+    testTxs,
+    testWallets,
+    'SAR',
+    DEFAULT_EXCHANGE_RATES,
+    'w-sar',
+    null,
+    testTxs,
+    [testDebt]
+  );
+  assert(singleWalletPosition.selectedWalletNativeBalance === 900, `Single-Wallet Isolation: Native balance is 900 SAR (Actual: ${singleWalletPosition.selectedWalletNativeBalance})`);
+  assert(singleWalletPosition.netWorthInBase === 900, `Single-Wallet Isolation: Net worth in base reflects selected wallet only (900 SAR)`);
+
+  // 3. Invariant: Currency Separation across multi-currency wallets
+  const globalPosition = calculateConsolidatedPosition(
+    testTxs,
+    testWallets,
+    'SAR',
+    DEFAULT_EXCHANGE_RATES,
+    null,
+    null,
+    testTxs,
+    [testDebt]
+  );
+  assert(globalPosition.currencyBalances['SAR'] === 900, 'Currency Separation: SAR balance is exactly 900');
+  assert(globalPosition.currencyBalances['USD'] === 500, 'Currency Separation: USD balance is exactly 500 (strictly unmixed)');
 }
 
 (async () => {

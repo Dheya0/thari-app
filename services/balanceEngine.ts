@@ -42,6 +42,10 @@ export interface ConsolidatedFinancialPosition {
   incomeByCurrency: Record<string, number>;
   transfersByCurrency: Record<string, number>;
   walletSummaries: Record<string, WalletBalanceSummary>;
+  selectedWalletId?: string | null;
+  selectedWalletName?: string;
+  selectedWalletCurrency?: string;
+  selectedWalletNativeBalance?: number;
 }
 
 /**
@@ -132,11 +136,12 @@ export function calculateDateBasedGrowth(
 export function calculateWalletBalances(
   wallets: Wallet[],
   transactions: Transaction[],
-  exchangeRates: Record<string, number> = DEFAULT_EXCHANGE_RATES
+  exchangeRates: Record<string, number> = DEFAULT_EXCHANGE_RATES,
+  debts: Debt[] = []
 ): Record<string, WalletBalanceSummary> {
   const activeTxs = getActiveTransactions(transactions);
-  const ledger = generateCoreLedger(wallets, activeTxs, [], exchangeRates);
-  const summary = calculateLedgerBalances(ledger, wallets, [], 'SAR', exchangeRates);
+  const ledger = generateCoreLedger(wallets, activeTxs, debts, exchangeRates);
+  const summary = calculateLedgerBalances(ledger, wallets, debts, 'SAR', exchangeRates);
   
   const result: Record<string, WalletBalanceSummary> = {};
   Object.values(summary.walletBalances).forEach(wb => {
@@ -193,30 +198,30 @@ export function calculateConsolidatedPosition(
 
   const activeDebts = debts || [];
 
-  // Core Ledger generation as Single Financial Truth
+  // Core Ledger generation as Single Financial Truth using all wallets
   const lifetimeLedger = generateCoreLedger(wallets, lifetimeTxs, activeDebts, exchangeRates, baseCurrencyCode);
   const ledgerSummary = calculateLedgerBalances(lifetimeLedger, wallets, activeDebts, baseCurrencyCode, exchangeRates);
 
+  // Always populate complete summaries for all wallets so selectors, modals, and lists have full data
   const walletSummaries: Record<string, WalletBalanceSummary> = {};
   Object.values(ledgerSummary.walletBalances).forEach(wb => {
-    if (!filterWalletId || wb.walletId === filterWalletId) {
-      walletSummaries[wb.walletId] = {
-        walletId: wb.walletId,
-        walletName: wb.walletName,
-        currencyCode: wb.currencyCode,
-        openingBalance: wb.openingBalance,
-        totalIncome: wb.inflows,
-        totalExpense: wb.outflows,
-        transfersOut: wb.transfersOut,
-        transfersIn: wb.transfersIn,
-        adjustments: wb.adjustments,
-        currentBalance: wb.currentBalance
-      };
-    }
+    walletSummaries[wb.walletId] = {
+      walletId: wb.walletId,
+      walletName: wb.walletName,
+      currencyCode: wb.currencyCode,
+      openingBalance: wb.openingBalance,
+      totalIncome: wb.inflows,
+      totalExpense: wb.outflows,
+      transfersOut: wb.transfersOut,
+      transfersIn: wb.transfersIn,
+      adjustments: wb.adjustments,
+      currentBalance: wb.currentBalance
+    };
   });
 
+  // Calculate currency breakdown across all wallets
   const currencyBalances: Record<string, number> = {};
-  activeWallets.forEach(w => {
+  (wallets || []).forEach(w => {
     if (!currencyBalances[w.currencyCode]) {
       currencyBalances[w.currencyCode] = 0;
     }
@@ -248,9 +253,6 @@ export function calculateConsolidatedPosition(
     }
   });
 
-  const totalIncomeInBase = periodSummary.totalIncomeInBase;
-  const totalExpenseInBase = periodSummary.totalExpenseInBase;
-
   let internalTransfersInBase = 0;
   periodTxs.forEach(tx => {
     if (tx.type === 'transfer') {
@@ -261,19 +263,58 @@ export function calculateConsolidatedPosition(
   });
 
   let availableLiquidityInBase = 0;
-  if (isSingleCurrency && filterCurrencyCode) {
+  let netWorthInBase = 0;
+  let receivablesInBase = 0;
+  let payablesInBase = 0;
+  let totalIncomeInBase = periodSummary.totalIncomeInBase;
+  let totalExpenseInBase = periodSummary.totalExpenseInBase;
+
+  const selectedWallet = filterWalletId ? (wallets || []).find(w => w.id === filterWalletId) : null;
+  const selectedWalletSummary = filterWalletId ? walletSummaries[filterWalletId] : undefined;
+  const selectedWalletNativeBalance = selectedWalletSummary ? selectedWalletSummary.currentBalance : 0;
+  const selectedWalletCurrency = selectedWallet?.currencyCode || baseCurrencyCode;
+
+  if (filterWalletId && selectedWalletSummary) {
+    // Isolated calculation strictly for the selected wallet
+    availableLiquidityInBase = convertCurrency(selectedWalletNativeBalance, selectedWalletCurrency, baseCurrencyCode, exchangeRates);
+    netWorthInBase = availableLiquidityInBase;
+    receivablesInBase = 0;
+    payablesInBase = 0;
+
+    // Selected wallet flows including transfers for the filtered period
+    const periodWalletSummary = periodSummary.walletBalances[filterWalletId];
+    if (periodWalletSummary) {
+      totalIncomeInBase = convertCurrency(
+        safeAdd(periodWalletSummary.inflows, periodWalletSummary.transfersIn),
+        selectedWalletCurrency,
+        baseCurrencyCode,
+        exchangeRates
+      );
+      totalExpenseInBase = convertCurrency(
+        safeAdd(periodWalletSummary.outflows, periodWalletSummary.transfersOut),
+        selectedWalletCurrency,
+        baseCurrencyCode,
+        exchangeRates
+      );
+    } else {
+      totalIncomeInBase = 0;
+      totalExpenseInBase = 0;
+    }
+  } else if (isSingleCurrency && filterCurrencyCode) {
     const raw = currencyBalances[filterCurrencyCode] || 0;
     availableLiquidityInBase = convertCurrency(raw, filterCurrencyCode, baseCurrencyCode, exchangeRates);
+    netWorthInBase = availableLiquidityInBase;
+    receivablesInBase = ledgerSummary.totalReceivablesInBase;
+    payablesInBase = ledgerSummary.totalLiabilitiesInBase;
   } else {
     availableLiquidityInBase = Object.entries(currencyBalances).reduce((sum, [code, amount]) => {
       const normalizedAmount = isTravelCurrencyMode && amount === 0 && code !== baseCurrencyCode ? 0 : amount;
       return safeAdd(sum, convertCurrency(normalizedAmount, code, baseCurrencyCode, exchangeRates));
     }, 0);
+    receivablesInBase = ledgerSummary.totalReceivablesInBase;
+    payablesInBase = ledgerSummary.totalLiabilitiesInBase;
+    netWorthInBase = ledgerSummary.netWorthInBase;
   }
-
-  const receivablesInBase = ledgerSummary.totalReceivablesInBase;
-  const payablesInBase = ledgerSummary.totalLiabilitiesInBase;
-  const netWorthInBase = ledgerSummary.netWorthInBase;
 
   const netCashFlowInBase = safeSub(totalIncomeInBase, totalExpenseInBase);
   const savingsRate = totalIncomeInBase > 0 ? Math.max(0, Math.round((netCashFlowInBase / totalIncomeInBase) * 100)) : 0;
@@ -292,12 +333,16 @@ export function calculateConsolidatedPosition(
     growthRate: growthData.rate,
     growthComparisonText: growthData.comparisonText,
     isSingleCurrency,
-    activeCurrencyCode: isSingleCurrency && filterCurrencyCode ? filterCurrencyCode : baseCurrencyCode,
+    activeCurrencyCode: isSingleCurrency && filterCurrencyCode ? filterCurrencyCode : (filterWalletId && selectedWallet ? selectedWallet.currencyCode : baseCurrencyCode),
     currencyBalances,
     expenseByCurrency,
     incomeByCurrency,
     transfersByCurrency,
     walletSummaries,
+    selectedWalletId: filterWalletId || null,
+    selectedWalletName: selectedWallet?.name,
+    selectedWalletCurrency: selectedWallet?.currencyCode,
+    selectedWalletNativeBalance: filterWalletId ? selectedWalletNativeBalance : undefined
   };
 }
 

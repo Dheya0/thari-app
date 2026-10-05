@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -11,15 +11,21 @@ import {
   Edit2,
   Trash2,
   Eye,
-  EyeOff
+  EyeOff,
+  Wallet as WalletIcon,
+  Layers,
+  Coins,
+  X,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { Wallet, Transaction, Category, Currency, Debt } from '../types';
 import { convertCurrency } from '../constants';
 import { calculateDateBasedGrowth, calculateWalletBalances } from '../services/balanceEngine';
-import { getTranslation } from '../utils/translations';
+import { getTranslation, getLocalizedCurrency } from '../utils/translations';
 import { SwipeableRow } from './SwipeableRow';
 import { formatFinancialNumber } from '../utils/formatters';
-import { safeAdd } from '../utils/mathPrecision';
+import { safeAdd, safeSub } from '../utils/mathPrecision';
 
 export { formatFinancialNumber };
 
@@ -48,6 +54,9 @@ interface ElegantDashboardProps {
   onEditTransaction: (tx: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
   language?: 'ar' | 'en';
+  isTravelMode?: boolean;
+  showSeparateCurrencies?: boolean;
+  onToggleSeparateCurrencies?: (enabled: boolean) => void;
 }
 
 export const getGreeting = (lang: 'ar' | 'en' = 'ar'): { text: string; sub: string } => {
@@ -89,7 +98,10 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   onOpenAllTransactions,
   onEditTransaction,
   onDeleteTransaction,
-  language = 'ar'
+  language = 'ar',
+  isTravelMode = false,
+  showSeparateCurrencies = false,
+  onToggleSeparateCurrencies
 }) => {
   const lang = language || 'ar';
   const t = getTranslation(lang);
@@ -126,10 +138,12 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
     return formatFinancialNumber(val, useCompact);
   };
 
+  // Precise Core Ledger Balances per Wallet (with debt repayments integrated)
   const calculatedBalances = useMemo(() => {
-    return calculateWalletBalances(wallets, transactions, exchangeRates);
-  }, [wallets, transactions, exchangeRates]);
+    return calculateWalletBalances(wallets, transactions, exchangeRates, debts);
+  }, [wallets, transactions, exchangeRates, debts]);
 
+  // Total balance per currency code across all wallets
   const currencyBalances = useMemo(() => {
     const map: Record<string, number> = {};
     wallets.forEach(w => {
@@ -140,15 +154,88 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
     return map;
   }, [wallets, calculatedBalances]);
 
+  const currencyEntries = useMemo(() => {
+    return Object.entries(currencyBalances);
+  }, [currencyBalances]);
+
+  // Selected Wallet resolution
+  const selectedWallet = useMemo(() => {
+    if (!selectedWalletId) return null;
+    return wallets.find(w => w.id === selectedWalletId) || null;
+  }, [wallets, selectedWalletId]);
+
+  const selectedWalletSummary = useMemo(() => {
+    if (!selectedWallet) return null;
+    return calculatedBalances[selectedWallet.id] || null;
+  }, [selectedWallet, calculatedBalances]);
+
+  const selectedWalletNativeBalance = useMemo(() => {
+    if (!selectedWallet) return 0;
+    if (selectedWalletSummary) return selectedWalletSummary.currentBalance;
+    return Number(selectedWallet.openingBalance) || 0;
+  }, [selectedWallet, selectedWalletSummary]);
+
+  const selectedWalletCurrencyObj = useMemo(() => {
+    if (!selectedWallet) return currency;
+    const loc = getLocalizedCurrency(selectedWallet.currencyCode, selectedWallet.currencyCode, undefined, lang);
+    return currencies.find(c => c.code === selectedWallet.currencyCode) || {
+      code: selectedWallet.currencyCode,
+      symbol: loc.symbol || selectedWallet.currencyCode,
+      name: loc.name || selectedWallet.currencyCode
+    };
+  }, [selectedWallet, currencies, currency, lang]);
+
+  const selectedWalletBalanceInBase = useMemo(() => {
+    if (!selectedWallet) return 0;
+    return convertCurrency(selectedWalletNativeBalance, selectedWallet.currencyCode, currency.code, exchangeRates);
+  }, [selectedWallet, selectedWalletNativeBalance, currency.code, exchangeRates]);
+
+  const selectedWalletInflows = useMemo(() => {
+    if (!selectedWalletSummary) return 0;
+    return safeAdd(selectedWalletSummary.totalIncome, selectedWalletSummary.transfersIn);
+  }, [selectedWalletSummary]);
+
+  const selectedWalletOutflows = useMemo(() => {
+    if (!selectedWalletSummary) return 0;
+    return safeAdd(selectedWalletSummary.totalExpense, selectedWalletSummary.transfersOut);
+  }, [selectedWalletSummary]);
+
+  const selectedWalletNetMovement = useMemo(() => {
+    return safeSub(selectedWalletInflows, selectedWalletOutflows);
+  }, [selectedWalletInflows, selectedWalletOutflows]);
+
+  // Toggle for Consolidated (مجموع) vs Separated (منفصل) Currency View
+  const [currencyViewMode, setCurrencyViewMode] = useState<'consolidated' | 'separated'>(() => {
+    try {
+      const saved = localStorage.getItem('thari_currency_view_mode');
+      if (saved === 'separated' || saved === 'consolidated') return saved;
+    } catch {}
+    return showSeparateCurrencies ? 'separated' : 'consolidated';
+  });
+
+  const handleToggleCurrencyViewMode = (mode: 'consolidated' | 'separated') => {
+    setCurrencyViewMode(mode);
+    try {
+      localStorage.setItem('thari_currency_view_mode', mode);
+    } catch {}
+    if (onToggleSeparateCurrencies) {
+      onToggleSeparateCurrencies(mode === 'separated');
+    }
+    if (typeof window !== 'undefined' && window.navigator.vibrate) {
+      window.navigator.vibrate(10);
+    }
+  };
+
   const walletRows = useMemo(() => {
     return wallets.map(wallet => {
       const summary = calculatedBalances[wallet.id];
       const balance = summary ? summary.currentBalance : (Number(wallet.openingBalance) || 0);
 
+      const loc = getLocalizedCurrency(wallet.currencyCode, wallet.currencyCode, undefined, lang);
       const walletCurr = currencies.find(c => c.code === wallet.currencyCode) || {
         code: wallet.currencyCode,
-        symbol: wallet.currencyCode,
-        name: wallet.currencyCode
+        symbol: loc.symbol || wallet.currencyCode,
+        name: loc.name || wallet.currencyCode
       };
 
       const inBase = convertCurrency(balance, wallet.currencyCode, currency.code, exchangeRates);
@@ -160,7 +247,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         currencyObj: walletCurr,
       };
     });
-  }, [wallets, calculatedBalances, currencies, currency, exchangeRates]);
+  }, [wallets, calculatedBalances, currencies, currency, exchangeRates, lang]);
 
   const recentTransactions = useMemo(() => {
     return [...transactions]
@@ -173,7 +260,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         if (cmp !== 0) return cmp;
         return (b.createdAt || '').localeCompare(a.createdAt || '');
       })
-      .slice(0, 5);
+      .slice(0, 6);
   }, [transactions, selectedWalletId]);
 
   return (
@@ -200,7 +287,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. WEALTH HERO: THE MONUMENTAL NUMBER & TRIAD METRICS
+          2. WEALTH HERO: SEPARATION BETWEEN WALLETS & CURRENCIES
       ───────────────────────────────────────────────────────────── */}
       <motion.section 
         initial={{ opacity: 0, y: 8 }}
@@ -208,11 +295,46 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/[0.06] shadow-[0_20px_60px_rgba(0,0,0,0.25)] space-y-6"
       >
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
+        {/* Selected Wallet Filter Active Notification Banner */}
+        {selectedWallet && (
+          <div className="flex items-center justify-between bg-gradient-to-r from-[#8EB9A7]/20 via-[#171D24] to-[#171D24] border border-[#8EB9A7]/50 px-4 py-3 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <div 
+                className="w-3.5 h-3.5 rounded-full shrink-0 shadow-md ring-2 ring-[#8EB9A7]/40" 
+                style={{ backgroundColor: selectedWallet.color || '#8EB9A7' }} 
+              />
+              <div className="truncate">
+                <span className="text-[11px] font-black text-[#8EB9A7] uppercase tracking-wider block">
+                  {isEn ? 'Active Single-Wallet View' : 'عرض المحفظة المحددة فقط'}
+                </span>
+                <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                  {selectedWallet.name} <span className="text-xs font-normal text-slate-300">({selectedWalletCurrencyObj.name})</span>
+                </h3>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onSelectWallet(null)}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-[#8EB9A7] text-white hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shrink-0 shadow-sm cursor-pointer"
+              title={isEn ? 'Show All Wallets' : 'عرض كافة المحافظ وإلغاء التحديد'}
+            >
+              <span>{isEn ? 'All Wallets' : 'كافة المحافظ'}</span>
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {/* Card Subheader: Title, Currency Switcher (if All Wallets), and Eye Toggle */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                {t.netWorth}
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                {selectedWallet 
+                  ? (isEn ? `Wallet Balance: ${selectedWallet.name}` : `رصيد المحفظة: ${selectedWallet.name}`)
+                  : (currencyViewMode === 'separated' && currencyEntries.length > 1
+                      ? (isEn ? 'Independent Currencies' : 'العملات المنفصلة')
+                      : t.netWorth)}
               </span>
               <button
                 type="button"
@@ -225,7 +347,40 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                 <span className="text-[10px] hidden sm:inline">{hideBalances ? (isEn ? 'Hidden' : 'مخفي') : (isEn ? 'Hide' : 'إخفاء')}</span>
               </button>
             </div>
-            {growthInfo.rate !== 0 && (
+
+            {/* Mode Controls: Consolidated vs Separated (when All Wallets) */}
+            {!selectedWallet && currencyEntries.length > 1 && (
+              <div className="flex items-center bg-[#0D1217] p-1 rounded-xl border border-white/10 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => handleToggleCurrencyViewMode('consolidated')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    currencyViewMode === 'consolidated'
+                      ? 'bg-[#D9B978] text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title={isEn ? 'Consolidated total converted to base currency' : 'عرض المجموع الموحد محولاً للعملة الأساسية'}
+                >
+                  <Layers size={12} />
+                  <span>{isEn ? 'Aggregated' : 'مجموع موحد'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleCurrencyViewMode('separated')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    currencyViewMode === 'separated'
+                      ? 'bg-[#D9B978] text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title={isEn ? 'Separated balances per currency without mixing' : 'فصل العملات المستقلة دون جمع غير متجانس'}
+                >
+                  <Coins size={12} />
+                  <span>{isEn ? 'Separated' : 'فصل العملات'}</span>
+                </button>
+              </div>
+            )}
+
+            {!selectedWallet && growthInfo.rate !== 0 && (
               <div className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
                 growthInfo.rate > 0 
                   ? 'text-[#8EB9A7] bg-[#8EB9A7]/10' 
@@ -238,60 +393,221 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             )}
           </div>
 
-          <div className="flex items-baseline gap-2.5 sm:gap-3 flex-wrap">
-            <span className={`font-light tracking-tight text-[#F4F1EA] font-numeric break-all ${
-              String(Math.round(Math.abs(netWorth || 0))).length > 12
-                ? 'text-2xl sm:text-3xl md:text-4xl'
-                : String(Math.round(Math.abs(netWorth || 0))).length > 8
-                ? 'text-3xl sm:text-4xl md:text-5xl'
-                : 'text-4xl sm:text-5xl md:text-6xl'
-            }`}>
-              {displayFinancialValue(netWorth)}
-            </span>
-            <span className="text-lg sm:text-2xl font-normal text-[#D9B978]">
-              {currency.symbol}
-            </span>
-          </div>
+          {/* DISPLAY CASE 1: SPECIFIC WALLET IS SELECTED */}
+          {selectedWallet ? (
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-baseline gap-2.5 sm:gap-3 flex-wrap">
+                <span className={`font-light tracking-tight ${selectedWalletNativeBalance < 0 ? 'text-[#C98387]' : 'text-[#F4F1EA]'} font-numeric break-all text-4xl sm:text-5xl md:text-6xl`}>
+                  {displayFinancialValue(selectedWalletNativeBalance)}
+                </span>
+                <span className="text-xl sm:text-2xl font-bold text-[#D9B978]">
+                  {selectedWalletCurrencyObj.symbol}
+                </span>
+              </div>
+              {selectedWalletCurrencyObj.code !== currency.code && (
+                <p className="text-xs text-slate-400 font-numeric">
+                  ≈ {displayFinancialValue(selectedWalletBalanceInBase)} {currency.symbol} <span className="text-[10px] text-slate-500">({isEn ? 'converted equivalent at current rate' : 'المعادل بالعملة الأساسية'})</span>
+                </p>
+              )}
+            </div>
+          ) : currencyViewMode === 'separated' && currencyEntries.length > 1 ? (
+            /* DISPLAY CASE 2: SEPARATED CURRENCIES VIEW (STRICT NON-MIXING) */
+            <div className="space-y-3 pt-1">
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs">
+                <span className="text-amber-300 font-bold flex items-center gap-1.5">
+                  <Coins size={14} className="text-amber-400" />
+                  {isEn ? 'Strict Currency Separation Active (No Mixed Totals)' : 'وضع فصل العملات مفعّل: الأرصدة مستقلة تماماً دون جمع غير متجانس'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleCurrencyViewMode('consolidated')}
+                  className="text-[11px] text-amber-200 underline hover:text-white"
+                >
+                  {isEn ? 'View Converted Total' : 'عرض المجموع المحول'}
+                </button>
+              </div>
+
+              {/* Currency Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {currencyEntries.map(([code, amt]) => {
+                  const loc = getLocalizedCurrency(code, code, undefined, lang);
+                  const isNeg = amt < 0;
+                  const walletCount = wallets.filter(w => w.currencyCode === code).length;
+
+                  return (
+                    <div 
+                      key={code} 
+                      className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-[#D9B978]/40 transition-all flex flex-col justify-between gap-3 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center font-bold text-xs shadow-xs">
+                            {loc.symbol}
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-white tracking-wide">{loc.name}</h4>
+                            <span className="text-[10px] text-slate-400 font-mono">{code}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-300 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full font-medium">
+                          {walletCount} {isEn ? 'wallets' : 'محافظ'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-medium block">
+                          {isEn ? 'Current Balance' : 'الرصيد الفعلي'}
+                        </span>
+                        <div className={`text-xl sm:text-2xl font-bold font-numeric tracking-tight ${isNeg ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
+                          {displayFinancialValue(amt)} <span className="text-xs font-normal text-slate-400 ms-1">{loc.symbol}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* DISPLAY CASE 3: CONSOLIDATED GLOBAL TOTAL */
+            <div className="space-y-3 pt-1">
+              <div className="flex items-baseline gap-2.5 sm:gap-3 flex-wrap">
+                <span className={`font-light tracking-tight text-[#F4F1EA] font-numeric break-all ${
+                  String(Math.round(Math.abs(netWorth || 0))).length > 12
+                    ? 'text-2xl sm:text-3xl md:text-4xl'
+                    : String(Math.round(Math.abs(netWorth || 0))).length > 8
+                    ? 'text-3xl sm:text-4xl md:text-5xl'
+                    : 'text-4xl sm:text-5xl md:text-6xl'
+                }`}>
+                  {displayFinancialValue(netWorth)}
+                </span>
+                <span className="text-lg sm:text-2xl font-normal text-[#D9B978]">
+                  {currency.symbol}
+                </span>
+              </div>
+
+              {/* Currency Pockets Ribbon (when multiple currencies exist in consolidated view) */}
+              {currencyEntries.length > 1 && (
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-2 px-0.5">
+                    <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+                      <Coins size={12} className="text-[#D9B978]" />
+                      {isEn ? 'Currency Pockets (Live Breakdown)' : 'جيوب العملات الفعلية (الأرصدة الأصلية)'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCurrencyViewMode('separated')}
+                      className="text-[10px] font-bold text-[#D9B978] hover:underline"
+                    >
+                      {isEn ? 'Expand All' : 'فصل كبطاقات'}
+                    </button>
+                  </div>
+                  
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {currencyEntries.map(([code, amt]) => {
+                      const loc = getLocalizedCurrency(code, code, undefined, lang);
+                      const isNeg = amt < 0;
+                      return (
+                        <div
+                          key={code}
+                          className="shrink-0 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-[#D9B978]/40 transition-all flex items-center gap-2.5 min-w-[110px]"
+                        >
+                          <span className="w-5 h-5 rounded-md bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center font-bold text-[10px]">
+                            {loc.symbol}
+                          </span>
+                          <div>
+                            <span className="text-[10px] text-slate-400 block font-mono">{code}</span>
+                            <span className={`text-xs font-bold font-numeric block ${isNeg ? 'text-[#C98387]' : 'text-white'}`}>
+                              {displayFinancialValue(amt, true)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Triad Balance Metrics: Available, Receivable, Payable */}
+        {/* Triad Balance Metrics: Adapts based on whether single wallet is selected or all wallets */}
         <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-5 border-t border-white/[0.05]">
           
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
-            <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
-              {t.availableNow}
-            </span>
-            <p className="text-base sm:text-xl font-medium text-[#F4F1EA] font-numeric tracking-tight truncate">
-              {displayFinancialValue(availableBalance)}
-              <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{currency.symbol}</span>
-            </p>
-          </div>
+          {selectedWallet ? (
+            /* Selected Wallet Metrics: Inflows, Outflows, Net Movement */
+            <>
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
+                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
+                  {isEn ? 'Total Inflows' : 'إجمالي الواردات'}
+                </span>
+                <p className="text-base sm:text-xl font-medium text-[#8EB9A7] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(selectedWalletInflows)}
+                  <span className="text-[10px] sm:text-xs text-[#8EB9A7]/70 ms-1 font-normal">{selectedWalletCurrencyObj.symbol}</span>
+                </p>
+              </div>
 
-          <button 
-            onClick={() => onOpenDebts('to_me')}
-            className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#8EB9A7]/5 border border-white/[0.03] hover:border-[#8EB9A7]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px]"
-          >
-            <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#8EB9A7] transition-colors block truncate">
-              {t.youOweOthers}
-            </span>
-            <p className="text-base sm:text-xl font-medium text-[#8EB9A7] font-numeric tracking-tight truncate">
-              {displayFinancialValue(debtsOwedToMe)}
-              <span className="text-[10px] sm:text-xs text-[#8EB9A7]/70 ms-1 font-normal">{currency.symbol}</span>
-            </p>
-          </button>
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
+                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
+                  {isEn ? 'Total Outflows' : 'إجمالي المصروفات'}
+                </span>
+                <p className="text-base sm:text-xl font-medium text-[#C98387] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(selectedWalletOutflows)}
+                  <span className="text-[10px] sm:text-xs text-[#C98387]/70 ms-1 font-normal">{selectedWalletCurrencyObj.symbol}</span>
+                </p>
+              </div>
 
-          <button 
-            onClick={() => onOpenDebts('on_me')}
-            className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#C98387]/5 border border-white/[0.03] hover:border-[#C98387]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px]"
-          >
-            <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#C98387] transition-colors block truncate">
-              {t.othersOweYou}
-            </span>
-            <p className="text-base sm:text-xl font-medium text-[#C98387] font-numeric tracking-tight truncate">
-              {displayFinancialValue(debtsIOwe)}
-              <span className="text-[10px] sm:text-xs text-[#C98387]/70 ms-1 font-normal">{currency.symbol}</span>
-            </p>
-          </button>
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
+                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
+                  {isEn ? 'Net Movement' : 'صافي الحركة'}
+                </span>
+                <p className={`text-base sm:text-xl font-medium font-numeric tracking-tight truncate ${selectedWalletNetMovement >= 0 ? 'text-[#D9B978]' : 'text-[#C98387]'}`}>
+                  {selectedWalletNetMovement >= 0 ? '+' : ''}{displayFinancialValue(selectedWalletNetMovement)}
+                  <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{selectedWalletCurrencyObj.symbol}</span>
+                </p>
+              </div>
+            </>
+          ) : (
+            /* All Wallets Global Triad: Available, Debts Owed to Me, Debts I Owe */
+            <>
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
+                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
+                  {t.availableNow}
+                </span>
+                <p className="text-base sm:text-xl font-medium text-[#F4F1EA] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(availableBalance)}
+                  <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{currency.symbol}</span>
+                </p>
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => onOpenDebts('to_me')}
+                className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#8EB9A7]/5 border border-white/[0.03] hover:border-[#8EB9A7]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px] cursor-pointer"
+              >
+                <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#8EB9A7] transition-colors block truncate">
+                  {t.youOweOthers}
+                </span>
+                <p className="text-base sm:text-xl font-medium text-[#8EB9A7] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(debtsOwedToMe)}
+                  <span className="text-[10px] sm:text-xs text-[#8EB9A7]/70 ms-1 font-normal">{currency.symbol}</span>
+                </p>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => onOpenDebts('on_me')}
+                className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#C98387]/5 border border-white/[0.03] hover:border-[#C98387]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px] cursor-pointer"
+              >
+                <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#C98387] transition-colors block truncate">
+                  {t.othersOweYou}
+                </span>
+                <p className="text-base sm:text-xl font-medium text-[#C98387] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(debtsIOwe)}
+                  <span className="text-[10px] sm:text-xs text-[#C98387]/70 ms-1 font-normal">{currency.symbol}</span>
+                </p>
+              </button>
+            </>
+          )}
 
         </div>
       </motion.section>
@@ -301,8 +617,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       ───────────────────────────────────────────────────────────── */}
       <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
         <button
+          type="button"
           onClick={() => onOpenNewTransaction('expense')}
-          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#C98387]/15 border border-white/[0.06] hover:border-[#C98387]/30 text-white/90 hover:text-[#C98387] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px]"
+          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#C98387]/15 border border-white/[0.06] hover:border-[#C98387]/30 text-white/90 hover:text-[#C98387] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
         >
           <div className="w-6 h-6 rounded-full bg-[#C98387]/15 flex items-center justify-center text-[#C98387] group-hover:scale-110 transition-transform">
             <ArrowDownLeft size={14} strokeWidth={2.2} />
@@ -311,8 +628,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => onOpenNewTransaction('income')}
-          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#8EB9A7]/15 border border-white/[0.06] hover:border-[#8EB9A7]/30 text-white/90 hover:text-[#8EB9A7] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px]"
+          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#8EB9A7]/15 border border-white/[0.06] hover:border-[#8EB9A7]/30 text-white/90 hover:text-[#8EB9A7] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
         >
           <div className="w-6 h-6 rounded-full bg-[#8EB9A7]/15 flex items-center justify-center text-[#8EB9A7] group-hover:scale-110 transition-transform">
             <ArrowUpRight size={14} strokeWidth={2.2} />
@@ -321,8 +639,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         </button>
 
         <button
+          type="button"
           onClick={() => onOpenNewTransaction('transfer')}
-          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#759BC8]/15 border border-white/[0.06] hover:border-[#759BC8]/30 text-white/90 hover:text-[#759BC8] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px]"
+          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#759BC8]/15 border border-white/[0.06] hover:border-[#759BC8]/30 text-white/90 hover:text-[#759BC8] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
         >
           <div className="w-6 h-6 rounded-full bg-[#759BC8]/15 flex items-center justify-center text-[#759BC8] group-hover:scale-110 transition-transform">
             <ArrowLeftRight size={14} strokeWidth={2.2} />
@@ -332,19 +651,24 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          4. WALLETS SECTION
+          4. WALLETS SECTION (INTERACTIVE SEPARATION & ISOLATION)
       ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            {t.walletsManagement}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {t.walletsManagement}
+            </h2>
+            <span className="text-[10px] text-slate-500 font-medium">({wallets.length})</span>
+          </div>
           {selectedWalletId && (
             <button
+              type="button"
               onClick={() => onSelectWallet(null)}
-              className="text-xs text-[#D9B978] hover:underline p-1 min-h-[36px] flex items-center"
+              className="text-xs text-[#D9B978] hover:underline p-1 min-h-[36px] flex items-center gap-1 font-bold cursor-pointer"
             >
-              {t.allWallets}
+              <span>{t.allWallets}</span>
+              <X size={12} />
             </button>
           )}
         </div>
@@ -354,29 +678,40 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             const isSelected = selectedWalletId === w.id;
             return (
               <button
+                type="button"
                 key={w.id}
                 onClick={() => onSelectWallet(isSelected ? null : w.id)}
-                className={`w-full flex items-center justify-between py-4 px-3 hover:bg-white/[0.03] transition-all duration-200 active:scale-[0.99] rounded-xl text-start min-h-[52px] ${
-                  isSelected ? 'bg-[#D9B978]/[0.08] border-s-2 border-[#D9B978]' : ''
+                className={`w-full flex items-center justify-between py-4 px-3.5 hover:bg-white/[0.03] transition-all duration-200 active:scale-[0.99] rounded-2xl text-start min-h-[54px] cursor-pointer ${
+                  isSelected 
+                    ? 'bg-gradient-to-r from-[#8EB9A7]/15 via-[#171D24] to-[#171D24] border border-[#8EB9A7] ring-1 ring-[#8EB9A7]/40 shadow-sm' 
+                    : ''
                 }`}
+                title={isSelected ? (isEn ? 'Click to show all wallets' : 'انقر لإلغاء التحديد وعرض كافة المحافظ') : (isEn ? 'Click to isolate this wallet' : 'انقر لفصل وعرض هذه المحفظة فقط')}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <div 
-                    className="w-3 h-3 rounded-full shrink-0 shadow-sm" 
+                    className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm ring-1 ring-white/10" 
                     style={{ backgroundColor: w.color || '#D9B978' }} 
                   />
-                  <div>
-                    <span className="text-sm font-medium text-[#F4F1EA] block">
-                      {w.name}
-                    </span>
+                  <div className="truncate">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-[#F4F1EA] block truncate">
+                        {w.name}
+                      </span>
+                      {isSelected && (
+                        <span className="text-[10px] bg-[#8EB9A7] text-slate-950 font-black px-2 py-0.5 rounded-full shrink-0">
+                          {isEn ? 'Active' : 'محددة'}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-slate-400">
-                      {w.currencyObj.name}
+                      {w.currencyObj.name} ({w.currencyCode})
                     </span>
                   </div>
                 </div>
 
-                <div className="text-end">
-                  <div className={`text-sm sm:text-base font-medium font-numeric tracking-tight ${w.nativeBalance < 0 ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
+                <div className="text-end shrink-0 ms-3">
+                  <div className={`text-sm sm:text-base font-bold font-numeric tracking-tight ${w.nativeBalance < 0 ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
                     {displayFinancialValue(w.nativeBalance, true)}
                     <span className="text-xs text-slate-400 ms-1.5 font-normal">
                       {w.currencyObj.symbol}
@@ -395,13 +730,20 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          5. THIS MONTH SUMMARY
+          5. THIS MONTH SUMMARY (SCOPED BY WALLET IF FILTERED)
       ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            {t.monthlyIncome.replace('الدخل الشهري', 'هذا الشهر')}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {t.monthlyIncome.replace('الدخل الشهري', 'هذا الشهر')}
+            </h2>
+            {selectedWallet && (
+              <span className="text-[10px] text-[#8EB9A7] bg-[#8EB9A7]/10 px-2 py-0.5 rounded-full font-bold">
+                {selectedWallet.name}
+              </span>
+            )}
+          </div>
           <span className="text-xs text-slate-400">
             {new Intl.DateTimeFormat(isEn ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' }).format(new Date())}
           </span>
@@ -412,7 +754,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             <span className="text-xs text-slate-400 block font-normal">{t.income}</span>
             <div className="text-sm sm:text-base font-semibold text-[#8EB9A7] font-numeric tracking-tight">
               {displayFinancialValue(monthlyIncome, true)}
-              <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-normal">{currency.symbol}</span>
+              <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-normal">
+                {selectedWallet ? selectedWalletCurrencyObj.symbol : currency.symbol}
+              </span>
             </div>
           </div>
 
@@ -420,7 +764,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             <span className="text-xs text-slate-400 block font-normal">{t.expenses}</span>
             <div className="text-sm sm:text-base font-semibold text-[#C98387] font-numeric tracking-tight">
               {displayFinancialValue(monthlyExpense, true)}
-              <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-normal">{currency.symbol}</span>
+              <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-normal">
+                {selectedWallet ? selectedWalletCurrencyObj.symbol : currency.symbol}
+              </span>
             </div>
           </div>
 
@@ -430,23 +776,31 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
               monthlyNet >= 0 ? 'text-[#D9B978]' : 'text-[#C98387]'
             }`}>
               {hideBalances ? '••••••' : (monthlyNet >= 0 ? '+' : '') + formatFinancialNumber(monthlyNet, true)}
-              <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{currency.symbol}</span>
+              <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">
+                {selectedWallet ? selectedWalletCurrencyObj.symbol : currency.symbol}
+              </span>
             </div>
           </div>
         </div>
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          6. RECENT TRANSACTIONS
+          6. RECENT TRANSACTIONS (SCOPED TO SELECTED WALLET)
       ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            {t.recentTransactions}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {t.recentTransactions}
+            </h2>
+            {selectedWallet && (
+              <span className="text-[10px] text-slate-400 font-normal">({selectedWallet.name})</span>
+            )}
+          </div>
           <button
+            type="button"
             onClick={onOpenAllTransactions}
-            className="text-xs text-[#D9B978] hover:text-[#D9B978]/80 transition-colors flex items-center gap-1 font-medium p-1 min-h-[36px]"
+            className="text-xs text-[#D9B978] hover:text-[#D9B978]/80 transition-colors flex items-center gap-1 font-medium p-1 min-h-[36px] cursor-pointer"
           >
             <span>{t.viewAll}</span>
             {isEn ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
@@ -457,8 +811,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           <div className="py-10 text-center border border-dashed border-white/10 rounded-2xl">
             <p className="text-xs text-slate-400">{t.noTransactionsYet}</p>
             <button
+              type="button"
               onClick={() => onOpenNewTransaction('expense')}
-              className="mt-3 text-xs font-medium text-[#D9B978] hover:underline min-h-[44px] inline-flex items-center"
+              className="mt-3 text-xs font-medium text-[#D9B978] hover:underline min-h-[44px] inline-flex items-center cursor-pointer"
             >
               {isEn ? 'Record first financial movement' : 'تسجيل أول حركة مالية'}
             </button>

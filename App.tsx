@@ -6,7 +6,7 @@ import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringR
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
-import { safeAdd } from './utils/mathPrecision';
+import { safeAdd, safeSub } from './utils/mathPrecision';
 import { saveSecureState, saveSecureStateSync, loadSecureStateAsync, queueSecureStateSave, flushSecureStateSave, deobfuscateData } from './utils/secureStorage';
 import { calculateConsolidatedPosition } from './services/balanceEngine';
 import { processDueRecurringRules } from './services/recurringService';
@@ -865,6 +865,15 @@ const App: React.FC = () => {
     );
   }, [filteredTransactions, state.transactions, state.wallets, state.currency.code, state.exchangeRates, selectedWalletId, state.debts, state.isTravelMode, state.showSeparateCurrencies]);
 
+  // Global total liquidity across all wallets (for selectors and modals)
+  const allWalletsLiquidityInBase = useMemo(() => {
+    return (state.wallets || []).reduce((sum, w) => {
+      const summary = totals.walletSummaries[w.id];
+      const bal = summary ? summary.currentBalance : (Number(w.openingBalance) || 0);
+      return safeAdd(sum, convertCurrency(bal, w.currencyCode, state.currency.code, state.exchangeRates));
+    }, 0);
+  }, [state.wallets, totals.walletSummaries, state.currency.code, state.exchangeRates]);
+
   // Synchronize with native home screen widgets (iOS WidgetKit / Android AppWidget)
   useEffect(() => {
     WidgetService.updateWidgetData({
@@ -877,33 +886,72 @@ const App: React.FC = () => {
     });
   }, [totals, state.wallets, localizedCurrency.symbol, activeLanguage]);
 
-  // Specific calculation for current month's Cashflow (Income, Expense, Net) in current base currency
+  // Specific calculation for current month's Cashflow (Income, Expense, Net)
+  // Scoped to selected wallet's native currency if filtered, or base currency if all wallets
   const monthlyMetrics = useMemo(() => {
-    const currentMonthPrefix = new Date().toISOString().substring(0, 7); // YYYY-MM
-    let incomeInBase = 0;
-    let expenseInBase = 0;
+    const currentMonthPrefix = formatLocalDateOnly(new Date()).substring(0, 7); // YYYY-MM
+    let income = 0;
+    let expense = 0;
+
+    const selectedWallet = selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId) : null;
+    const targetCurrency = selectedWallet ? selectedWallet.currencyCode : state.currency.code;
 
     state.transactions.forEach(t => {
-      if (t.isDeleted || !t.date || !t.date.startsWith(currentMonthPrefix)) return;
-      if (selectedWalletId && t.walletId !== selectedWalletId && t.destinationWalletId !== selectedWalletId) return;
+      if (t.isDeleted || t.isFinancing || !t.date || !t.date.startsWith(currentMonthPrefix)) return;
 
       const amt = Number(t.amount) || 0;
-      const txCurr = t.currency || state.currency.code;
-      const amtInBase = convertCurrency(amt, txCurr, state.currency.code, state.exchangeRates);
+      if (amt <= 0) return;
 
-      if (t.type === 'income') {
-        incomeInBase += amtInBase;
-      } else if (t.type === 'expense') {
-        expenseInBase += amtInBase;
+      if (selectedWalletId) {
+        // Specific wallet filtered
+        const isSource = t.walletId === selectedWalletId;
+        const isDest = t.destinationWalletId === selectedWalletId;
+        if (!isSource && !isDest) return;
+
+        if (t.type === 'income' && (isSource || isDest)) {
+          const txCurr = t.currency || targetCurrency;
+          const inTarget = convertCurrency(amt, txCurr, targetCurrency, state.exchangeRates);
+          income = safeAdd(income, inTarget);
+        } else if ((t.type === 'expense' || t.type === 'transfer_to_goal') && isSource) {
+          const txCurr = t.currency || targetCurrency;
+          const inTarget = convertCurrency(amt, txCurr, targetCurrency, state.exchangeRates);
+          expense = safeAdd(expense, inTarget);
+        } else if (t.type === 'transfer') {
+          if (isDest) {
+            // Transfer IN to this wallet
+            const destAmt = (t.destinationAmount !== undefined && t.destinationAmount !== null && Number(t.destinationAmount) > 0)
+              ? Number(t.destinationAmount)
+              : amt;
+            const destCurr = t.destinationCurrency || t.currency || targetCurrency;
+            const inTarget = convertCurrency(destAmt, destCurr, targetCurrency, state.exchangeRates);
+            income = safeAdd(income, inTarget);
+          }
+          if (isSource && !isDest) {
+            // Transfer OUT from this wallet
+            const txCurr = t.currency || targetCurrency;
+            const inTarget = convertCurrency(amt, txCurr, targetCurrency, state.exchangeRates);
+            expense = safeAdd(expense, inTarget);
+          }
+        }
+      } else {
+        // All wallets (global metrics in base currency)
+        const txCurr = t.currency || state.currency.code;
+        const amtInBase = convertCurrency(amt, txCurr, state.currency.code, state.exchangeRates);
+
+        if (t.type === 'income') {
+          income = safeAdd(income, amtInBase);
+        } else if (t.type === 'expense' || t.type === 'transfer_to_goal') {
+          expense = safeAdd(expense, amtInBase);
+        }
       }
     });
 
     return {
-      monthlyIncome: incomeInBase,
-      monthlyExpense: expenseInBase,
-      monthlyNet: incomeInBase - expenseInBase
+      monthlyIncome: income,
+      monthlyExpense: expense,
+      monthlyNet: safeSub(income, expense)
     };
-  }, [state.transactions, state.currency.code, state.exchangeRates, selectedWalletId]);
+  }, [state.transactions, state.currency.code, state.exchangeRates, selectedWalletId, state.wallets]);
 
   // Debts owed to me (receivable) and Debts I owe (payable) converted to current base currency
   const debtTotals = useMemo(() => {
@@ -929,18 +977,9 @@ const App: React.FC = () => {
     };
   }, [state.debts, state.currency.code, state.exchangeRates]);
 
-  // Handle Wallet Selection & Currency Sync
+  // Handle Wallet Selection
   const handleSelectWallet = (id: string | null) => {
-      setSelectedWalletId(id);
-      if (id) {
-          const wallet = state.wallets.find(w => w.id === id);
-          if (wallet) {
-              const walletCurrency = state.currencies.find(c => c.code === wallet.currencyCode);
-              if (walletCurrency) {
-                  setState(p => ({ ...p, currency: walletCurrency }));
-              }
-          }
-      }
+    setSelectedWalletId(id);
   };
 
   const isExportingInAppRef = useRef(false);
@@ -1554,6 +1593,261 @@ const App: React.FC = () => {
     handlePayDebt(id, remaining, walletId, "سداد كامل");
   };
 
+  // Subscription Handlers with Account / Wallet Integration
+  const handleAddSubscription = (subData: Omit<Subscription, 'id'>, recordInitialPayment?: boolean) => {
+    const newSubId = 'sub-' + Date.now();
+    const todayStr = formatLocalDateOnly(new Date());
+    const newSub: Subscription = {
+      ...subData,
+      id: newSubId,
+      lastPaymentDate: recordInitialPayment ? todayStr : undefined
+    };
+
+    let newTx: Transaction | null = null;
+    if (recordInitialPayment && subData.walletId && Number(subData.amount) > 0) {
+      const wallet = state.wallets.find(w => w.id === subData.walletId);
+      newTx = {
+        id: 'tx-sub-' + Date.now(),
+        amount: Number(subData.amount),
+        type: 'expense',
+        walletId: subData.walletId,
+        categoryId: subData.categoryId || '4',
+        date: todayStr,
+        description: activeLanguage === 'en' 
+          ? `Subscription initial payment: ${subData.name}` 
+          : `قيد اشتراك جديد: ${subData.name}`,
+        currency: subData.currency || wallet?.currencyCode || state.currency.code,
+        frequency: 'once',
+        isDeleted: false,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    setState(p => ({
+      ...p,
+      subscriptions: [newSub, ...p.subscriptions],
+      transactions: newTx ? [newTx, ...p.transactions] : p.transactions
+    }));
+
+    showToast(
+      recordInitialPayment && subData.walletId
+        ? (activeLanguage === 'en' ? 'Subscription added & charged to account' : 'تمت إضافة الاشتراك والخصم من المحفظة بنجاح')
+        : (activeLanguage === 'en' ? 'Subscription added successfully' : 'تمت إضافة الاشتراك بنجاح'),
+      'success'
+    );
+  };
+
+  const handlePaySubscription = (sub: Subscription, walletId: string) => {
+    const wallet = state.wallets.find(w => w.id === walletId);
+    if (!wallet) return;
+
+    const todayStr = formatLocalDateOnly(new Date());
+    const amount = Number(sub.amount) || 0;
+    if (amount <= 0) return;
+
+    // Calculate next billing date
+    let nextDate = '';
+    const baseDate = sub.nextBillingDate && sub.nextBillingDate >= todayStr 
+      ? new Date(sub.nextBillingDate) 
+      : new Date();
+    
+    if (sub.period === 'yearly') {
+      baseDate.setFullYear(baseDate.getFullYear() + 1);
+    } else {
+      baseDate.setMonth(baseDate.getMonth() + 1);
+    }
+    nextDate = formatLocalDateOnly(baseDate);
+
+    const newTx: Transaction = {
+      id: 'tx-sub-pay-' + Date.now(),
+      amount: amount,
+      type: 'expense',
+      walletId: walletId,
+      categoryId: sub.categoryId || '4',
+      date: todayStr,
+      description: activeLanguage === 'en'
+        ? `Subscription Payment: ${sub.name} (${sub.period === 'monthly' ? 'Monthly' : 'Annual'})`
+        : `سداد اشتراك: ${sub.name} (${sub.period === 'monthly' ? 'شهري' : 'سنوي'})`,
+      currency: sub.currency || wallet.currencyCode || state.currency.code,
+      frequency: 'once',
+      isDeleted: false,
+      createdAt: new Date().toISOString()
+    };
+
+    setState(p => ({
+      ...p,
+      transactions: [newTx, ...p.transactions],
+      subscriptions: p.subscriptions.map(s => s.id === sub.id ? {
+        ...s,
+        walletId: walletId,
+        lastPaymentDate: todayStr,
+        nextBillingDate: nextDate
+      } : s)
+    }));
+
+    showToast(
+      activeLanguage === 'en'
+        ? `Subscription paid & charged to ${wallet.name}`
+        : `تم سداد الاشتراك والخصم من محفظة ${wallet.name}`,
+      'success'
+    );
+  };
+
+  const handleUpdateSubscription = (id: string, updates: Partial<Subscription>) => {
+    setState(p => ({
+      ...p,
+      subscriptions: p.subscriptions.map(s => s.id === id ? { ...s, ...updates } : s)
+    }));
+    showToast(
+      activeLanguage === 'en' ? 'Subscription updated' : 'تم تحديث بيانات الاشتراك',
+      'success'
+    );
+  };
+
+  // Savings Goals Handlers with Account / Wallet Integration
+  const handleDepositGoal = (
+    goalId: string, 
+    amount: number, 
+    walletId?: string, 
+    deductFromWallet: boolean = true
+  ) => {
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal || amount <= 0) return;
+
+    let newTx: Transaction | null = null;
+    if (deductFromWallet && walletId) {
+      const wallet = state.wallets.find(w => w.id === walletId);
+      newTx = {
+        id: 'tx-goal-dep-' + Date.now(),
+        amount: amount,
+        type: 'transfer_to_goal',
+        walletId: walletId,
+        categoryId: '11',
+        date: formatLocalDateOnly(new Date()),
+        description: activeLanguage === 'en'
+          ? `Goal Deposit: ${goal.name}`
+          : `إيداع في هدف الادخار: ${goal.name}`,
+        currency: wallet?.currencyCode || state.currency.code,
+        frequency: 'once',
+        isDeleted: false,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    setState(p => ({
+      ...p,
+      goals: p.goals.map(g => g.id === goalId ? {
+        ...g,
+        currentAmount: safeAdd(g.currentAmount || 0, amount),
+        walletId: walletId || g.walletId
+      } : g),
+      transactions: newTx ? [newTx, ...p.transactions] : p.transactions
+    }));
+
+    showToast(
+      deductFromWallet && walletId 
+        ? (activeLanguage === 'en' ? 'Deposit saved and deducted from wallet' : 'تم تسجيل الإيداع والخصم من المحفظة بنجاح')
+        : (activeLanguage === 'en' ? 'Goal progress updated' : 'تم تحديث رصيد الهدف بنجاح'),
+      'success'
+    );
+  };
+
+  const handleWithdrawGoal = (
+    goalId: string, 
+    amount: number, 
+    walletId?: string, 
+    creditToWallet: boolean = true
+  ) => {
+    const goal = state.goals.find(g => g.id === goalId);
+    if (!goal || amount <= 0) return;
+
+    const actualWithdrawal = Math.min(amount, goal.currentAmount || 0);
+    if (actualWithdrawal <= 0) return;
+
+    let newTx: Transaction | null = null;
+    if (creditToWallet && walletId) {
+      const wallet = state.wallets.find(w => w.id === walletId);
+      newTx = {
+        id: 'tx-goal-with-' + Date.now(),
+        amount: actualWithdrawal,
+        type: 'income',
+        walletId: walletId,
+        categoryId: '11',
+        date: formatLocalDateOnly(new Date()),
+        description: activeLanguage === 'en'
+          ? `Withdrawal from Goal: ${goal.name}`
+          : `استرداد من هدف الادخار: ${goal.name}`,
+        currency: wallet?.currencyCode || state.currency.code,
+        frequency: 'once',
+        isDeleted: false,
+        createdAt: new Date().toISOString()
+      };
+    }
+
+    setState(p => ({
+      ...p,
+      goals: p.goals.map(g => g.id === goalId ? {
+        ...g,
+        currentAmount: Math.max(0, safeSub(g.currentAmount || 0, actualWithdrawal))
+      } : g),
+      transactions: newTx ? [newTx, ...p.transactions] : p.transactions
+    }));
+
+    showToast(
+      creditToWallet && walletId
+        ? (activeLanguage === 'en' ? 'Withdrawn and credited to wallet' : 'تم استرداد المبلغ وإيداعه في المحفظة بنجاح')
+        : (activeLanguage === 'en' ? 'Goal amount updated' : 'تم تحديث رصيد الهدف'),
+      'success'
+    );
+  };
+
+  // Zakat Payment Handler with Account / Wallet Integration
+  const handleSaveZakatPayments = (payments: ZakatPaymentRecord[]) => {
+    const existingIds = new Set((state.zakatPayments || []).map(p => p.id));
+    const newPayments = payments.filter(p => !existingIds.has(p.id));
+
+    const newTransactions: Transaction[] = [];
+    newPayments.forEach(p => {
+      if (p.walletId && Number(p.amount) > 0) {
+        const wallet = state.wallets.find(w => w.id === p.walletId);
+        const zakatCat = state.categories.find(c => 
+          c.name.includes('زكاة') || c.name.includes('صدق') || c.name.includes('خير')
+        )?.id || '4';
+        
+        newTransactions.push({
+          id: 'tx-zakat-' + p.id,
+          amount: Number(p.amount),
+          type: 'expense',
+          walletId: p.walletId,
+          categoryId: zakatCat,
+          date: p.date || formatLocalDateOnly(new Date()),
+          description: activeLanguage === 'en'
+            ? `Zakat Payment - ${p.recipient || 'Beneficiary'}`
+            : `سداد زكاة - ${p.recipient || 'مستحق زكاة'}`,
+          currency: wallet?.currencyCode || state.currency.code,
+          frequency: 'once',
+          isDeleted: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+    });
+
+    setState(prev => ({
+      ...prev,
+      zakatPayments: payments,
+      transactions: newTransactions.length > 0 ? [...newTransactions, ...prev.transactions] : prev.transactions
+    }));
+
+    if (newTransactions.length > 0) {
+      showToast(
+        activeLanguage === 'en'
+          ? 'Zakat payment recorded & deducted from account'
+          : 'تم قيد سداد الزكاة وخصمها من المحفظة بنجاح',
+        'success'
+      );
+    }
+  };
+
   if (showPrivacyPolicy) {
     return <AboutAndPrivacy onBack={() => setShowPrivacyPolicy(false)} language={state.language || 'ar'} initialTab="privacy" />;
   }
@@ -1671,21 +1965,38 @@ const App: React.FC = () => {
               {/* Header Actions & Quick Selectors */}
               <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {/* Wallet Quick Selector Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowWalletSelector(true)}
-                  aria-label="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#8EB9A7]/20 max-w-[135px] sm:max-w-[180px]"
-                  title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
-                >
-                  <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
-                    <WalletIcon size={11} />
-                  </div>
-                  <span className="font-bold text-white tracking-wide truncate text-[11px] sm:text-xs">
-                    {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
-                  </span>
-                  <ChevronDown size={12} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowWalletSelector(true)}
+                    aria-label="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all text-xs shadow-sm active:scale-95 group max-w-[130px] sm:max-w-[170px] cursor-pointer ${
+                      selectedWalletId 
+                        ? 'bg-[#8EB9A7]/20 border border-[#8EB9A7] text-white ring-1 ring-[#8EB9A7]/30'
+                        : 'bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white ring-1 ring-[#8EB9A7]/20'
+                    }`}
+                    title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
+                  >
+                    <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
+                      <WalletIcon size={11} />
+                    </div>
+                    <span className="font-bold text-white tracking-wide truncate text-[11px] sm:text-xs">
+                      {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
+                    </span>
+                    <ChevronDown size={12} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
+                  </button>
+                  {selectedWalletId && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectWallet(null)}
+                      className="p-1.5 rounded-xl bg-[#141B24] hover:bg-white/10 text-[#8EB9A7] hover:text-white border border-[#8EB9A7]/30 transition-colors cursor-pointer"
+                      title="إلغاء التحديد والعودة لكافة المحافظ"
+                      aria-label="إلغاء التحديد والعودة لكافة المحافظ"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
 
                 {/* Currency Badge / Interactive Quick Selector */}
                 {(() => {
@@ -1824,6 +2135,9 @@ const App: React.FC = () => {
                     onEditTransaction={handleEditTransaction}
                     onDeleteTransaction={handleRequestDeleteTransaction}
                     language={activeLanguage}
+                    isTravelMode={state.isTravelMode}
+                    showSeparateCurrencies={state.showSeparateCurrencies}
+                    onToggleSeparateCurrencies={(val) => setState(p => ({ ...p, showSeparateCurrencies: val }))}
                   />
                 )}
                 
@@ -1832,14 +2146,32 @@ const App: React.FC = () => {
                     goals={state.goals} 
                     wallets={state.wallets} 
                     transactions={state.transactions} 
+                    selectedWalletId={selectedWalletId}
                     onAddGoal={(g) => setState(p => ({ ...p, goals: [...p.goals, { ...g, id: 'g-'+Date.now() }] }))} 
-                    onUpdateGoalAmount={(id, amt) => setState(p => ({ ...p, goals: p.goals.map(g => g.id === id ? { ...g, currentAmount: safeAdd(g.currentAmount || 0, amt) } : g) }))} 
+                    onUpdateGoalAmount={(id, amt) => handleDepositGoal(id, amt)} 
+                    onDepositToGoal={handleDepositGoal}
+                    onWithdrawFromGoal={handleWithdrawGoal}
                     onDeleteGoal={(id) => setState(p => ({ ...p, goals: p.goals.filter(g => g.id !== id) }))}
                     currencySymbol={localizedCurrency.symbol} 
                     language={activeLanguage} 
                   />
                 )}
-                {activeTab === 'budgets' && <BudgetManager budgets={state.budgets} categories={state.categories} transactions={filteredTransactions} onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} exchangeRates={state.exchangeRates} language={activeLanguage} />}
+                {activeTab === 'budgets' && (
+                  <BudgetManager 
+                    budgets={state.budgets} 
+                    categories={state.categories} 
+                    transactions={state.transactions} 
+                    wallets={state.wallets}
+                    selectedWalletId={selectedWalletId}
+                    onSetBudget={(catId, amount) => setState(p => ({ ...p, budgets: [...p.budgets.filter(b => b.categoryId !== catId), { categoryId: catId, amount }] }))} 
+                    onDeleteBudget={(catId) => setState(p => ({ ...p, budgets: p.budgets.filter(b => b.categoryId !== catId) }))}
+                    onShowToast={showToast}
+                    currencySymbol={localizedCurrency.symbol} 
+                    currencyCode={state.currency.code} 
+                    exchangeRates={state.exchangeRates} 
+                    language={activeLanguage} 
+                  />
+                )}
                 {activeTab === 'debts' && (
                   <DebtManager 
                     debts={state.debts} 
@@ -1868,7 +2200,21 @@ const App: React.FC = () => {
                     }}
                   />
                 )}
-                {activeTab === 'subscriptions' && <SubscriptionManager subscriptions={state.subscriptions} categories={state.categories} onAdd={(sub) => setState(p => ({ ...p, subscriptions: [{...sub, id: 's-'+Date.now()}, ...p.subscriptions] }))} onRemove={(id) => setState(p => ({ ...p, subscriptions: p.subscriptions.filter(s => s.id !== id) }))} currencySymbol={localizedCurrency.symbol} currencyCode={state.currency.code} language={activeLanguage} />}
+                {activeTab === 'subscriptions' && (
+                  <SubscriptionManager 
+                    subscriptions={state.subscriptions} 
+                    categories={state.categories} 
+                    wallets={state.wallets}
+                    selectedWalletId={selectedWalletId}
+                    onAdd={handleAddSubscription} 
+                    onRemove={(id) => setState(p => ({ ...p, subscriptions: p.subscriptions.filter(s => s.id !== id) }))} 
+                    onPaySubscription={handlePaySubscription}
+                    onUpdateSubscription={handleUpdateSubscription}
+                    currencySymbol={localizedCurrency.symbol} 
+                    currencyCode={state.currency.code} 
+                    language={activeLanguage} 
+                  />
+                )}
                 {activeTab === 'zakat' && (
                   <ZakatCalculator 
                     totalBalance={totals.netWorthInBase} 
@@ -1882,7 +2228,7 @@ const App: React.FC = () => {
                     zakatProfiles={state.zakatProfiles}
                     zakatPayments={state.zakatPayments}
                     onSaveProfiles={(profiles) => setState(p => ({ ...p, zakatProfiles: profiles }))}
-                    onSavePayments={(payments) => setState(p => ({ ...p, zakatPayments: payments }))}
+                    onSavePayments={handleSaveZakatPayments}
                     language={activeLanguage}
                   />
                 )}
@@ -1936,6 +2282,8 @@ const App: React.FC = () => {
                               exchangeRates={state.exchangeRates}
                               showFilters 
                               language={activeLanguage}
+                              initialWalletId={selectedWalletId}
+                              onWalletFilterChange={handleSelectWallet}
                           />
                         ) : (
                           <Analytics 
@@ -2178,8 +2526,11 @@ const App: React.FC = () => {
               onClose={() => setShowWalletSelector(false)}
               wallets={state.wallets}
               selectedWalletId={selectedWalletId}
-              onSelectWallet={setSelectedWalletId}
+              onSelectWallet={handleSelectWallet}
               onOpenSettingsWallets={() => setActiveTab('settings')}
+              walletBalances={totals.walletSummaries}
+              totalLiquidity={allWalletsLiquidityInBase}
+              baseCurrencySymbol={localizedCurrency.symbol}
               language={state.language || 'ar'}
               t={t}
             />
