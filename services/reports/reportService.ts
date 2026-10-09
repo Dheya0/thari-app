@@ -37,7 +37,7 @@ export async function generateFinancialReport(options: GenerateReportOptions): P
   } = options;
 
   // 1. Query & Filter
-  const queryResult = queryReportTransactions(transactions, params);
+  const queryResult = queryReportTransactions(transactions, params, wallets);
 
   // 2. Build Aggregation Model
   const model = buildReportModel({
@@ -84,7 +84,7 @@ export function generateFinancialReportSync(options: GenerateReportOptions): Rep
     params,
   } = options;
 
-  const queryResult = queryReportTransactions(transactions, params);
+  const queryResult = queryReportTransactions(transactions, params, wallets);
 
   return buildReportModel({
     transactions,

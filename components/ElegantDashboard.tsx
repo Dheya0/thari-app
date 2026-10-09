@@ -17,6 +17,7 @@ import {
   Coins,
   X,
   Check,
+  ChevronDown,
   Sparkles
 } from 'lucide-react';
 import { Wallet, Transaction, Category, Currency, Debt } from '../types';
@@ -48,6 +49,7 @@ interface ElegantDashboardProps {
   selectedWalletId: string | null;
   onSelectWallet: (id: string | null) => void;
   onChangeCurrency: (currency: Currency) => void;
+  onOpenCurrencySelector?: () => void;
   onOpenNewTransaction: (type?: 'expense' | 'income' | 'transfer' | 'adjustment') => void;
   onOpenDebts: (filter?: 'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue') => void;
   onOpenAllTransactions: () => void;
@@ -93,6 +95,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   selectedWalletId,
   onSelectWallet,
   onChangeCurrency,
+  onOpenCurrencySelector,
   onOpenNewTransaction,
   onOpenDebts,
   onOpenAllTransactions,
@@ -405,9 +408,21 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                 </span>
               </div>
               {selectedWalletCurrencyObj.code !== currency.code && (
-                <p className="text-xs text-slate-400 font-numeric">
-                  ≈ {displayFinancialValue(selectedWalletBalanceInBase)} {currency.symbol} <span className="text-[10px] text-slate-500">({isEn ? 'converted equivalent at current rate' : 'المعادل بالعملة الأساسية'})</span>
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs text-slate-400 font-numeric">
+                    ≈ {displayFinancialValue(selectedWalletBalanceInBase)} {currency.symbol} <span className="text-[10px] text-slate-500">({isEn ? 'converted equivalent at current rate' : 'المعادل بالعملة الأساسية'})</span>
+                  </p>
+                  {onOpenCurrencySelector && (
+                    <button
+                      type="button"
+                      onClick={onOpenCurrencySelector}
+                      className="text-[11px] font-bold text-[#D9B978] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Coins size={12} />
+                      <span>{isEn ? `Change Base (${currency.code})` : `تغيير الأساس (${currency.code})`}</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : currencyViewMode === 'separated' && currencyEntries.length > 1 ? (
@@ -480,9 +495,22 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                 }`}>
                   {displayFinancialValue(netWorth)}
                 </span>
-                <span className="text-lg sm:text-2xl font-normal text-[#D9B978]">
-                  {currency.symbol}
-                </span>
+                {onOpenCurrencySelector ? (
+                  <button
+                    type="button"
+                    onClick={onOpenCurrencySelector}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/40 hover:border-[#D9B978] text-[#D9B978] transition-all text-xs font-bold active:scale-95 cursor-pointer shadow-xs group"
+                    title={isEn ? `Change base currency (${currency.code})` : `تغيير العملة الأساسية للتطبيق (${currency.code})`}
+                  >
+                    <span className="text-xl sm:text-2xl font-black">{currency.symbol}</span>
+                    <span className="text-xs font-mono opacity-80">{currency.code}</span>
+                    <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+                  </button>
+                ) : (
+                  <span className="text-lg sm:text-2xl font-normal text-[#D9B978]">
+                    {currency.symbol}
+                  </span>
+                )}
               </div>
 
               {/* Currency Pockets Ribbon (when multiple currencies exist in consolidated view) */}

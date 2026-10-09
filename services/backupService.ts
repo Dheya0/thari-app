@@ -6,6 +6,7 @@
 
 import { AppState, Transaction, Wallet, Debt, Budget, Category, ReceiptAttachment } from '../types';
 import { Directory, Filesystem } from '@capacitor/filesystem';
+import { encryptData, decryptData } from './encryptionService';
 
 export const CURRENT_SCHEMA_VERSION = 1;
 export const CURRENT_BACKUP_VERSION = 4;
@@ -632,3 +633,150 @@ export async function runBackupServiceTests(): Promise<{ allPassed: boolean; tes
   const allPassed = testResults.every(r => r.passed);
   return { allPassed, testResults };
 }
+
+export interface EncryptedBackupEnvelope {
+  format: 'THARI_ENCRYPTED_BACKUP';
+  version: number;
+  schemaVersion: number;
+  createdAt: string;
+  isEncrypted: true;
+  cipherAlgorithm: 'AES-256-GCM';
+  kdf: 'PBKDF2-SHA256';
+  iterations: number;
+  encryptedPayload: string;
+  summaryHint?: {
+    userName: string;
+    currencyCode: string;
+    transactionsCount: number;
+    walletsCount: number;
+    createdAtFormatted: string;
+  };
+}
+
+/**
+ * Creates a fully validated, checksummed backup package, and optionally encrypts it
+ * using AES-256-GCM with PBKDF2 100k iterations when a password is provided.
+ */
+export async function createFullBackupPayload(
+  state: AppState,
+  password?: string
+): Promise<{ rawString: string; isEncrypted: boolean; backupPackage: BackupPackage }> {
+  const pkg = await createBackupPackage(state);
+  const jsonStr = JSON.stringify(pkg, null, 2);
+
+  if (password && password.trim().length > 0) {
+    const encryptedCipher = await encryptData(jsonStr, password.trim());
+    const envelope: EncryptedBackupEnvelope = {
+      format: 'THARI_ENCRYPTED_BACKUP',
+      version: CURRENT_BACKUP_VERSION,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      createdAt: pkg.createdAt,
+      isEncrypted: true,
+      cipherAlgorithm: 'AES-256-GCM',
+      kdf: 'PBKDF2-SHA256',
+      iterations: 100000,
+      encryptedPayload: encryptedCipher,
+      summaryHint: {
+        userName: pkg.summary.userName,
+        currencyCode: pkg.summary.currencyCode,
+        transactionsCount: pkg.summary.transactionsCount,
+        walletsCount: pkg.summary.walletsCount,
+        createdAtFormatted: new Date(pkg.createdAt).toLocaleDateString('ar-SA'),
+      },
+    };
+    return {
+      rawString: JSON.stringify(envelope, null, 2),
+      isEncrypted: true,
+      backupPackage: pkg,
+    };
+  }
+
+  return {
+    rawString: jsonStr,
+    isEncrypted: false,
+    backupPackage: pkg,
+  };
+}
+
+export interface DecryptBackupResult {
+  isEncrypted: boolean;
+  needsPassword: boolean;
+  error?: string;
+  decryptedJson?: string;
+  summaryHint?: EncryptedBackupEnvelope['summaryHint'];
+}
+
+/**
+ * Inspects any incoming backup string. If encrypted, either demands password or decrypts with provided password.
+ */
+export async function inspectAndDecryptBackupString(
+  rawText: string,
+  password?: string
+): Promise<DecryptBackupResult> {
+  const trimmed = (rawText || '').trim();
+
+  // Case 1: Plain legacy or unencrypted THARI_BACKUP JSON
+  if (trimmed.startsWith('{') && !trimmed.includes('"THARI_ENCRYPTED_BACKUP"') && !trimmed.includes('"isEncrypted": true') && !trimmed.includes('THARI_AES_GCM:')) {
+    return {
+      isEncrypted: false,
+      needsPassword: false,
+      decryptedJson: trimmed,
+    };
+  }
+
+  // Case 2: Direct ciphertext string THARI_AES_GCM:...
+  if (trimmed.startsWith('THARI_AES_GCM:')) {
+    if (!password) {
+      return { isEncrypted: true, needsPassword: true };
+    }
+    try {
+      const decrypted = await decryptData(trimmed, password);
+      return { isEncrypted: true, needsPassword: false, decryptedJson: decrypted };
+    } catch {
+      return { isEncrypted: true, needsPassword: true, error: 'INCORRECT_PASSWORD' };
+    }
+  }
+
+  // Case 3: Encrypted Envelope JSON
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed.isEncrypted || parsed.format === 'THARI_ENCRYPTED_BACKUP' || (typeof parsed.encryptedPayload === 'string' && parsed.encryptedPayload.startsWith('THARI_AES_GCM:'))) {
+        const cipher = parsed.encryptedPayload || parsed.payload;
+        if (!password) {
+          return {
+            isEncrypted: true,
+            needsPassword: true,
+            summaryHint: parsed.summaryHint,
+          };
+        }
+        try {
+          const decrypted = await decryptData(cipher, password);
+          return {
+            isEncrypted: true,
+            needsPassword: false,
+            decryptedJson: decrypted,
+            summaryHint: parsed.summaryHint,
+          };
+        } catch {
+          return {
+            isEncrypted: true,
+            needsPassword: true,
+            error: 'INCORRECT_PASSWORD',
+            summaryHint: parsed.summaryHint,
+          };
+        }
+      }
+    } catch {
+      // not JSON
+    }
+  }
+
+  // Fallback
+  return {
+    isEncrypted: false,
+    needsPassword: false,
+    decryptedJson: trimmed,
+  };
+}
+

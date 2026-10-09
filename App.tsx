@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3 } from 'lucide-react';
-import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType } from './types';
+import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType, Subscription, ZakatPaymentRecord } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
@@ -828,6 +828,67 @@ const App: React.FC = () => {
     }
   }, [state.autoBackupFrequency]);
 
+  // --- Smart In-App User Inactivity Auto-Lock Watchdog ---
+  useEffect(() => {
+    const isSecurityConfigured = !!state.pin || state.isBiometricEnabled === true;
+    const lockSetting = state.autoLockTime;
+
+    if (!isSecurityConfigured || !lockSetting || lockSetting === 'never' || state.isLocked) {
+      return;
+    }
+
+    const timeoutMap: Record<string, number> = {
+      instant: 30000, // 30s idle if instant, plus window blur locks immediately
+      '1min': 60000,
+      '3min': 180000,
+      '5min': 300000,
+    };
+    const idleTimeoutMs = timeoutMap[lockSetting] || 300000;
+
+    let lastActivityTime = Date.now();
+
+    const handleUserInteraction = () => {
+      lastActivityTime = Date.now();
+    };
+
+    const activityEvents = ['pointerdown', 'keydown', 'touchstart', 'scroll'];
+    activityEvents.forEach(evt => {
+      window.addEventListener(evt, handleUserInteraction, { passive: true });
+    });
+
+    const handleWindowBlur = () => {
+      if (lockSetting === 'instant' && Date.now() > justUnlockedRef.current + 2000) {
+        setState(p => {
+          if (!p.isLocked) return { ...p, isLocked: true };
+          return p;
+        });
+      }
+    };
+    window.addEventListener('blur', handleWindowBlur);
+
+    const intervalId = setInterval(() => {
+      if (Date.now() < justUnlockedRef.current + 2000) {
+        lastActivityTime = Date.now();
+        return;
+      }
+      const idleDuration = Date.now() - lastActivityTime;
+      if (idleDuration >= idleTimeoutMs) {
+        setState(p => {
+          if (!p.isLocked) return { ...p, isLocked: true };
+          return p;
+        });
+      }
+    }, 5000);
+
+    return () => {
+      activityEvents.forEach(evt => {
+        window.removeEventListener(evt, handleUserInteraction);
+      });
+      window.removeEventListener('blur', handleWindowBlur);
+      clearInterval(intervalId);
+    };
+  }, [state.pin, state.isBiometricEnabled, state.autoLockTime, state.isLocked]);
+
   // --- Filtering Logic ---
   
   // 1. Get Transactions based on Selected Wallet & Time Period
@@ -1367,9 +1428,15 @@ const App: React.FC = () => {
       restoredCurrency = DEFAULT_CURRENCIES[0];
     }
 
-    const restoredCurrencies = (rawRestoredData.currencies && Array.isArray(rawRestoredData.currencies) && rawRestoredData.currencies.length > 0)
+    const rawRestoredCurrencies = (rawRestoredData.currencies && Array.isArray(rawRestoredData.currencies) && rawRestoredData.currencies.length > 0)
       ? rawRestoredData.currencies
       : DEFAULT_CURRENCIES;
+
+    const defaultCodes = new Set(DEFAULT_CURRENCIES.map(c => c.code));
+    const restoredCurrencies = [
+      ...DEFAULT_CURRENCIES,
+      ...rawRestoredCurrencies.filter((c: any) => c && c.code && !defaultCodes.has(c.code))
+    ];
 
     const restoredCategories = (rawRestoredData.categories && Array.isArray(rawRestoredData.categories) && rawRestoredData.categories.length > 0)
       ? rawRestoredData.categories
@@ -1619,6 +1686,7 @@ const App: React.FC = () => {
         walletId: subData.walletId,
         categoryId: subData.categoryId || '4',
         date: todayStr,
+        note: subData.name || 'قيد اشتراك جديد',
         description: activeLanguage === 'en' 
           ? `Subscription initial payment: ${subData.name}` 
           : `قيد اشتراك جديد: ${subData.name}`,
@@ -1671,6 +1739,7 @@ const App: React.FC = () => {
       walletId: walletId,
       categoryId: sub.categoryId || '4',
       date: todayStr,
+      note: sub.name || 'سداد اشتراك',
       description: activeLanguage === 'en'
         ? `Subscription Payment: ${sub.name} (${sub.period === 'monthly' ? 'Monthly' : 'Annual'})`
         : `سداد اشتراك: ${sub.name} (${sub.period === 'monthly' ? 'شهري' : 'سنوي'})`,
@@ -1730,6 +1799,7 @@ const App: React.FC = () => {
         walletId: walletId,
         categoryId: '11',
         date: formatLocalDateOnly(new Date()),
+        note: goal.name || 'إيداع هدف ادخار',
         description: activeLanguage === 'en'
           ? `Goal Deposit: ${goal.name}`
           : `إيداع في هدف الادخار: ${goal.name}`,
@@ -1780,6 +1850,7 @@ const App: React.FC = () => {
         walletId: walletId,
         categoryId: '11',
         date: formatLocalDateOnly(new Date()),
+        note: goal.name || 'استرداد هدف ادخار',
         description: activeLanguage === 'en'
           ? `Withdrawal from Goal: ${goal.name}`
           : `استرداد من هدف الادخار: ${goal.name}`,
@@ -1827,6 +1898,7 @@ const App: React.FC = () => {
           walletId: p.walletId,
           categoryId: zakatCat,
           date: p.date || formatLocalDateOnly(new Date()),
+          note: p.note || p.recipient || 'سداد زكاة',
           description: activeLanguage === 'en'
             ? `Zakat Payment - ${p.recipient || 'Beneficiary'}`
             : `سداد زكاة - ${p.recipient || 'مستحق زكاة'}`,
@@ -2127,7 +2199,12 @@ const App: React.FC = () => {
                     exchangeRates={state.exchangeRates}
                     selectedWalletId={selectedWalletId}
                     onSelectWallet={handleSelectWallet}
-                    onChangeCurrency={(curr) => setState(p => ({ ...p, currency: curr }))}
+                    onChangeCurrency={(curr) => setState(p => {
+                      const exists = p.currencies.some(c => c.code === curr.code);
+                      const nextCurrencies = exists ? p.currencies : [...p.currencies, curr];
+                      return { ...p, currency: curr, currencies: nextCurrencies };
+                    })}
+                    onOpenCurrencySelector={() => setShowCurrencySelector(true)}
                     onOpenNewTransaction={(type) => {
                       setEditingTransaction(null);
                       setFormDefaultType(type);
@@ -2333,7 +2410,25 @@ const App: React.FC = () => {
                         })} 
                         onAddWallet={(w) => setState(p => ({ ...p, wallets: [...p.wallets, { ...w, id: 'w-' + Date.now() }] }))} 
                         onUpdateWallet={(id, updates) => setState(p => ({ ...p, wallets: p.wallets.map(w => w.id === id ? { ...w, ...updates } : w) }))}
-                        onRemoveWallet={(id) => setState(p => ({ ...p, wallets: p.wallets.filter(w => w.id !== id) }))} 
+                        onRemoveWallet={(id) => {
+                          if (state.wallets.length <= 1) {
+                            showToast(activeLanguage === 'en' ? 'Cannot delete the only wallet' : 'لا يمكن حذف المحفظة الوحيدة المتبقية في التطبيق', 'error');
+                            return;
+                          }
+                          const remaining = state.wallets.filter(w => w.id !== id);
+                          const fallbackWallet = remaining[0];
+                          setState(p => ({
+                            ...p,
+                            wallets: remaining,
+                            transactions: p.transactions.map(t => {
+                              let updated = { ...t };
+                              if (updated.walletId === id) updated.walletId = fallbackWallet.id;
+                              if (updated.destinationWalletId === id) updated.destinationWalletId = fallbackWallet.id;
+                              return updated;
+                            }),
+                          }));
+                          showToast(activeLanguage === 'en' ? 'Wallet removed safely' : 'تم حذف المحفظة وإعادة توجيه معاملاتها بنجاح', 'success');
+                        }} 
                         onAddCategory={(c) => setState(p => ({ ...p, categories: [...p.categories, { ...c, id: 'c-' + Date.now() }] }))}
                         onUpdateCategory={(id, updates) => setState(p => ({ ...p, categories: p.categories.map(c => c.id === id ? { ...c, ...updates } : c) }))}
                         onRemoveCategory={(id) => setState(p => ({ ...p, categories: p.categories.filter(c => c.id !== id) }))}
@@ -2343,7 +2438,11 @@ const App: React.FC = () => {
                         onOpenWalkthrough={() => setShowWalkthroughModal(true)}
                         onOpenTrash={() => setShowTrashModal(true)}
                         onOpenCurrencySelector={() => setShowCurrencySelector(true)}
-                        onSelectCurrency={(curr) => setState(p => ({ ...p, currency: curr }))}
+                        onSelectCurrency={(curr) => setState(p => {
+                          const exists = p.currencies.some(c => c.code === curr.code);
+                          const nextCurrencies = exists ? p.currencies : [...p.currencies, curr];
+                          return { ...p, currency: curr, currencies: nextCurrencies };
+                        })}
                         trashCount={state.trashTransactions?.length || 0}
                         onPrint={handlePrint}
                         onShare={handleShare}
@@ -2521,7 +2620,11 @@ const App: React.FC = () => {
               onClose={() => setShowCurrencySelector(false)}
               currencies={state.currencies}
               selectedCurrency={state.currency}
-              onSelectCurrency={(curr) => setState(p => ({ ...p, currency: curr }))}
+              onSelectCurrency={(curr) => setState(p => {
+                const exists = p.currencies.some(c => c.code === curr.code);
+                const nextCurrencies = exists ? p.currencies : [...p.currencies, curr];
+                return { ...p, currency: curr, currencies: nextCurrencies };
+              })}
               exchangeRates={state.exchangeRates}
               onOpenSettings={() => setActiveTab('settings')}
               language={state.language || 'ar'}

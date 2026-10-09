@@ -8,6 +8,7 @@ export interface ReportQueryParams {
   type: ReportType;
   reportType?: ReportType;
   walletId?: string | null;
+  walletIds?: string[] | null; // Multi-wallet selection (e.g. 2 out of 5)
   currencyCode?: string | null; // null or undefined means 'ALL_CURRENCIES'
   dateRangePreset?: string;
   startDate?: string | null; // YYYY-MM-DD
@@ -24,8 +25,26 @@ export interface ReportAccountInfo {
   totalWallets: number;
 }
 
+export interface ReportSelectedWalletItem {
+  id: string;
+  name: string;
+  currencyCode: string;
+  color?: string;
+}
+
+export interface ReportCurrencyScopeItem {
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  symbol: string;
+}
+
 export interface ReportScopeInfo {
   walletId?: string | null;
+  walletIds?: string[] | null;
+  selectedWallets: ReportSelectedWalletItem[];
+  isAllWallets: boolean;
+  currenciesInScope: ReportCurrencyScopeItem[];
   walletNameAr: string;
   walletNameEn: string;
   currencyFilter?: string | null; // null if all currencies
@@ -67,11 +86,14 @@ export interface ReportKPIs {
 export interface ReportCurrencyBreakdown {
   code: string;
   metadata: CurrencyMetadata;
+  openingBalance: number;
   income: number;
   expense: number;
   net: number;
+  closingBalance: number;
   transactionCount: number;
   convertedNetToBase: number;
+  convertedClosingToBase: number;
   exchangeRateToBase: number;
 }
 
@@ -128,6 +150,18 @@ export interface ReportLedgerEntry {
   baseCurrencyCode: string;
   baseCurrencySymbol: string;
   runningBalance?: number;
+  currencyRunningBalance?: number; // Running balance purely within this transaction's native currency stream
+}
+
+export interface ReportCurrencyLedgerGroup {
+  currencyCode: string;
+  metadata: CurrencyMetadata;
+  openingBalance: number;
+  totalIncome: number;
+  totalExpense: number;
+  netAmount: number;
+  closingBalance: number;
+  transactions: ReportLedgerEntry[];
 }
 
 export interface ReportMetadataInfo {
@@ -228,6 +262,7 @@ export interface ReportModel {
   incomeCategories: ReportCategorySummary[];
   transactions: ReportLedgerEntry[];
   ledger?: ReportLedgerEntry[];
+  currencyLedgers?: ReportCurrencyLedgerGroup[]; // Currency-segregated ledgers with independent running balances
   budgets?: ReportBudgetSummary[];
   debts?: ReportDebtSummary;
   goals?: ReportGoalSummary;

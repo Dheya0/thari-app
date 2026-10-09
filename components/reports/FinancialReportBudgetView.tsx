@@ -17,27 +17,7 @@ export const FinancialReportBudgetView: React.FC<BudgetViewProps> = ({ model }) 
 
   return (
     <div className="space-y-6">
-      {/* 1. Scope Profile Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نطاق التقرير</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.walletNameAr}</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">العملة المعيارية</span>
-          <p className="text-xs font-black text-amber-700 truncate">{baseCurrency.nameAr} ({baseCurrency.code})</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">الفترة الزمنية</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.periodLabelAr}</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">التصنيفات المشمولة</span>
-          <p className="text-xs font-black text-slate-900">{budgets.length} تصنيف مالي</p>
-        </div>
-      </div>
-
-      {/* 2. Budget Executive Overview KPIs */}
+      {/* 1. Budget Executive Overview KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3">
         <div className="bg-slate-100 border border-slate-300 rounded-xl p-3.5">
           <span className="text-[10px] font-bold text-slate-600 uppercase block">إجمالي الميزانية المعتمدة</span>

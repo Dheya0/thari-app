@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Target, Plus, Star, Compass, X, Trash2, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Target, Plus, Star, Compass, X, Trash2, ArrowUpRight, ArrowDownLeft, CheckCircle2 } from 'lucide-react';
 import { Goal, Wallet, Transaction } from '../types';
 import { parseArabicNumber, formatFinancialNumber, sanitizeNumericInput } from '../utils/formatters';
 import { getTranslation, LanguageKey } from '../utils/translations';

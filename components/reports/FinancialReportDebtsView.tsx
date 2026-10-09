@@ -19,27 +19,7 @@ export const FinancialReportDebtsView: React.FC<DebtsViewProps> = ({ model }) =>
 
   return (
     <div className="space-y-6">
-      {/* 1. Scope Profile Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نوع الكشف</span>
-          <p className="text-xs font-black text-slate-900 truncate">كشف الديون والالتزامات المالية</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">العملة المعيارية</span>
-          <p className="text-xs font-black text-amber-700 truncate">{baseCurrency.nameAr} ({baseCurrency.code})</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">تاريخ التوثيق</span>
-          <p className="text-xs font-black text-slate-900 truncate">{model.metadata.generatedAtFormattedAr}</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">إجمالي السجلات</span>
-          <p className="text-xs font-black text-slate-900">{items.length} ذمة مسجلة</p>
-        </div>
-      </div>
-
-      {/* 2. Debts Overview KPIs */}
+      {/* 1. Debts Overview KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-4">
         {/* Receivables: ديون لي */}
         <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4.5 flex flex-col justify-between">

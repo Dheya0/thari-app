@@ -17,27 +17,7 @@ export const FinancialReportGoalsView: React.FC<GoalsViewProps> = ({ model }) =>
 
   return (
     <div className="space-y-6">
-      {/* 1. Scope Profile Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نوع الكشف</span>
-          <p className="text-xs font-black text-slate-900 truncate">تقرير الأهداف والمدخرات المالية</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">العملة المعيارية</span>
-          <p className="text-xs font-black text-amber-700 truncate">{baseCurrency.nameAr} ({baseCurrency.code})</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">تاريخ التقرير</span>
-          <p className="text-xs font-black text-slate-900 truncate">{model.metadata.generatedAtFormattedAr}</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">إجمالي الأهداف</span>
-          <p className="text-xs font-black text-slate-900">{items.length} هدف استراتيجي</p>
-        </div>
-      </div>
-
-      {/* 2. Goals Overview KPIs */}
+      {/* 1. Goals Overview KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-4">
         {/* Total Target Amount */}
         <div className="bg-slate-900 text-white rounded-2xl p-4.5 flex flex-col justify-between border border-slate-800 shadow-sm">

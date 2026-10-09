@@ -116,10 +116,10 @@ export function buildExcelReportCSV(model: ReportModel): string {
   // Section 4: Multi-Currency Breakdown
   if (currencyBreakdown.length > 0) {
     lines.push(`تحليل وتوزيع العملات (Multi-Currency Breakdown):`);
-    lines.push(`رمز العملة,اسم العملة,الرمز,عدد الحركات,إجمالي المقبوضات,إجمالي المنصرفات,الصافي بالعملة,القيمة المعادلة (${scope.baseCurrency.code}),سعر الصرف التقديري`);
+    lines.push(`رمز العملة,اسم العملة,الرمز,عدد الحركات,الرصيد الافتتاحي,إجمالي المقبوضات,إجمالي المنصرفات,الصافي بالعملة,الرصيد الختامي,المعادل بـ (${scope.baseCurrency.code})`);
     currencyBreakdown.forEach(cb => {
       lines.push(
-        `${escapeCSV(cb.code)},${escapeCSV(cb.metadata.nameAr)},${escapeCSV(cb.metadata.symbol)},${cb.transactionCount},+${Math.round(cb.income).toLocaleString()} ${cb.metadata.symbol},-${Math.round(cb.expense).toLocaleString()} ${cb.metadata.symbol},${Math.round(cb.net).toLocaleString()} ${cb.metadata.symbol},${Math.round(cb.convertedNetToBase).toLocaleString()} ${baseSymbol},1 ${cb.code} = ${cb.exchangeRateToBase.toFixed(4)} ${scope.baseCurrency.code}`
+        `${escapeCSV(cb.code)},${escapeCSV(cb.metadata.nameAr)},${escapeCSV(cb.metadata.symbol)},${cb.transactionCount},${Math.round(cb.openingBalance).toLocaleString()} ${cb.metadata.symbol},+${Math.round(cb.income).toLocaleString()} ${cb.metadata.symbol},-${Math.round(cb.expense).toLocaleString()} ${cb.metadata.symbol},${Math.round(cb.net).toLocaleString()} ${cb.metadata.symbol},${Math.round(cb.closingBalance).toLocaleString()} ${cb.metadata.symbol},${Math.round(cb.convertedClosingToBase || cb.convertedNetToBase).toLocaleString()} ${baseSymbol}`
       );
     });
     lines.push(`--------------------------------------------------------------------------------------------------------`);
@@ -164,16 +164,17 @@ export function buildExcelReportCSV(model: ReportModel): string {
   if (reportType === 'detailed' || reportType === 'summary') {
     const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
     lines.push(`جدول القيود المحاسبية والمعاملات المسجلة (${displayTxs.length} حركة معروضة):`);
-    lines.push(`رقم القيد,التاريخ,نوع الحركة,التصنيف,المحفظة,المبلغ بالعملة الأصلية,العملة الأصلية,المقيد/المخصوم بالمحفظة,المعادل بـ (${scope.baseCurrency.code}),الرصيد التراكمي,البيان / تفاصيل القيد`);
+    lines.push(`رقم القيد,التاريخ,نوع الحركة,التصنيف,المحفظة,المبلغ بالعملة الأصلية,العملة الأصلية,المقيد/المخصوم بالمحفظة,الرصيد التراكمي للعملة,المعادل بـ (${scope.baseCurrency.code}),الرصيد التراكمي الموحد,البيان / تفاصيل القيد`);
 
     displayTxs.forEach(t => {
       const sign = t.type === 'income' ? '+' : '-';
       const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
         ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
         : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
+      const curRunBalStr = t.currencyRunningBalance !== undefined ? `${Math.round(t.currencyRunningBalance).toLocaleString()} ${t.currencyCode}` : '-';
 
       lines.push(
-        `${t.index},${escapeCSV(t.date)},${escapeCSV(t.typeLabelAr)},${escapeCSV(t.categoryName)},${escapeCSV(t.walletName)},${sign}${t.originalAmount.toLocaleString()},${escapeCSV(t.currencyCode)},${escapeCSV(walletDeductionStr)},${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol},${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'},${escapeCSV(t.note || '-')}`
+        `${t.index},${escapeCSV(t.date)},${escapeCSV(t.typeLabelAr)},${escapeCSV(t.categoryName)},${escapeCSV(t.walletName)},${sign}${t.originalAmount.toLocaleString()},${escapeCSV(t.currencyCode)},${escapeCSV(walletDeductionStr)},${escapeCSV(curRunBalStr)},${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol},${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'},${escapeCSV(t.note || '-')}`
       );
     });
     lines.push(`--------------------------------------------------------------------------------------------------------`);
@@ -220,16 +221,24 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
   };
   const reportTitleAr = typeTitles[reportType] || 'تقرير ثري المالي';
 
+  const walletsStr = scope.selectedWallets && scope.selectedWallets.length > 0
+    ? scope.selectedWallets.map(w => `${w.name} (${w.currencyCode})`).join('، ')
+    : (scope.walletNameAr || 'كافة المحافظ المالية');
+
+  const currenciesStr = scope.currenciesInScope && scope.currenciesInScope.length > 0
+    ? scope.currenciesInScope.map(c => `${c.code} (${c.symbol})`).join('، ')
+    : (scope.currencyFilter || 'كافة العملات');
+
   // --- 1. ورقة الملخص التنفيذي والمؤشرات ---
   const summaryAoa: any[][] = [
     ['تطبيق ثـري المالي - ' + reportTitleAr + ' (THARI Financial Report)'],
     [],
     ['معرف التقرير', metadata.reportId, 'البصمة الرقمية', metadata.fingerprint],
     ['صاحب الحساب', `${account.name} (${account.accountTypeAr})`, 'تاريخ الإصدار', `${metadata.generatedAtFormattedAr} - ${metadata.generatedTimeFormattedAr}`],
-    ['نطاق التقرير', scope.walletNameAr, 'العملة المرجعية', scope.baseCurrency.code],
-    ['الفترة الزمنية', scope.periodLabelAr, 'العملة المحددة', scope.currencyFilter || 'كافة العملات'],
+    ['نطاق المحافظ المحددة', walletsStr, 'العملات قيد التقرير', currenciesStr],
+    ['فترة التقرير', scope.periodLabelAr, 'عملة التقييم الموحدة', `${scope.baseCurrency.code} (${scope.baseCurrency.symbol})`],
     [],
-    ['المؤشرات المالية الرئيسية', 'القيمة', 'العملة / تفاصيل'],
+    ['المؤشرات المالية الرئيسية (تقييم موحد)', 'القيمة', 'العملة / تفاصيل'],
     ['الرصيد الافتتاحي للفترة', Math.round(kpis.openingBalance), baseSymbol],
     ['إجمالي الواردات (المقبوضات)', Math.round(kpis.totalIncome), `${baseSymbol} (${kpis.incomeCount} حركة)`],
     ['إجمالي المنصرفات (المصروفات)', Math.round(kpis.totalExpense), `${baseSymbol} (${kpis.expenseCount} حركة)`],
@@ -241,12 +250,16 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
 
   if (currencyBreakdown && currencyBreakdown.length > 0) {
     summaryAoa.push([]);
-    summaryAoa.push(['توزيع السيولة حسب العملات', 'الرصيد الفعلي', 'المعادل بـ ' + scope.baseCurrency.code, 'عدد العمليات']);
+    summaryAoa.push(['مصفوفة العملات الأجنبية والأرصدة', 'الافتتاحي', 'الوارد (+)', 'المنصرف (-)', 'الصافي بالعملة', 'الختامي بالعملة', 'المعادل بالأساسية (' + scope.baseCurrency.code + ')', 'عدد العمليات']);
     currencyBreakdown.forEach(c => {
       summaryAoa.push([
         c.metadata?.nameAr || c.code,
-        c.net,
-        Math.round(c.convertedNetToBase),
+        Math.round(c.openingBalance),
+        Math.round(c.income),
+        Math.round(c.expense),
+        Math.round(c.net),
+        Math.round(c.closingBalance),
+        Math.round(c.convertedClosingToBase || c.convertedNetToBase),
         `${c.transactionCount} حركة`
       ]);
     });
@@ -257,10 +270,10 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
   wsSummary['!views'] = [{ RTL: true }];
   XLSX.utils.book_append_sheet(wb, wsSummary, 'الملخص التنفيذي');
 
-  // --- 2. ورقة القيود والمعاملات المحاسبية ---
+  // --- 2. ورقة القيود والمعاملات المحاسبية العامة ---
   if (transactions && transactions.length > 0) {
     const txAoa: any[][] = [
-      ['رقم القيد', 'التاريخ', 'الوقت', 'نوع الحركة', 'التصنيف', 'المحفظة', 'المبلغ بالعملة الأصلية', 'العملة الأصلية', 'المقيد بالمحفظة', 'المعادل بالأساسية', 'عملة التقييم', 'الرصيد التراكمي', 'البيان والملاحظات']
+      ['رقم القيد', 'التاريخ', 'الوقت', 'نوع الحركة', 'التصنيف', 'المحفظة', 'المبلغ بالعملة الأصلية', 'العملة الأصلية', 'المقيد بالمحفظة', 'الرصيد التراكمي للعملة', 'المعادل بالأساسية', 'عملة التقييم', 'الرصيد التراكمي الموحد', 'البيان والملاحظات', 'ملاحظات الصرف']
     ];
 
     transactions.forEach(t => {
@@ -279,10 +292,12 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
         t.originalAmount,
         t.currencyCode,
         walletDeductionStr,
+        t.currencyRunningBalance !== undefined ? Math.round(t.currencyRunningBalance) : '',
         Math.round(t.convertedAmount),
         scope.baseCurrency.code,
         t.runningBalance !== undefined ? Math.round(t.runningBalance) : '',
-        t.note || ''
+        t.note || '',
+        t.conversionNote || ''
       ]);
     });
 
@@ -290,10 +305,48 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
     wsTx['!cols'] = [
       { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 18 },
       { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 20 },
-      { wch: 14 }, { wch: 18 }, { wch: 35 }
+      { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 35 }, { wch: 25 }
     ];
     wsTx['!views'] = [{ RTL: true }];
-    XLSX.utils.book_append_sheet(wb, wsTx, 'سجل العمليات');
+    XLSX.utils.book_append_sheet(wb, wsTx, 'سجل العمليات العام');
+
+    // --- 2B. أوراق مستقلة مخصصة لكل عملة على حدة عند تعدد العملات ---
+    if (model.currencyLedgers && model.currencyLedgers.length > 1) {
+      model.currencyLedgers.forEach(group => {
+        const curAoa: any[][] = [
+          [`كشف حساب المعاملات المحاسبية - عملة ${group.metadata?.nameAr || group.currencyCode} (${group.currencyCode})`],
+          [],
+          ['الرصيد الافتتاحي', Math.round(group.openingBalance), group.metadata?.symbol || group.currencyCode, 'إجمالي المقبوضات (+)', Math.round(group.totalIncome), group.metadata?.symbol || group.currencyCode],
+          ['إجمالي المنصرفات (-)', Math.round(group.totalExpense), group.metadata?.symbol || group.currencyCode, 'الرصيد الختامي (=)', Math.round(group.closingBalance), group.metadata?.symbol || group.currencyCode],
+          ['صافي حركة الفترة', Math.round(group.netAmount), group.metadata?.symbol || group.currencyCode, 'إجمالي عدد العمليات', group.transactions.length, 'حركة'],
+          [],
+          ['#', 'التاريخ', 'الوقت', 'نوع الحركة', 'التصنيف', 'المحفظة', 'المبلغ بالعملة', 'الرصيد التراكمي للعملة', 'البيان والملاحظات', 'توثيق الصرف']
+        ];
+
+        group.transactions.forEach((t, idx) => {
+          curAoa.push([
+            idx + 1,
+            t.date,
+            t.time || '',
+            t.typeLabelAr,
+            t.categoryName,
+            t.walletName,
+            t.originalAmount,
+            t.currencyRunningBalance !== undefined ? Math.round(t.currencyRunningBalance) : '',
+            t.note || '',
+            t.conversionNote || ''
+          ]);
+        });
+
+        const wsCur = XLSX.utils.aoa_to_sheet(curAoa);
+        wsCur['!cols'] = [
+          { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 18 },
+          { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 35 }, { wch: 25 }
+        ];
+        wsCur['!views'] = [{ RTL: true }];
+        XLSX.utils.book_append_sheet(wb, wsCur, `سجل (${group.currencyCode})`);
+      });
+    }
   }
 
   // --- 3. ورقة تحليل التصنيفات والميزانيات ---
@@ -467,14 +520,16 @@ export function buildExcelReportHTML(model: ReportModel): string {
       <td class="val">${metadata.generatedAtFormattedAr} - ${metadata.generatedTimeFormattedAr}</td>
     </tr>
     <tr>
-      <td>نطاق التقرير:</td>
-      <td class="val">${scope.walletNameAr}</td>
-      <td>العملة الأساسية:</td>
-      <td class="val">${scope.baseCurrency.code} (${scope.baseCurrency.symbol})</td>
+      <td>نطاق المحافظ المحددة:</td>
+      <td class="val">${(scope.selectedWallets && scope.selectedWallets.length > 0) ? scope.selectedWallets.map(w => `${w.name} (${w.currencyCode})`).join('، ') : (scope.walletNameAr || 'كافة المحافظ')}</td>
+      <td>العملات قيد التقرير:</td>
+      <td class="val">${(scope.currenciesInScope && scope.currenciesInScope.length > 0) ? scope.currenciesInScope.map(c => `${c.code} (${c.symbol})`).join('، ') : (scope.currencyFilter || 'كافة العملات')}</td>
     </tr>
     <tr>
+      <td>عملة التقييم الموحدة:</td>
+      <td class="val">${scope.baseCurrency.code} (${scope.baseCurrency.symbol})</td>
       <td>فترة التقرير:</td>
-      <td class="val" colspan="3">${scope.periodLabelAr}</td>
+      <td class="val">${scope.periodLabelAr}</td>
     </tr>
   </table>
 

@@ -7,6 +7,7 @@ import { FinancialReportWealthView } from './FinancialReportWealthView';
 import { FinancialReportDebtsView } from './FinancialReportDebtsView';
 import { FinancialReportGoalsView } from './FinancialReportGoalsView';
 import { ReportQRCode } from './ReportQRCode';
+import { ReportScopeHeader } from './ReportScopeHeader';
 import { Logo } from '../Logo';
 
 interface ReportDocumentProps {
@@ -140,6 +141,13 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
             حساب: <span className="font-black text-slate-900">{account.name}</span>
           </div>
         </div>
+
+        {/* Distinct Scope Badges Bar (Selected Wallets, Currencies, Period) */}
+        <ReportScopeHeader
+          scope={model.scope}
+          totalTransactions={model.kpis.totalTransactions}
+          className="mt-4"
+        />
       </div>
 
       {/* 2. Main Content View */}

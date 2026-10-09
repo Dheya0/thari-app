@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Trash2,
@@ -83,6 +83,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
     return Array.from(set);
   }, [transactions]);
 
+  const deferredQuery = useDeferredValue(searchQuery);
+
   const categoryNameMap = useMemo(() => {
     const map = new Map<string, string>();
     categories.forEach(c => map.set(c.id, c.name.toLowerCase()));
@@ -95,8 +97,22 @@ const TransactionList: React.FC<TransactionListProps> = ({
     return map;
   }, [wallets]);
 
+  // Fast in-memory token index for instant O(1) keyword filtering without freezing UI
+  const searchIndexMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const tx of transactions) {
+      if (tx.isDeleted) continue;
+      const catName = categoryNameMap.get(tx.categoryId) || '';
+      const srcWalletName = (tx.walletId ? walletNameMap.get(tx.walletId) : '') || '';
+      const destWalletName = (tx.destinationWalletId ? walletNameMap.get(tx.destinationWalletId) : '') || '';
+      const token = `${tx.note || ''} ${tx.amount} ${tx.date || ''} ${catName} ${srcWalletName} ${destWalletName} ${tx.currency || ''}`.toLowerCase();
+      map.set(tx.id, token);
+    }
+    return map;
+  }, [transactions, categoryNameMap, walletNameMap]);
+
   const filteredTransactions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = deferredQuery.trim().toLowerCase();
 
     return transactions.filter(tx => {
       if (tx.isDeleted) return false;
@@ -111,23 +127,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
       if (!matchType || !matchWallet || !matchCurrency) return false;
 
       if (query) {
-        const catName = categoryNameMap.get(tx.categoryId) || '';
-        const srcWalletName = (tx.walletId ? walletNameMap.get(tx.walletId) : '') || '';
-        const destWalletName = (tx.destinationWalletId ? walletNameMap.get(tx.destinationWalletId) : '') || '';
-
-        const inNote = (tx.note || '').toLowerCase().includes(query);
-        const inCat = catName.includes(query);
-        const inSrcWallet = srcWalletName.includes(query);
-        const inDestWallet = destWalletName.includes(query);
-        const inAmount = tx.amount.toString().includes(query);
-        const inDate = (tx.date || '').includes(query);
-
-        return inNote || inCat || inSrcWallet || inDestWallet || inAmount || inDate;
+        const tokens = searchIndexMap.get(tx.id);
+        return tokens ? tokens.includes(query) : false;
       }
 
       return true;
     });
-  }, [transactions, typeFilter, walletFilter, currencyFilter, searchQuery, categoryNameMap, walletNameMap]);
+  }, [transactions, typeFilter, walletFilter, currencyFilter, deferredQuery, searchIndexMap]);
 
   const sortedTransactions = useMemo(() => {
     return [...filteredTransactions].sort((a, b) => {
@@ -143,12 +149,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const [scrollTop, setScrollTop] = useState(0);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const scrollRafRef = React.useRef<number | null>(null);
-  const ROW_HEIGHT = 90; // px per transaction card in virtualized mode
-  const overscan = 6;
+  const ROW_HEIGHT = 88; // px per transaction card in virtualized mode
+  const overscan = 5;
   const containerHeight = 650;
 
   const totalCount = sortedTransactions.length;
-  const isLargeDataset = totalCount > 120;
+  // Lower virtualization threshold to 40 items so scrolling remains 60fps on all devices
+  const isLargeDataset = totalCount > 40;
   const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - overscan);
   const endIndex = Math.min(totalCount, startIndex + Math.ceil(containerHeight / ROW_HEIGHT) + overscan * 2);
   const visibleSlice = sortedTransactions.slice(startIndex, endIndex);

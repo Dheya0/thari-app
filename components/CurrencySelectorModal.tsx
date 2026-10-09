@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, Search, X, SlidersHorizontal, Coins, Globe } from 'lucide-react';
 import { Currency } from '../types';
-import { convertCurrency } from '../constants';
+import { convertCurrency, DEFAULT_CURRENCIES } from '../constants';
 import { getLocalizedCurrency, LanguageKey } from '../utils/translations';
 import { useBackNavigation } from '../utils/backNavigation';
 
@@ -60,10 +60,22 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
     );
   }, [selectedCurrency, language]);
 
+  // Guaranteed comprehensive currency list merging any stored currencies with defaults
+  const allCurrencies = useMemo(() => {
+    const baseList = (currencies && Array.isArray(currencies) && currencies.length > 0)
+      ? currencies
+      : DEFAULT_CURRENCIES;
+    const existingCodes = new Set(baseList.map(c => c.code));
+    return [
+      ...baseList,
+      ...DEFAULT_CURRENCIES.filter(c => !existingCodes.has(c.code))
+    ];
+  }, [currencies]);
+
   // Filter currencies with localized search
   const filteredCurrencies = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    return currencies.map(c => {
+    return allCurrencies.map(c => {
       const locInfo = getLocalizedCurrency(c.code, c.name, c.symbol, language);
       const locInfoAr = getLocalizedCurrency(c.code, c.name, c.symbol, 'ar');
       const locInfoEn = getLocalizedCurrency(c.code, c.name, c.symbol, 'en');
@@ -82,7 +94,7 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
         )
       };
     }).filter(item => item.matches);
-  }, [currencies, searchQuery, language]);
+  }, [allCurrencies, searchQuery, language]);
 
   if (!isOpen) return null;
 

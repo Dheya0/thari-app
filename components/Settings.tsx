@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Trash2, User, Wallet as WalletIcon, Lock, Upload, Edit2, Plus, Tag, Coins, X, Check, Printer, FileDown, ChevronDown, AlertCircle, AlertTriangle, FileSpreadsheet, Code, ChevronLeft, Palette, Type,
@@ -9,8 +9,9 @@ import { Currency, Wallet, Category, Transaction } from '../types';
 import { getTranslation, getLocalizedCurrency } from '../utils/translations';
 import { sanitizeNumericInput } from '../utils/formatters';
 import { encryptData, decryptData } from '../services/encryptionService';
+import { createFullBackupPayload, inspectAndDecryptBackupString, validateAndInspectBackup } from '../services/backupService';
 import { authenticateBiometrics, checkBiometricAvailable, isNativeCapacitorEnvironment, isStandalonePwaMode } from '../services/biometricService';
-import { getIcon, DEFAULT_EXCHANGE_RATES, convertCurrency } from '../constants';
+import { getIcon, DEFAULT_EXCHANGE_RATES, DEFAULT_CURRENCIES, convertCurrency } from '../constants';
 import { exportAndShareExecutiveCSV } from '../utils/exportHelper';
 import { exportAndShareNativeFile, buildModernExcelWorkbook, exportAndShareXlsxFile } from '../services/reports/reportExportService';
 import { generateFinancialReportSync } from '../services/reports/reportService';
@@ -223,7 +224,16 @@ export default function Settings({
   onRestore, onClearData, onShowPrivacyPolicy, onOpenWalkthrough, onOpenTrash, onOpenCurrencySelector, onSelectCurrency, trashCount = 0, onPrint, onShare, onExportExcel,
   installPrompt = null, isUpdateAvailable = false, swRegistration = null,
 }: SettingsProps) {
-  const safeCurrencies = currencies || [];
+  const safeCurrencies = useMemo(() => {
+    const baseList = (currencies && Array.isArray(currencies) && currencies.length > 0)
+      ? currencies
+      : DEFAULT_CURRENCIES;
+    const codes = new Set(baseList.map(c => c.code));
+    return [
+      ...baseList,
+      ...DEFAULT_CURRENCIES.filter(c => !codes.has(c.code))
+    ];
+  }, [currencies]);
   const safeWallets = wallets || [];
   const safeCategories = categories || [];
 
@@ -653,20 +663,15 @@ export default function Settings({
   const executeExport = async (password: string | null) => {
     try {
       setIsExporting(true);
-      const dataToExport = {
-        version: '1.2.0',
-        timestamp: Date.now(),
-        state: appState
-      };
-      const jsonStr = JSON.stringify(dataToExport, null, 2);
-      const finalPayload = password ? await encryptData(jsonStr, password) : jsonStr;
-      const fileName = `thari_backup_${new Date().toISOString().slice(0, 10)}.thari`;
+      const { rawString, isEncrypted } = await createFullBackupPayload(appState, password || undefined);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const fileName = `thari_backup_${dateStr}${isEncrypted ? '_encrypted' : ''}.thari`;
       
       await exportAndShareNativeFile(
-        finalPayload,
+        rawString,
         fileName,
         'application/json',
-        password ? 'نسخة احتياطية مشفرة لتطبيق ثري' : 'نسخة احتياطية لتطبيق ثري'
+        isEncrypted ? 'نسخة احتياطية مشفرة بكلمة مرور (AES-256-GCM)' : 'نسخة احتياطية لتطبيق ثري'
       );
 
       setShowBackupModal(false);
@@ -684,20 +689,26 @@ export default function Settings({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
       if (!content) return;
-      if (content.includes('version') && content.includes('state')) {
-        try {
-          const parsed = JSON.parse(content);
-          onRestore(parsed.state);
-          showToast(t.backupRestoreSuccess);
-        } catch (err) {
-          showToast(t.backupInvalidFile, 'error');
+      try {
+        const inspect = await inspectAndDecryptBackupString(content);
+        if (inspect.isEncrypted && inspect.needsPassword) {
+          setPendingRestoreContent(content);
+          setShowRestoreModal(true);
+          return;
         }
-      } else {
-        setPendingRestoreContent(content);
-        setShowRestoreModal(true);
+        const jsonToUse = inspect.decryptedJson || content;
+        const preview = validateAndInspectBackup(jsonToUse);
+        if (preview.isValid) {
+          onRestore(preview.payload);
+          showToast(t.backupRestoreSuccess);
+        } else {
+          showToast(preview.errorMessage || t.backupInvalidFile, 'error');
+        }
+      } catch (err) {
+        showToast(t.backupInvalidFile, 'error');
       }
     };
     reader.readAsText(file);
@@ -707,13 +718,17 @@ export default function Settings({
   const executeRestore = async (password: string) => {
     if (!pendingRestoreContent) return;
     try {
-      const decrypted = await decryptData(pendingRestoreContent, password);
-      if (!decrypted) {
+      const inspect = await inspectAndDecryptBackupString(pendingRestoreContent, password);
+      if (inspect.needsPassword || inspect.error === 'INCORRECT_PASSWORD' || !inspect.decryptedJson) {
         showToast(t.backupWrongPass, 'error');
         return;
       }
-      const parsed = JSON.parse(decrypted);
-      onRestore(parsed.state || parsed);
+      const preview = validateAndInspectBackup(inspect.decryptedJson);
+      if (!preview.isValid) {
+        showToast(preview.errorMessage || t.backupInvalidFile, 'error');
+        return;
+      }
+      onRestore(preview.payload);
       setShowRestoreModal(false);
       setRestorePassword('');
       setPendingRestoreContent(null);
@@ -1100,18 +1115,40 @@ export default function Settings({
                     )}
                   </div>
 
-                  {!isBase && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                  <div className="flex items-center gap-2 pt-3 border-t border-white/5 flex-wrap">
+                    {c.code === currency?.code ? (
+                      <div className="flex-1 py-2 px-3 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/40 text-[#D9B978] text-xs font-black flex items-center justify-center gap-1.5">
+                        <Check size={14} strokeWidth={3} />
+                        <span>{isArabic ? 'العملة الأساسية الحالية للتطبيق' : 'Current App Base Currency'}</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newCurr = { code: c.code, name: loc.name, symbol: loc.symbol };
+                          if (onSelectCurrency) onSelectCurrency(newCurr);
+                          onUpdateSettings({ currency: newCurr });
+                          showToast(isArabic ? `تم تعيين ${loc.name} (${c.code}) كعملة أساسية للتطبيق بنجاح` : `Set ${loc.name} (${c.code}) as base currency`, 'success');
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl bg-[#D9B978]/10 hover:bg-[#D9B978] text-[#D9B978] hover:text-slate-950 text-xs font-black border border-[#D9B978]/30 transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
+                      >
+                        <Check size={14} />
+                        <span>{isArabic ? 'تعيين كعملة رئيسية للتطبيق' : 'Set as App Base Currency'}</span>
+                      </button>
+                    )}
+
+                    {!isBase && (
                       <button
                         type="button"
                         onClick={() => openRateEditor(c)}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-[#F4F1EA] text-xs font-black border border-white/10 active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                        className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-[#F4F1EA] text-xs font-black border border-white/10 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        title={isArabic ? 'تعديل سعر الصرف' : 'Edit Rate'}
                       >
-                        <Edit2 size={14} className="text-[#D9B978]" />
-                        {isArabic ? 'تعديل سعر الصرف' : 'Edit Rate'}
+                        <Edit2 size={13} className="text-[#D9B978]" />
+                        <span>{isArabic ? 'تعديل السعر' : 'Edit Rate'}</span>
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -1496,6 +1533,73 @@ export default function Settings({
          </AccordionItem>
 
          <AccordionItem 
+            id="baseCurrency" 
+            title={localLanguage === 'en' ? 'Base Currency of App' : 'العملة الأساسية للنظام'} 
+            icon={Coins}
+            isOpen={openAccordion === 'baseCurrency'}
+            onToggle={() => setOpenAccordion(openAccordion === 'baseCurrency' ? null : 'baseCurrency')}
+         >
+            <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-[#0A0D10] border border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-300">
+                            {localLanguage === 'en' ? 'Active Base Currency' : 'العملة الأساسية المعتمدة الحالية'}
+                        </span>
+                        <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-[#D9B978]/15 text-[#D9B978] border border-[#D9B978]/30">
+                            {currency?.code || 'SAR'}
+                        </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-bold">
+                        {localLanguage === 'en'
+                          ? 'The master reference currency used for consolidating net worth, monthly metrics, executive reports, and dashboard balances across all accounts.'
+                          : 'العملة المرجعية الأساسية التي يتم تحويل وعرض كافة الإجماليات، صافي الثروة، التدفقات الشهرية، والتقارير التنفيذية بها عبر جميع الحسابات.'}
+                    </p>
+
+                    <button 
+                        onClick={() => {
+                          if (onOpenCurrencySelector) {
+                            onOpenCurrencySelector();
+                          } else {
+                            setShowBaseCurrencySelectorModal(true);
+                          }
+                        }}
+                        className="w-full bg-[#11161C] hover:bg-[#161D25] p-4 rounded-2xl border border-[#D9B978]/40 hover:border-[#D9B978] flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer shadow-md"
+                        type="button"
+                    >
+                        <div className="flex items-center gap-3.5">
+                             <div className="min-w-[48px] h-12 px-2.5 rounded-2xl bg-[#D9B978] text-slate-950 flex flex-col items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                                 <span>{getLocalizedCurrency(currency?.code || 'SAR', currency?.name, currency?.symbol, localLanguage || 'ar').symbol}</span>
+                             </div>
+                             <div className="text-start">
+                                 <p className="text-[10px] font-black text-[#D9B978] uppercase tracking-wider">{t.baseCurrency}</p>
+                                 <p className="text-[#F4F1EA] font-black text-sm">
+                                   {getLocalizedCurrency(currency?.code || 'SAR', currency?.name, currency?.symbol, localLanguage || 'ar').name} ({currency?.code || 'SAR'})
+                                 </p>
+                             </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#D9B978] hidden sm:inline">
+                              {localLanguage === 'en' ? 'Change Currency' : 'تغيير العملة'}
+                            </span>
+                            <ChevronDown size={18} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform" />
+                        </div>
+                    </button>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('currencies')}
+                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-xl font-bold text-xs active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Coins size={15} className="text-[#D9B978]" />
+                    <span>{localLanguage === 'en' ? 'Manage All Currencies & Exchange Rates' : 'إدارة كافة العملات وأسعار الصرف المخصصة'}</span>
+                  </button>
+                </div>
+            </div>
+         </AccordionItem>
+
+         <AccordionItem 
             id="customExchangeRates" 
             title={localLanguage === 'en' ? 'Custom Exchange Rates & FX Control' : 'أسعار الصرف المخصصة والتحويل اليدوي'} 
             icon={TrendingUp}
@@ -1672,32 +1776,7 @@ export default function Settings({
             onToggle={() => setOpenAccordion(openAccordion === 'security' ? null : 'security')}
          >
             <div className="space-y-5 divide-y divide-white/5">
-                <div className="pb-4">
-                    <button 
-                        onClick={() => {
-                          if (onOpenCurrencySelector) {
-                            onOpenCurrencySelector();
-                          } else {
-                            setShowBaseCurrencySelectorModal(true);
-                          }
-                        }}
-                        className="w-full bg-[#0A0D10] p-4 rounded-2xl border border-white/10 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-[#D9B978]/30 cursor-pointer"
-                        type="button"
-                    >
-                        <div className="flex items-center gap-4">
-                             <div className="min-w-[44px] h-10 px-2 rounded-xl bg-[#11161C] border border-white/10 flex items-center justify-center text-[#D9B978] font-black text-xs shrink-0">
-                                 {getLocalizedCurrency(currency?.code || 'SAR', currency?.name, currency?.symbol, localLanguage || 'ar').symbol}
-                             </div>
-                             <div className="text-start">
-                                 <p className="text-[9px] font-black text-slate-400 uppercase">{t.baseCurrency}</p>
-                                 <p className="text-[#F4F1EA] font-bold text-xs">{getLocalizedCurrency(currency?.code || 'SAR', currency?.name, currency?.symbol, localLanguage || 'ar').name} ({currency?.code || 'SAR'})</p>
-                             </div>
-                        </div>
-                        <ChevronDown size={16} className="text-slate-400" />
-                    </button>
-                </div>
-
-                <div className="pt-4 space-y-2">
+                <div className="space-y-2">
                     <div className="flex justify-between items-center bg-[#0A0D10] p-3.5 rounded-2xl border border-white/5">
                         <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2"><Plane size={14} className="text-[#D9B978]" /> {t.travelMode}</label>
                         <div dir="ltr" className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${isTravelMode ? 'bg-[#D9B978]' : 'bg-slate-700'}`} onClick={() => {
@@ -2078,12 +2157,68 @@ export default function Settings({
 
       {showBackupModal && (
         <Modal title={t.secureBackupTitle} onClose={() => { setShowBackupModal(false); setBackupPassword(''); }}>
-            <div className="space-y-8">
+            <div className="space-y-6">
+                <div className="p-3 bg-[#D9B978]/10 border border-[#D9B978]/25 rounded-2xl text-[11px] text-[#D9B978] leading-relaxed font-medium">
+                  {localLanguage === 'en'
+                    ? 'Optional: Protect your backup file with AES-256-GCM encryption. If set, this password will be required when restoring.'
+                    : 'اختياري: احمِ ملف النسخة الاحتياطية بتشفير عسكري AES-256-GCM. في حال تعيينها، لن يمكن استعادة الملف إلا بكلمة المرور هذه.'}
+                </div>
                 <div className="space-y-4">
                    <InputField type="password" label={t.passwordOptional} value={backupPassword} onChange={setBackupPassword} placeholder={t.passwordOptionalPlaceholder} />
                 </div>
                 <ActionButton label={backupPassword ? t.exportEncryptedSecure : t.exportNormal} onClick={() => executeExport(backupPassword || null)} />
             </div>
+        </Modal>
+      )}
+
+      {showRestoreModal && (
+        <Modal 
+          title={localLanguage === 'en' ? 'Decrypt & Restore Backup' : 'فك تشفير واستعادة النسخة الاحتياطية'} 
+          onClose={() => { 
+            setShowRestoreModal(false); 
+            setRestorePassword(''); 
+            setPendingRestoreContent(null); 
+          }}
+        >
+          <div className="space-y-6">
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-start gap-2.5">
+              <Lock size={16} className="text-blue-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed text-blue-200">
+                {localLanguage === 'en'
+                  ? 'This backup file is encrypted with AES-256. Enter the password chosen during export to decrypt and restore your data.'
+                  : 'هذا الملف محمي ومشفر بنظام AES-256 المعتمد. يرجى إدخال كلمة المرور التي اخترتها عند تصدير النسخة لاستعادة البيانات بأمان.'}
+              </div>
+            </div>
+            <InputField 
+              type="password" 
+              label={localLanguage === 'en' ? 'Decryption Password' : 'كلمة مرور فك التشفير'} 
+              value={restorePassword} 
+              onChange={setRestorePassword} 
+              placeholder={localLanguage === 'en' ? 'Enter backup password...' : 'أدخل كلمة مرور النسخة...'} 
+              autoFocus
+            />
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => executeRestore(restorePassword)}
+                disabled={!restorePassword}
+                className="flex-1 py-3.5 px-4 bg-[#D9B978] hover:bg-[#C5A25D] disabled:opacity-50 text-slate-950 font-black rounded-2xl text-xs sm:text-sm transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                {localLanguage === 'en' ? 'Decrypt & Restore' : 'فك التشفير واستعادة'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { 
+                  setShowRestoreModal(false); 
+                  setRestorePassword(''); 
+                  setPendingRestoreContent(null); 
+                }}
+                className="py-3.5 px-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl text-xs sm:text-sm font-bold border border-white/10 transition-all cursor-pointer"
+              >
+                {localLanguage === 'en' ? 'Cancel' : 'إلغاء'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
 

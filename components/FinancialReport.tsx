@@ -14,6 +14,7 @@ export interface FinancialReportProps {
   type?: 'summary' | 'detailed';
   exchangeRates?: Record<string, number>;
   filterWalletId?: string | null;
+  filterWalletIds?: string[] | null;
   filterCurrency?: string | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -28,6 +29,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   type = 'detailed',
   exchangeRates = {},
   filterWalletId = null,
+  filterWalletIds = null,
   filterCurrency = null,
   startDate = null,
   endDate = null,
@@ -44,6 +46,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       params: {
         type,
         walletId: filterWalletId,
+        walletIds: filterWalletIds,
         currencyCode: filterCurrency,
         startDate,
         endDate,
@@ -59,6 +62,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     exchangeRates,
     type,
     filterWalletId,
+    filterWalletIds,
     filterCurrency,
     startDate,
     endDate,

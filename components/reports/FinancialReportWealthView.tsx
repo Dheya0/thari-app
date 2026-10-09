@@ -14,27 +14,7 @@ export const FinancialReportWealthView: React.FC<WealthViewProps> = ({ model }) 
 
   return (
     <div className="space-y-6">
-      {/* 1. Scope Profile Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">نطاق المحافظ</span>
-          <p className="text-xs font-black text-slate-900 truncate">{scope.walletNameAr}</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">العملة المعيارية للتقييم</span>
-          <p className="text-xs font-black text-amber-700 truncate">{baseCurrency.nameAr} ({baseCurrency.code})</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">تاريخ التقييم</span>
-          <p className="text-xs font-black text-slate-900 truncate">{model.metadata.generatedAtFormattedAr}</p>
-        </div>
-        <div>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">تنوع العملات</span>
-          <p className="text-xs font-black text-slate-900">{totalRawCurrencies} عملات نشطة</p>
-        </div>
-      </div>
-
-      {/* 2. Executive Wealth Overview KPIs */}
+      {/* 1. Executive Wealth Overview KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-4">
         <div className="bg-slate-900 text-white rounded-2xl p-4.5 flex flex-col justify-between border border-slate-800 shadow-sm">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">إجمالي صافي الثروة والأصول النقدية</span>

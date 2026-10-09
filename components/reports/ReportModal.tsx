@@ -9,6 +9,8 @@ import {
   Wallet as WalletIcon,
   Coins,
   CheckCircle2,
+  Circle,
+  Check,
   X,
   Eye,
   Layers,
@@ -18,6 +20,7 @@ import {
   Target,
   PieChart,
   BookOpen,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Category, Currency, Transaction, Wallet, Budget, Debt, SavingsGoal } from '../../types';
 import { ReportModel, ReportType } from '../../services/reports/reportTypes';
@@ -79,12 +82,67 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   onTriggerPrint,
 }) => {
   const [reportType, setReportType] = useState<ReportType>(initialType);
-  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(initialWalletId);
+
+  // Multi-wallet selection state: array of selected wallet IDs
+  const [selectedWalletIds, setSelectedWalletIds] = useState<string[]>(() => {
+    if (initialWalletId) return [initialWalletId];
+    return wallets.map(w => w.id);
+  });
+
   const [selectedCurrencyCode, setSelectedCurrencyCode] = useState<string | null>(initialCurrencyCode);
+  const [valuationCurrency, setValuationCurrency] = useState<string>(() => {
+    return currentCurrency?.code || 'SAR';
+  });
   const [datePreset, setDatePreset] = useState<DateRangePreset>('all');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showPreview, setShowPreview] = useState<boolean>(false);
+
+  // Check if all wallets are selected
+  const isAllWalletsSelected = useMemo(() => {
+    return selectedWalletIds.length === 0 || selectedWalletIds.length === wallets.length;
+  }, [selectedWalletIds, wallets]);
+
+  // Active wallets object in scope
+  const activeSelectedWallets = useMemo(() => {
+    if (isAllWalletsSelected) return wallets;
+    return wallets.filter(w => selectedWalletIds.includes(w.id));
+  }, [isAllWalletsSelected, selectedWalletIds, wallets]);
+
+  // Available currencies across selected wallets
+  const availableCurrenciesInSelection = useMemo(() => {
+    const codes = Array.from(new Set(activeSelectedWallets.map(w => w.currencyCode)));
+    return codes;
+  }, [activeSelectedWallets]);
+
+  // Wallet selection toggle handler
+  const handleToggleWallet = (walletId: string) => {
+    if (isAllWalletsSelected) {
+      // If currently all are selected, clicking one isolates to that specific wallet
+      setSelectedWalletIds([walletId]);
+      return;
+    }
+
+    if (selectedWalletIds.includes(walletId)) {
+      if (selectedWalletIds.length <= 1) {
+        // Can't unselect the last wallet, revert to all wallets
+        setSelectedWalletIds(wallets.map(w => w.id));
+      } else {
+        setSelectedWalletIds(selectedWalletIds.filter(id => id !== walletId));
+      }
+    } else {
+      const next = [...selectedWalletIds, walletId];
+      if (next.length === wallets.length) {
+        setSelectedWalletIds(wallets.map(w => w.id));
+      } else {
+        setSelectedWalletIds(next);
+      }
+    }
+  };
+
+  const handleSelectAllWallets = () => {
+    setSelectedWalletIds(wallets.map(w => w.id));
+  };
 
   // Calculate actual startDate and endDate based on preset using strictly local dates
   const { startDate, endDate } = useMemo(() => {
@@ -118,25 +176,38 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     return { startDate: null, endDate: null };
   }, [datePreset, customStartDate, customEndDate]);
 
-  // Generate current preview model
+  // Automatically adapt valuation currency if all selected wallets share one currency
+  const effectiveValuationCurrency = useMemo(() => {
+    if (selectedCurrencyCode) return selectedCurrencyCode;
+    if (availableCurrenciesInSelection.length === 1) return availableCurrenciesInSelection[0];
+    return valuationCurrency || currentCurrency?.code || 'SAR';
+  }, [selectedCurrencyCode, availableCurrenciesInSelection, valuationCurrency, currentCurrency]);
+
+  // Generate current report model
   const reportModel: ReportModel = useMemo(() => {
+    const targetWalletIds = isAllWalletsSelected ? null : selectedWalletIds;
+    const targetSingleWalletId = (!isAllWalletsSelected && selectedWalletIds.length === 1)
+      ? selectedWalletIds[0]
+      : null;
+
     return generateFinancialReportSync({
       transactions,
       categories,
       wallets,
       userName,
-      baseCurrencyCode: currentCurrency?.code || 'SAR',
+      baseCurrencyCode: effectiveValuationCurrency,
       exchangeRates,
       budgets,
       debts,
       goals,
       params: {
         type: reportType,
-        walletId: selectedWalletId,
+        walletIds: targetWalletIds,
+        walletId: targetSingleWalletId,
         currencyCode: selectedCurrencyCode,
         startDate,
         endDate,
-        targetCurrencyCode: currentCurrency?.code || 'SAR',
+        targetCurrencyCode: effectiveValuationCurrency,
       },
     });
   }, [
@@ -144,13 +215,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     categories,
     wallets,
     userName,
-    currentCurrency?.code,
+    effectiveValuationCurrency,
     exchangeRates,
     budgets,
     debts,
     goals,
     reportType,
-    selectedWalletId,
+    isAllWalletsSelected,
+    selectedWalletIds,
     selectedCurrencyCode,
     startDate,
     endDate,
@@ -158,6 +230,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
   const [isProcessing, setIsProcessing] = useState(false);
   const isProcessingRef = useRef(false);
+  const [feedbackToast, setFeedbackToast] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+
+  const showFeedback = (text: string, type: 'success' | 'info' = 'success') => {
+    setFeedbackToast({ text, type });
+    setTimeout(() => {
+      setFeedbackToast((cur) => (cur?.text === text ? null : cur));
+    }, 4000);
+  };
 
   // Print / PDF handler (guaranteed ONE print job per user action)
   const handlePrint = async (e?: React.MouseEvent | React.TouchEvent) => {
@@ -170,6 +250,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'print');
+      showFeedback('تم فتح نافذة الطباعة / تجهيز ملف PDF بنجاح');
     } catch (e) {
       console.warn('Print handler error:', e);
     } finally {
@@ -199,6 +280,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'share');
+      showFeedback('تم فتح نافذة المشاركة وتجهيز ملف التقرير (PDF) بنجاح');
     } catch (e) {
       console.warn('Share handler error:', e);
     } finally {
@@ -207,7 +289,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
   };
 
-  // Excel Spreadsheet (.xls) Export handler
+  // Excel Spreadsheet (.xlsx) Export handler
   const handleExportExcel = async (e?: React.MouseEvent | React.TouchEvent) => {
     if (e) {
       e.preventDefault();
@@ -218,6 +300,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setIsProcessing(true);
     try {
       await printOrShareFinancialReport(reportModel, 'excel');
+      showFeedback('تم إنشاء وتصدير مصنف Excel (.xlsx) بنجاح بكافة التفاصيل');
     } catch (e) {
       console.warn('Excel export error:', e);
     } finally {
@@ -245,7 +328,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     {
       type: 'detailed',
       title: 'كشف قيود تفصيلي',
-      desc: 'كشف حساب محاسبي كامل يشمل جدول جميع المعاملات والرصيد التراكمي.',
+      desc: 'كشف حساب محاسبي كامل يشمل جدول جميع المعاملات مفصولة بالعملات.',
       icon: BookOpen,
       color: '#759BC8',
     },
@@ -324,7 +407,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 {showPreview ? 'معاينة المستند المالي المباشرة' : 'إصدار التقارير المالية وكشوف الحساب'}
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
-                {showPreview ? 'مستند عالي الدقة جاهز للطباعة والمشاركة والتحميل' : 'تطبيق ثـري • وثائق مالية تفصيلية وموجزة'}
+                {showPreview ? 'مستند عالي الدقة جاهز للطباعة والمشاركة والتحميل' : 'تطبيق ثـري • دعم متعدد المحافظ وفصل العملات حسابياً'}
               </p>
             </div>
           </div>
@@ -352,7 +435,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <div className="flex items-center gap-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="text-xs font-bold text-slate-200">
-                    معاينة المستند المالي التفاعلي • دقة عالية ومطابقة معيارية
+                    معاينة المستند المالي التفاعلي • تفصيل المحافظ وفصل العملات
                   </span>
                 </div>
                 <button
@@ -373,233 +456,329 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 custom-scrollbar overscroll-contain">
             {/* 1. Report Type Grid */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              1. نوع التقرير المالي المطلوب
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {REPORT_TYPE_OPTIONS.map((opt) => {
-                const Icon = opt.icon;
-                const isSelected = reportType === opt.type;
-                return (
-                  <button
-                    key={opt.type}
-                    type="button"
-                    onClick={() => setReportType(opt.type)}
-                    className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-[#D9B978]/15 border-[#D9B978] shadow-md text-[#F4F1EA]'
-                        : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:border-white/15'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-6 h-6 rounded-lg flex items-center justify-center"
-                          style={{ backgroundColor: `${opt.color}20`, color: opt.color }}
-                        >
-                          <Icon size={14} />
-                        </div>
-                        <span className="text-xs font-black text-[#F4F1EA]">{opt.title}</span>
-                      </div>
-                      {isSelected && <CheckCircle2 size={16} className="text-[#D9B978]" />}
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-1">
-                      {opt.desc}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 2. Currency Scope Selector */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                2. نطاق العملة
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                1. نوع التقرير المالي المطلوب
               </label>
-              <span className="text-[10px] font-bold text-slate-500">
-                {selectedCurrencyCode ? 'تصفية لعملة واحدة محددة' : 'تقرير شامل متعدد العملات'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedCurrencyCode(null)}
-                className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right ${
-                  selectedCurrencyCode === null
-                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                }`}
-              >
-                كافة العملات (Multi-Currency)
-              </button>
-
-              {currencies.map((c) => (
-                <button
-                  key={c.code}
-                  type="button"
-                  onClick={() => setSelectedCurrencyCode(c.code)}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right ${
-                    selectedCurrencyCode === c.code
-                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                  }`}
-                >
-                  {c.name} ({c.code})
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. Wallet Scope Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              3. نطاق المحفظة المالية
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedWalletId(null)}
-                className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right ${
-                  selectedWalletId === null
-                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                }`}
-              >
-                كافة المحافظ ({wallets.length})
-              </button>
-
-              {wallets.map((w) => (
-                <button
-                  key={w.id}
-                  type="button"
-                  onClick={() => setSelectedWalletId(w.id)}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right flex items-center justify-between ${
-                    selectedWalletId === w.id
-                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                  }`}
-                >
-                  <span className="truncate">{w.name}</span>
-                  <span className="text-[10px] opacity-70 ml-1">({w.currencyCode})</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 4. Date Filter */}
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              4. الفترة الزمنية
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => setDatePreset('all')}
-                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                  datePreset === 'all'
-                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                }`}
-              >
-                كامل السجل
-              </button>
-              <button
-                type="button"
-                onClick={() => setDatePreset('this_month')}
-                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                  datePreset === 'this_month'
-                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                }`}
-              >
-                هذا الشهر
-              </button>
-              <button
-                type="button"
-                onClick={() => setDatePreset('last_month')}
-                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                  datePreset === 'last_month'
-                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                }`}
-              >
-                الشهر الماضي
-              </button>
-              <button
-                type="button"
-                onClick={() => setDatePreset('last_90_days')}
-                className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                  datePreset === 'last_90_days'
-                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                    : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-                }`}
-              >
-                آخر 90 يوماً
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setDatePreset(datePreset === 'custom' ? 'all' : 'custom')}
-              className={`w-full mt-2 p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
-                datePreset === 'custom'
-                  ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
-                  : 'bg-[#0A0D10]/40 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
-              }`}
-            >
-              تحديد فترة مخصصة (من تاريخ - إلى تاريخ)
-            </button>
-
-            {datePreset === 'custom' && (
-              <div className="grid grid-cols-2 gap-3 p-3 bg-[#0A0D10]/60 rounded-2xl border border-white/5 mt-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">من تاريخ</label>
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="w-full bg-[#171D24] border border-white/10 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] outline-none focus:border-[#D9B978]"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-400 block mb-1">إلى تاريخ</label>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="w-full bg-[#171D24] border border-white/10 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] outline-none focus:border-[#D9B978]"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {REPORT_TYPE_OPTIONS.map((opt) => {
+                  const Icon = opt.icon;
+                  const isSelected = reportType === opt.type;
+                  return (
+                    <button
+                      key={opt.type}
+                      type="button"
+                      onClick={() => setReportType(opt.type)}
+                      className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-[#D9B978]/15 border-[#D9B978] shadow-md text-[#F4F1EA]'
+                          : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:border-white/15'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-6 h-6 rounded-lg flex items-center justify-center"
+                            style={{ backgroundColor: `${opt.color}20`, color: opt.color }}
+                          >
+                            <Icon size={14} />
+                          </div>
+                          <span className="text-xs font-black text-[#F4F1EA]">{opt.title}</span>
+                        </div>
+                        {isSelected && <CheckCircle2 size={16} className="text-[#D9B978]" />}
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium leading-relaxed mt-1">
+                        {opt.desc}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
-            )}
-          </div>
-
-          {/* Scope Summary Preview Box */}
-          <div className="p-4 bg-[#0A0D10]/80 rounded-2xl border border-white/10 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="text-[10px] font-bold text-[#D9B978] uppercase tracking-widest block">
-                ملخص التقرير المجهز
-              </span>
-              <p className="text-xs font-bold text-slate-200">
-                {reportModel.transactions.length} حركة مسجلة • إجمالي الوارد: +
-                {Math.round(reportModel.kpis.totalIncome).toLocaleString()} {currentCurrency.symbol}
-              </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowPreview(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] text-xs font-black transition-all border border-[#D9B978]/40 shadow-sm active:scale-95"
-            >
-              <Eye size={16} />
-              <span>معاينة المستند</span>
-            </button>
+
+            {/* 2. Wallet Multi-Selection Scope */}
+            <div className="space-y-2.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <WalletIcon size={14} className="text-[#D9B978]" />
+                  <span>2. نطاق المحافظ المالية (تحديد متعدد مرن)</span>
+                </label>
+                <span className="text-[11px] font-bold text-[#D9B978] bg-[#D9B978]/10 px-2 py-0.5 rounded-lg border border-[#D9B978]/20">
+                  {isAllWalletsSelected
+                    ? `كافة المحافظ (${wallets.length} من ${wallets.length})`
+                    : `تم اختيار ${selectedWalletIds.length} من أصل ${wallets.length} محافظ`}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* Select All Quick Button */}
+                <button
+                  type="button"
+                  onClick={handleSelectAllWallets}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-right flex items-center justify-between sm:col-span-2 ${
+                    isAllWalletsSelected
+                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded flex items-center justify-center border ${
+                      isAllWalletsSelected ? 'bg-[#D9B978] border-[#D9B978] text-[#0A0D10]' : 'border-slate-600'
+                    }`}>
+                      {isAllWalletsSelected && <Check size={12} strokeWidth={3} />}
+                    </div>
+                    <span>تضمين كافة المحافظ المالية ({wallets.length})</span>
+                  </div>
+                  <span className="text-[10px] opacity-75">شامل لكافة الحسابات</span>
+                </button>
+
+                {/* Individual Wallet Selection Cards */}
+                {wallets.map((w) => {
+                  const isSelected = isAllWalletsSelected || selectedWalletIds.includes(w.id);
+                  return (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => handleToggleWallet(w.id)}
+                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all truncate text-right flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-[#D9B978]/10 border-[#D9B978]/70 text-[#F4F1EA] shadow-xs'
+                          : 'bg-[#0A0D10]/40 border-white/5 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
+                          isSelected ? 'bg-[#D9B978] border-[#D9B978] text-[#0A0D10]' : 'border-slate-600'
+                        }`}>
+                          {isSelected && <Check size={12} strokeWidth={3} />}
+                        </div>
+                        <div
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: w.color || '#D9B978' }}
+                        />
+                        <span className="truncate">{w.name}</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-slate-300 shrink-0 border border-white/5">
+                        {w.currencyCode}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 3. Currency Filter & Base Valuation Scope */}
+            <div className="space-y-2.5">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Coins size={14} className="text-[#8EB9A7]" />
+                  <span>3. نطاق العملات والتقييم الحسابي</span>
+                </label>
+                <span className="text-[10px] font-bold text-slate-400">
+                  {selectedCurrencyCode
+                    ? `تصفية لعملة واحدة (${selectedCurrencyCode})`
+                    : `فصل العملات (${availableCurrenciesInSelection.join(' + ')})`}
+                </span>
+              </div>
+
+              {/* Currency Filter Chips */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCurrencyCode(null)}
+                  className={`p-2 rounded-xl border text-xs font-bold transition-all truncate text-center ${
+                    selectedCurrencyCode === null
+                      ? 'bg-[#8EB9A7]/20 border-[#8EB9A7] text-[#8EB9A7]'
+                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                  }`}
+                >
+                  كافة عملات المحافظ
+                </button>
+
+                {availableCurrenciesInSelection.map((currCode) => {
+                  const matched = currencies.find(c => c.code === currCode);
+                  const isSelected = selectedCurrencyCode === currCode;
+                  return (
+                    <button
+                      key={currCode}
+                      type="button"
+                      onClick={() => setSelectedCurrencyCode(currCode)}
+                      className={`p-2 rounded-xl border text-xs font-bold transition-all truncate text-center ${
+                        isSelected
+                          ? 'bg-[#8EB9A7]/20 border-[#8EB9A7] text-[#8EB9A7]'
+                          : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                      }`}
+                    >
+                      {matched ? matched.name : currCode} ({currCode})
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Unified Base Valuation Currency (When multiple currencies exist) */}
+              {!selectedCurrencyCode && availableCurrenciesInSelection.length > 1 && (
+                <div className="p-3 rounded-2xl bg-[#0A0D10]/80 border border-white/10 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold text-slate-300">
+                      عملة التقييم المعياري للإجمالي الموحد:
+                    </span>
+                    <span className="text-[10px] text-amber-400/90 font-medium">
+                      (لن يتم إجبار أي قيد على التحويل لريال يمني إلا إذا اخترت ذلك)
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                    {currencies.map((c) => (
+                      <button
+                        key={`val-${c.code}`}
+                        type="button"
+                        onClick={() => setValuationCurrency(c.code)}
+                        className={`p-2 rounded-xl border text-xs font-bold transition-all text-center truncate ${
+                          valuationCurrency === c.code
+                            ? 'bg-[#D9B978]/20 border-[#D9B978] text-[#D9B978]'
+                            : 'bg-[#171D24] border-white/5 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {c.name} ({c.code})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {availableCurrenciesInSelection.length === 1 && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-emerald-300 text-[11px] font-medium flex items-center gap-2">
+                  <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                  <span>
+                    جميع المحافظ المختارة تعمل بعملة موحدة ({availableCurrenciesInSelection[0]}). التقرير سيصدر بالعملة الأصلية بدون أي تحويلات.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* 4. Date Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                4. الفترة الزمنية
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('all')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    datePreset === 'all'
+                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                  }`}
+                >
+                  كامل السجل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('this_month')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    datePreset === 'this_month'
+                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                  }`}
+                >
+                  هذا الشهر
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('last_month')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    datePreset === 'last_month'
+                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                  }`}
+                >
+                  الشهر الماضي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDatePreset('last_90_days')}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    datePreset === 'last_90_days'
+                      ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                      : 'bg-[#0A0D10]/60 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                  }`}
+                >
+                  آخر 90 يوماً
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDatePreset(datePreset === 'custom' ? 'all' : 'custom')}
+                className={`w-full mt-2 p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
+                  datePreset === 'custom'
+                    ? 'bg-[#D9B978]/15 border-[#D9B978] text-[#D9B978]'
+                    : 'bg-[#0A0D10]/40 border-white/5 text-slate-400 hover:text-[#F4F1EA]'
+                }`}
+              >
+                تحديد فترة مخصصة (من تاريخ - إلى تاريخ)
+              </button>
+
+              {datePreset === 'custom' && (
+                <div className="grid grid-cols-2 gap-3 p-3 bg-[#0A0D10]/60 rounded-2xl border border-white/5 mt-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">من تاريخ</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-full bg-[#171D24] border border-white/10 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] outline-none focus:border-[#D9B978]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">إلى تاريخ</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-full bg-[#171D24] border border-white/10 rounded-xl px-3 py-2 text-xs text-[#F4F1EA] outline-none focus:border-[#D9B978]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Scope Summary Preview Box */}
+            <div className="p-4 bg-[#0A0D10]/80 rounded-2xl border border-white/10 flex items-center justify-between">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-bold text-[#D9B978] uppercase tracking-widest block">
+                  ملخص نطاق التقرير المجهز
+                </span>
+                <p className="text-xs font-bold text-slate-200">
+                  {reportModel.transactions.length} حركة مسجلة • {activeSelectedWallets.length} محافظ • {availableCurrenciesInSelection.join('، ')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPreview(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] text-xs font-black transition-all border border-[#D9B978]/40 shadow-sm active:scale-95"
+              >
+                <Eye size={16} />
+                <span>معاينة المستند</span>
+              </button>
+            </div>
           </div>
-        </div>
         )}
+
+        {/* Real-time Feedback Banner */}
+        <AnimatePresence>
+          {feedbackToast && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-4 py-2 bg-emerald-500/15 border-t border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-center gap-2 overflow-hidden"
+            >
+              <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+              <span>{feedbackToast.text}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Footer Actions with Safe-Area Insets */}
         <div className="p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,16px))] border-t border-white/10 bg-[#0A0D10]/95 shrink-0 flex flex-wrap sm:flex-nowrap gap-2.5">
