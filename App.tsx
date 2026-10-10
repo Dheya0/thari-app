@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3 } from 'lucide-react';
+import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3, Globe } from 'lucide-react';
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType, Subscription, ZakatPaymentRecord } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
@@ -45,6 +45,7 @@ const TrashModal = React.lazy(() => import('./components/TrashModal').then(m => 
 const RecurringManagerModal = React.lazy(() => import('./components/RecurringManagerModal').then(m => ({ default: m.RecurringManagerModal })));
 const ToolsHubModal = React.lazy(() => import('./components/ToolsHubModal').then(m => ({ default: m.ToolsHubModal })));
 const CurrencySelectorModal = React.lazy(() => import('./components/CurrencySelectorModal'));
+const CurrencyOnboardingModal = React.lazy(() => import('./components/CurrencyOnboardingModal').then(m => ({ default: m.CurrencyOnboardingModal })));
 const WalletSelectorModal = React.lazy(() => import('./components/WalletSelectorModal'));
 const SmartAlerts = React.lazy(() => import('./components/SmartAlerts'));
 const ExecutiveInsights = React.lazy(() => import('./components/ExecutiveInsights'));
@@ -392,6 +393,7 @@ const App: React.FC = () => {
   const [showRecurringModal, setShowRecurringModal] = useState<boolean>(false);
   const [showToolsHub, setShowToolsHub] = useState<boolean>(false);
   const [showCurrencySelector, setShowCurrencySelector] = useState<boolean>(false);
+  const [showCurrencyOnboarding, setShowCurrencyOnboarding] = useState<boolean>(false);
   const [showWalletSelector, setShowWalletSelector] = useState<boolean>(false);
   
   // Wallet Filter State (null = All Wallets)
@@ -411,6 +413,16 @@ const App: React.FC = () => {
       type,
       action,
     });
+  }, []);
+
+  // Check if Currency Portfolio has been configured
+  useEffect(() => {
+    try {
+      const configured = localStorage.getItem('thari_currency_portfolio_configured');
+      if (!configured) {
+        setShowCurrencyOnboarding(true);
+      }
+    } catch {}
   }, []);
 
   // Sync Document Direction & Language
@@ -2096,6 +2108,25 @@ const App: React.FC = () => {
                   );
                 })()}
 
+                {/* 1-Tap Instant Language Switcher (AR ⇄ EN) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    NativeHaptics.selection().catch(() => {});
+                    const nextLang = state.language === 'en' ? 'ar' : 'en';
+                    setState(p => ({ ...p, language: nextLang }));
+                    showToast(nextLang === 'en' ? 'Switched to English' : 'تم التحويل إلى اللغة العربية', 'success');
+                  }}
+                  aria-label={state.language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group shrink-0 cursor-pointer ring-1 ring-white/5"
+                  title={state.language === 'en' ? 'التحويل إلى العربية' : 'Switch to English'}
+                >
+                  <Globe size={13} className="text-[#D9B978]" />
+                  <span className="font-black text-[11px] sm:text-xs tracking-wide">
+                    {state.language === 'en' ? 'عربي' : 'EN'}
+                  </span>
+                </button>
+
                 {/* Tools Hub Button */}
                 <button
                   type="button"
@@ -2627,8 +2658,35 @@ const App: React.FC = () => {
               })}
               exchangeRates={state.exchangeRates}
               onOpenSettings={() => setActiveTab('settings')}
+              onOpenPortfolioSetup={() => setShowCurrencyOnboarding(true)}
               language={state.language || 'ar'}
               t={t}
+            />
+          )}
+          {showCurrencyOnboarding && (
+            <CurrencyOnboardingModal
+              isOpen={showCurrencyOnboarding}
+              onClose={() => {
+                try { localStorage.setItem('thari_currency_portfolio_configured', 'true'); } catch {}
+                setShowCurrencyOnboarding(false);
+              }}
+              currentBaseCurrency={state.currency}
+              currentActiveCurrencies={state.currencies}
+              onSavePortfolio={(baseCurrency, activeCurrencies) => {
+                try { localStorage.setItem('thari_currency_portfolio_configured', 'true'); } catch {}
+                setState(p => ({
+                  ...p,
+                  currency: baseCurrency,
+                  currencies: activeCurrencies
+                }));
+                showToast(
+                  state.language === 'en'
+                    ? `Base currency set to ${baseCurrency.code} with ${activeCurrencies.length} active currencies`
+                    : `تم تحديد ${baseCurrency.name} كعملة أساسية وتفعيل ${activeCurrencies.length} عملات في محفظتك`,
+                  'success'
+                );
+              }}
+              language={state.language || 'ar'}
             />
           )}
           {showWalletSelector && (

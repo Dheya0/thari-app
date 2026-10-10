@@ -41,8 +41,10 @@ import {
   CalendarPlus,
   MessageSquare,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  FileText
 } from 'lucide-react';
+import { DebtVoucherModal } from './DebtVoucherModal';
 import { Debt, Wallet, DebtInstallment, DebtPayment } from '../types';
 import { 
   getDebtCalculations, 
@@ -120,6 +122,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
 
   // Modals state
   const [historyModalDebt, setHistoryModalDebt] = useState<Debt | null>(null);
+  const [voucherTarget, setVoucherTarget] = useState<{ debt: Debt; payment?: DebtPayment } | null>(null);
   const [expandedDebtId, setExpandedDebtId] = useState<string | null>(null);
   const [expandedPersonName, setExpandedPersonName] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1038,6 +1041,16 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       <Bell size={15} />
                     </button>
 
+                    {/* Official Bilingual Voucher Button */}
+                    <button 
+                      type="button"
+                      onClick={() => setVoucherTarget({ debt, payment: undefined })}
+                      className="p-2.5 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/25 rounded-xl active:scale-90 transition-all border border-indigo-500/30 flex items-center justify-center shadow-xs cursor-pointer"
+                      title={isRtl ? 'سند مالي رسمي موثق (طباعة / مشاركة / QR)' : 'Official Bilingual Voucher (Print / QR)'}
+                    >
+                      <FileText size={15} />
+                    </button>
+
                     <button 
                       onClick={() => openEdit(debt)}
                       className="p-2.5 bg-slate-800 text-slate-300 hover:text-white rounded-xl active:scale-90 transition-all border border-slate-700 hover:bg-slate-700"
@@ -1314,7 +1327,18 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         {isRtl ? 'تاريخ' : 'Date'}: {p.date} {p.note ? `• ${p.note}` : ''}
                       </p>
                     </div>
-                    <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setVoucherTarget({ debt: historyModalDebt, payment: p })}
+                        className="px-2.5 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] border border-[#D9B978]/30 text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer"
+                        title={isRtl ? 'عرض وطباعة سند القبض' : 'View & Print Receipt'}
+                      >
+                        <FileText size={12} />
+                        <span>{isRtl ? 'سند قبض' : 'Receipt'}</span>
+                      </button>
+                      <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+                    </div>
                   </div>
                 ))
               )}
@@ -1540,6 +1564,17 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* MODAL 5: OFFICIAL BILINGUAL DEBT & PAYMENT VOUCHER (سند رسمي موثق) */}
+      {voucherTarget && (
+        <DebtVoucherModal
+          isOpen={Boolean(voucherTarget)}
+          onClose={() => setVoucherTarget(null)}
+          debt={voucherTarget.debt}
+          payment={voucherTarget.payment}
+          language={language}
+        />
       )}
 
     </div>

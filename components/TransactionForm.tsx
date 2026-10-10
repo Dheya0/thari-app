@@ -1355,6 +1355,39 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                         />
                       </div>
                     </div>
+
+                    {/* Regional Payment Terms Presets */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                      <span className="text-[9px] text-slate-500 font-bold shrink-0">{language === 'ar' ? 'أجل السداد:' : 'Payment Terms:'}</span>
+                      {[
+                        { label: language === 'ar' ? 'فوري' : 'Cash', days: 0 },
+                        { label: language === 'ar' ? '15 يوم' : 'Net 15', days: 15 },
+                        { label: language === 'ar' ? '30 يوم' : 'Net 30', days: 30 },
+                        { label: language === 'ar' ? '60 يوم' : 'Net 60', days: 60 },
+                        { label: language === 'ar' ? 'نهاية الشهر' : 'End of Month', days: -1 },
+                      ].map((term, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            NativeHaptics.selection().catch(() => {});
+                            const d = new Date();
+                            if (term.days === 0) {
+                              setDebtDueDate(d.toISOString().slice(0, 10));
+                            } else if (term.days > 0) {
+                              d.setDate(d.getDate() + term.days);
+                              setDebtDueDate(d.toISOString().slice(0, 10));
+                            } else if (term.days === -1) {
+                              const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                              setDebtDueDate(endOfMonth.toISOString().slice(0, 10));
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-[#D9B978]/20 hover:text-[#D9B978] text-[9px] font-bold text-slate-400 border border-white/5 transition-all whitespace-nowrap cursor-pointer active:scale-95"
+                        >
+                          {term.label}
+                        </button>
+                      ))}
+                    </div>
                   </>
                 ) : (
                   <>

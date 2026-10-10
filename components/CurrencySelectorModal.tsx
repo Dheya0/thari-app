@@ -15,6 +15,7 @@ interface CurrencySelectorModalProps {
   onSelectCurrency: (currency: Currency) => void;
   exchangeRates: Record<string, number>;
   onOpenSettings?: () => void;
+  onOpenPortfolioSetup?: () => void;
   language?: LanguageKey;
   t: any;
 }
@@ -27,6 +28,7 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
   onSelectCurrency,
   exchangeRates,
   onOpenSettings,
+  onOpenPortfolioSetup,
   language = 'ar',
   t
 }) => {
@@ -298,19 +300,35 @@ export const CurrencySelectorModal: React.FC<CurrencySelectorModalProps> = ({
               </span>
             </div>
 
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenSettings();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-[#D9B978]/15 border border-white/10 hover:border-[#D9B978]/40 text-slate-300 hover:text-[#E5C17B] transition-all text-[11px] font-medium"
-              >
-                <SlidersHorizontal size={13} />
-                <span>{t?.manageExchangeRatesBtn || (isAr ? 'إدارة أسعار الصرف' : 'Manage Exchange Rates')}</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {onOpenPortfolioSetup && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenPortfolioSetup();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/30 text-[#D9B978] transition-all text-[11px] font-black cursor-pointer"
+                >
+                  <Coins size={13} />
+                  <span>{isAr ? 'تخصيص محفظة العملات' : 'Portfolio Setup'}</span>
+                </button>
+              )}
+
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenSettings();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-[#D9B978]/15 border border-white/10 hover:border-[#D9B978]/40 text-slate-300 hover:text-[#E5C17B] transition-all text-[11px] font-medium"
+                >
+                  <SlidersHorizontal size={13} />
+                  <span>{t?.manageExchangeRatesBtn || (isAr ? 'إدارة أسعار الصرف' : 'Manage Exchange Rates')}</span>
+                </button>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
