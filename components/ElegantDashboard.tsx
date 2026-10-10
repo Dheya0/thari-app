@@ -272,18 +272,18 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       {/* ─────────────────────────────────────────────────────────────
           1. HEADER: QUIET GREETING & STATUS
       ───────────────────────────────────────────────────────────── */}
-      <section className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pt-2 border-b border-white/[0.04] pb-5">
-        <div className="space-y-1">
-          <span className="text-xs font-medium tracking-wide text-[#D9B978] block">
+      <section className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 sm:gap-3 pt-1 sm:pt-2 border-b border-white/[0.04] pb-3.5 sm:pb-5">
+        <div className="space-y-0.5 sm:space-y-1">
+          <span className="text-[11px] sm:text-xs font-medium tracking-wide text-[#D9B978] block">
             {greeting.text}، {userName || (isEn ? 'Thari User' : 'مستخدم ثري')}
           </span>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#F4F1EA]">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-[#F4F1EA]">
             {t.comprehensiveFinancialCenter}
           </h1>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-normal">
+          <span className="text-[11px] sm:text-xs text-slate-400 font-normal">
             {new Intl.DateTimeFormat(isEn ? 'en-US' : 'ar-SA', { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date())}
           </span>
         </div>
@@ -296,7 +296,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="p-6 sm:p-8 rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/[0.06] shadow-[0_20px_60px_rgba(0,0,0,0.25)] space-y-6"
+        className="p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/[0.06] shadow-[0_20px_60px_rgba(0,0,0,0.25)] space-y-5 sm:space-y-6"
       >
         {/* Selected Wallet Filter Active Notification Banner */}
         {selectedWallet && (

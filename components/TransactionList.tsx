@@ -550,13 +550,14 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
       {/* Physics-Based Swipe Interactive Guide */}
       {totalCount > 0 && (
-        <div className="flex items-center justify-between px-3.5 py-2 bg-[#11161C]/80 border border-white/5 rounded-2xl text-[11px] text-slate-400 select-none shadow-xs">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center justify-between px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-[#11161C]/80 border border-white/5 rounded-2xl text-[10px] sm:text-[11px] text-slate-400 select-none shadow-xs">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <span className="flex items-center gap-1 font-black text-[#F4F1EA]">
-              <Sparkles size={13} className="text-[#D9B978]" />
-              {language === 'en' ? 'Physics Swipe:' : 'سحب فيزيائي مرن:'}
+              <Sparkles size={12} className="text-[#D9B978] shrink-0" />
+              <span className="hidden xs:inline">{language === 'en' ? 'Physics Swipe:' : 'سحب فيزيائي مرن:'}</span>
+              <span className="xs:hidden">{language === 'en' ? 'Swipe:' : 'السحب:'}</span>
             </span>
-            <div className="flex items-center gap-1.5 text-[10.5px]">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[9.5px] sm:text-[10.5px]">
               <span className="text-slate-400">{language === 'en' ? 'Right to' : 'لليمين'}</span>
               <span className="text-rose-400 font-bold bg-rose-500/15 px-1.5 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
                 <Trash2 size={11} />

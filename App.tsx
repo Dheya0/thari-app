@@ -32,6 +32,7 @@ import GoalTracker from './components/GoalTracker';
 import Settings from './components/Settings';
 import ZakatCalculator from './components/ZakatCalculator';
 import Logo from './components/Logo';
+import { DesktopSidebar } from './components/DesktopSidebar';
 import { GlobalToast, ToastData } from './components/GlobalToast';
 import TransactionForm from './components/TransactionForm';
 import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
@@ -2008,15 +2009,44 @@ const App: React.FC = () => {
         />
       </React.Suspense>
       
-      <div className="flex flex-col flex-1 print:hidden relative z-20 overflow-hidden">
-        {/* Top Header - Displayed exclusively on Dashboard (الرئيسية) */}
-        {activeTab === 'dashboard' && (
-          <header className="sticky top-0 shrink-0 px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90 animate-fade" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.85rem)' }}>
-            <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-2 min-w-0">
+      <div className="flex flex-row flex-1 print:hidden relative z-20 overflow-hidden min-h-screen">
+        {/* Architectural Desktop Sidebar (≥ 768px) */}
+        <DesktopSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onNewTransaction={() => {
+            setEditingTransaction(null);
+            setShowAddForm(true);
+          }}
+          language={activeLanguage}
+          onToggleLanguage={() => {
+            NativeHaptics.selection().catch(() => {});
+            const nextLang = state.language === 'en' ? 'ar' : 'en';
+            setState(p => ({ ...p, language: nextLang }));
+            showToast(nextLang === 'en' ? 'Switched to English' : 'تم التحويل إلى اللغة العربية', 'success');
+          }}
+          selectedWalletId={selectedWalletId}
+          wallets={state.wallets}
+          onOpenWalletSelector={() => setShowWalletSelector(true)}
+          currency={state.currency}
+          onOpenCurrencySelector={() => setShowCurrencySelector(true)}
+          onOpenToolsHub={() => setShowToolsHub(true)}
+          hasPendingAlerts={((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0)}
+          userName={state.userName}
+        />
+
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
+          {/* Top Header - Displayed on Dashboard (الرئيسية) */}
+          {activeTab === 'dashboard' && (
+          <header 
+            className="sticky top-0 shrink-0 px-2.5 sm:px-4 md:px-6 py-2 sm:py-2.5 glass-effect border-b border-white/5 z-30 backdrop-blur-xl bg-[#0A0D10]/90 animate-fade" 
+            style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.45rem)' }}
+          >
+            <div className="flex justify-between items-center max-w-6xl mx-auto w-full gap-1.5 sm:gap-3 min-w-0">
               {/* App Branding & Quick Add Long Press */}
-              <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                 <div
-                  className="cursor-pointer active:scale-95 transition-transform"
+                  className="cursor-pointer active:scale-95 transition-transform flex items-center gap-1.5"
                   title="اضغط مطولاً للإضافة السريعة"
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -2040,8 +2070,19 @@ const App: React.FC = () => {
                     target.addEventListener('touchmove', clear, { once: true });
                   }}
                 >
-                  <Logo size={22} showText />
+                  {/* Desktop Full Logo with Text */}
+                  <div className="hidden sm:block">
+                    <Logo size={22} showText />
+                  </div>
+                  {/* Mobile Compact Emblem + Crisp Typography */}
+                  <div className="sm:hidden flex items-center gap-1.5 select-none">
+                    <Logo size={24} showText={false} />
+                    <span className="font-black text-sm tracking-tight text-[#F7F1E6]">
+                      {state.language === 'en' ? 'Thari' : 'ثـري'}
+                    </span>
+                  </div>
                 </div>
+
                 {/* Offline-First Sovereignty Badge - 100% Local (Large Screens) */}
                 <div
                   className="hidden lg:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors bg-[#D9B978]/15 border-[#D9B978]/40 text-[#D9B978]"
@@ -2052,58 +2093,71 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Header Actions & Quick Selectors */}
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                {/* Wallet Quick Selector Button */}
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowWalletSelector(true)}
-                    aria-label="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all text-xs shadow-sm active:scale-95 group max-w-[130px] sm:max-w-[170px] cursor-pointer ${
-                      selectedWalletId 
-                        ? 'bg-[#8EB9A7]/20 border border-[#8EB9A7] text-white ring-1 ring-[#8EB9A7]/30'
-                        : 'bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white ring-1 ring-[#8EB9A7]/20'
-                    }`}
-                    title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
-                  >
-                    <div className="w-5 h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
-                      <WalletIcon size={11} />
-                    </div>
-                    <span className="font-bold text-white tracking-wide truncate text-[11px] sm:text-xs">
-                      {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
-                    </span>
-                    <ChevronDown size={12} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
-                  </button>
-                  {selectedWalletId && (
-                    <button
-                      type="button"
-                      onClick={() => handleSelectWallet(null)}
-                      className="p-1.5 rounded-xl bg-[#141B24] hover:bg-white/10 text-[#8EB9A7] hover:text-white border border-[#8EB9A7]/30 transition-colors cursor-pointer"
+              {/* Header Actions & Quick Selectors - Optimized for Breathable Mobile View */}
+              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                {/* Wallet Quick Selector Button (with embedded cancel X icon when active) */}
+                <button
+                  type="button"
+                  onClick={() => setShowWalletSelector(true)}
+                  aria-label="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
+                  className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl transition-all text-xs shadow-xs active:scale-95 group cursor-pointer max-w-[105px] xs:max-w-[130px] sm:max-w-[170px] ${
+                    selectedWalletId 
+                      ? 'bg-[#8EB9A7]/20 border border-[#8EB9A7] text-white ring-1 ring-[#8EB9A7]/30'
+                      : 'bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#8EB9A7]/40 hover:border-[#8EB9A7] text-white ring-1 ring-[#8EB9A7]/20'
+                  }`}
+                  title="المحافظ والحسابات - انقر للاختيار أو دمج المحافظ"
+                >
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-lg bg-[#8EB9A7] text-slate-950 font-black text-[9px] sm:text-[10px] flex items-center justify-center shrink-0 shadow-xs">
+                    <WalletIcon size={10} className="sm:w-[11px] sm:h-[11px]" />
+                  </div>
+                  <span className="font-bold text-white tracking-wide truncate text-[10.5px] sm:text-xs">
+                    {selectedWalletId ? state.wallets.find(w => w.id === selectedWalletId)?.name || 'Wallet' : t.allWallets}
+                  </span>
+                  {selectedWalletId ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        NativeHaptics.selection().catch(() => {});
+                        handleSelectWallet(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.stopPropagation();
+                          handleSelectWallet(null);
+                        }
+                      }}
+                      className="p-0.5 rounded-md hover:bg-white/20 text-[#8EB9A7] hover:text-white transition-colors cursor-pointer shrink-0"
                       title="إلغاء التحديد والعودة لكافة المحافظ"
-                      aria-label="إلغاء التحديد والعودة لكافة المحافظ"
+                      aria-label="إلغاء التحديد"
                     >
-                      <X size={12} />
-                    </button>
+                      <X size={10} className="sm:w-[12px] sm:h-[12px]" />
+                    </span>
+                  ) : (
+                    <ChevronDown size={11} className="text-[#8EB9A7] group-hover:translate-y-0.5 transition-transform shrink-0" />
                   )}
-                </div>
+                </button>
 
                 {/* Currency Badge / Interactive Quick Selector */}
                 {(() => {
                   const currentCurrLoc = getLocalizedCurrency(state.currency?.code || 'SAR', state.currency?.name, state.currency?.symbol, state.language || 'ar');
+                  const compactCode = (state.currency.code || 'SAR')
+                    .replace('YER_SANAA', 'YER')
+                    .replace('YER_ADEN', 'YER');
                   return (
                     <button
                       type="button"
                       onClick={() => setShowCurrencySelector(true)}
                       aria-label={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0"
+                      className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-[#D9B978]/40 hover:border-[#D9B978] text-white transition-all text-xs shadow-xs active:scale-95 group ring-1 ring-[#D9B978]/20 shrink-0 cursor-pointer"
                       title={`العملة الأساسية: ${currentCurrLoc.name} (${state.currency.code})`}
                     >
-                      <div className="w-5 h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0 shadow-xs">
+                      <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-lg bg-[#D9B978] text-slate-950 font-black text-[9px] sm:text-[10px] flex items-center justify-center shrink-0 shadow-xs">
                         {currentCurrLoc.symbol}
                       </div>
-                      <span className="font-bold text-white tracking-wide text-[11px] sm:text-xs">{state.currency.code}</span>
-                      <ChevronDown size={12} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform shrink-0" />
+                      <span className="font-bold text-white tracking-wide text-[10.5px] sm:text-xs">{compactCode}</span>
+                      <ChevronDown size={11} className="text-[#D9B978] group-hover:translate-y-0.5 transition-transform shrink-0" />
                     </button>
                   );
                 })()}
@@ -2118,11 +2172,11 @@ const App: React.FC = () => {
                     showToast(nextLang === 'en' ? 'Switched to English' : 'تم التحويل إلى اللغة العربية', 'success');
                   }}
                   aria-label={state.language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978] text-white transition-all text-xs shadow-sm active:scale-95 group shrink-0 cursor-pointer ring-1 ring-white/5"
+                  className="flex items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978] text-white transition-all text-xs shadow-xs active:scale-95 group shrink-0 cursor-pointer ring-1 ring-white/5 min-w-[32px] sm:min-w-0"
                   title={state.language === 'en' ? 'التحويل إلى العربية' : 'Switch to English'}
                 >
-                  <Globe size={13} className="text-[#D9B978]" />
-                  <span className="font-black text-[11px] sm:text-xs tracking-wide">
+                  <Globe size={12} className="text-[#D9B978] hidden sm:inline" />
+                  <span className="font-black text-[10px] sm:text-xs tracking-wide">
                     {state.language === 'en' ? 'عربي' : 'EN'}
                   </span>
                 </button>
@@ -2132,12 +2186,12 @@ const App: React.FC = () => {
                   type="button"
                   onClick={() => setShowToolsHub(true)}
                   aria-label="مركز الأدوات والتقارير"
-                  className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95"
+                  className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center w-[30px] h-[30px] sm:w-auto sm:h-auto"
                   title="مركز الأدوات والتقارير"
                 >
-                  <Sparkles size={16} />
+                  <Sparkles size={14} className="sm:w-4 sm:h-4 text-[#D9B978]/90" />
                   {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
                   )}
                 </button>
               </div>
@@ -2146,8 +2200,8 @@ const App: React.FC = () => {
         )}
 
         <main 
-          className="flex-1 overflow-y-auto no-scrollbar overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] w-full overscroll-contain"
-          style={{ paddingTop: activeTab === 'dashboard' ? '0px' : 'calc(env(safe-area-inset-top, 0px) + 1.15rem)', WebkitOverflowScrolling: 'touch' }}
+          className="flex-1 overflow-y-auto no-scrollbar overflow-x-hidden px-3 sm:px-5 md:px-8 relative pb-[calc(7rem+env(safe-area-inset-bottom,16px))] md:pb-12 w-full overscroll-contain"
+          style={{ paddingTop: activeTab === 'dashboard' ? '0px' : 'calc(env(safe-area-inset-top, 0px) + 0.85rem)', WebkitOverflowScrolling: 'touch' }}
         >
           <div className="py-4 sm:py-6 max-w-7xl mx-auto w-full">
             {isUpdateAvailable && (
@@ -2489,12 +2543,13 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        <div className={`fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-4 md:px-0 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent transition-all duration-300 ${
+        {/* Floating Mobile Bottom Dock (< 768px - md:hidden) */}
+        <div className={`fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-4 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent transition-all duration-300 md:hidden ${
           isAnyModalActive || isKeyboardVisible
             ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
             : 'opacity-100 translate-y-0'
         }`}>
-            <nav className="pointer-events-auto w-full md:max-w-xl bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2 py-2 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
+            <nav className="pointer-events-auto w-full max-w-md bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2.5 py-2 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
                 <NavButton icon={<LayoutDashboard />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
                 <NavButton icon={<History />} label={activeLanguage === 'en' ? 'Transactions' : 'المعاملات'} active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
                 
@@ -2506,7 +2561,8 @@ const App: React.FC = () => {
                     setEditingTransaction(null); 
                     setShowAddForm(true); 
                   }}
-                  className="w-14 h-14 bg-[#D9B978] hover:bg-[#D9B978]/90 text-slate-950 rounded-[1.5rem] shadow-[0_10px_25px_rgba(217,185,120,0.35)] flex items-center justify-center z-50 border-[4px] border-[#11161C] mx-1 shrink-0 active:scale-95 transition-transform"
+                  className="w-14 h-14 bg-gradient-to-tr from-[#C9A45C] to-[#E2C78C] hover:brightness-110 text-slate-950 rounded-[1.5rem] shadow-[0_10px_25px_rgba(217,185,120,0.4)] flex items-center justify-center z-50 border-[4px] border-[#11161C] mx-1 shrink-0 active:scale-95 transition-transform"
+                  title={activeLanguage === 'en' ? 'Add Transaction' : 'إضافة معاملة جديدة'}
                 >
                   <Plus size={28} strokeWidth={3.5} />
                 </motion.button>
@@ -2516,9 +2572,9 @@ const App: React.FC = () => {
             </nav>
         </div>
 
-        {/* Floating Quick Action Buttons */}
+        {/* Floating Quick Action Buttons (< 768px - md:hidden) */}
         {activeTab === 'dashboard' && (
-          <div className={`fixed left-3 sm:left-4 bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-32 md:bottom-36 z-40 flex flex-col gap-2.5 pointer-events-none no-print transition-all duration-300 ${
+          <div className={`fixed left-3 sm:left-4 bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-32 z-40 flex flex-col gap-2.5 pointer-events-none no-print transition-all duration-300 md:hidden ${
             isAnyModalActive || isKeyboardVisible
               ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
               : 'opacity-100 translate-y-0'
@@ -2734,6 +2790,7 @@ const App: React.FC = () => {
         </React.Suspense>
 
         <GlobalToast toast={globalToast} onDismiss={() => setGlobalToast(null)} />
+        </div>
       </div>
     </div>
   );
@@ -2747,18 +2804,18 @@ const NavButton = ({ icon, label, active, onClick }: { icon: any, label: string,
       onClick();
     }} 
     aria-label={label}
-    className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 min-w-[60px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
+    className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 min-w-[55px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
   >
-    <div className={`p-2 rounded-xl transition-all duration-300 relative ${active ? 'bg-[#D9B978]/10 text-[#D9B978]' : 'group-hover:bg-white/5'}`}>
-        {React.cloneElement(icon, { size: 24, strokeWidth: active ? 2.2 : 1.8 })}
+    <div className={`p-2 rounded-2xl transition-all duration-300 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/20 to-[#D9B978]/5 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.25)] border border-[#D9B978]/30' : 'group-hover:bg-white/5'}`}>
+        {React.cloneElement(icon, { size: 22, strokeWidth: active ? 2.4 : 1.8 })}
         {active && (
           <motion.div 
             layoutId="activeTabGlow" 
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-[#D9B978] rounded-full shadow-[0_0_8px_rgba(217,185,120,0.8)]" 
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-[#D9B978] rounded-full shadow-[0_0_10px_#D9B978]" 
           />
         )}
     </div>
-    <span className={`text-[10px] font-bold transition-all duration-300 ${active ? 'opacity-100' : 'opacity-70'}`}>{label}</span>
+    <span className={`text-[10px] font-black tracking-tight transition-all duration-300 ${active ? 'opacity-100 text-[#D9B978]' : 'opacity-70 text-slate-400'}`}>{label}</span>
   </motion.button>
 );
 
