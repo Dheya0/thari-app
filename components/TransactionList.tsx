@@ -245,13 +245,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
           onEdit={() => onEdit(tx)}
           onDelete={() => onDelete(tx.id)}
           onClick={() => onEdit(tx)}
-          editLabel="تعديل"
-          deleteLabel="حذف"
-          className="w-full rounded-2xl sm:rounded-3xl"
+          editLabel={language === 'en' ? 'Edit' : 'تعديل'}
+          deleteLabel={language === 'en' ? 'Delete' : 'حذف'}
+          className="w-full rounded-2xl sm:rounded-3xl shadow-xs"
         >
           <div
-            className="group bg-[#11161C] p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-[#D9B978]/30 hover:bg-[#151C24] transition-colors duration-200 gap-2.5 cursor-pointer min-h-[76px]"
-            title="اسحب لليمين/اليسار للحذف والتعديل، أو انقر للتفاصيل"
+            className="group bg-[#11161C] p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-sm border border-white/5 flex items-center justify-between hover:border-[#D9B978]/30 hover:bg-[#151C24] transition-colors duration-200 gap-2.5 cursor-pointer min-h-[76px] relative overflow-hidden"
+            title={language === 'en' ? 'Swipe right to delete, left to edit, or tap for details' : 'اسحب لليمين للحذف، لليسار للتعديل، أو انقر للتفاصيل'}
           >
             {/* Left / Primary Info */}
             <div className="flex items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
@@ -392,6 +392,15 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 )}
 
                 <span className="text-[8.5px] text-slate-500 font-mono sm:hidden">{tx.date}</span>
+              </div>
+
+              {/* Subtle Swipe Edge Affordance */}
+              <div 
+                className="hidden sm:flex flex-col items-center justify-center gap-1 opacity-25 group-hover:opacity-75 transition-opacity ps-1 shrink-0 select-none"
+                aria-hidden="true"
+                title={language === 'en' ? 'Swipeable row' : 'قابلة للسحب'}
+              >
+                <div className="w-1 h-3.5 rounded-full bg-slate-500/80" />
               </div>
             </div>
           </div>
@@ -536,6 +545,35 @@ const TransactionList: React.FC<TransactionListProps> = ({
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Physics-Based Swipe Interactive Guide */}
+      {totalCount > 0 && (
+        <div className="flex items-center justify-between px-3.5 py-2 bg-[#11161C]/80 border border-white/5 rounded-2xl text-[11px] text-slate-400 select-none shadow-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex items-center gap-1 font-black text-[#F4F1EA]">
+              <Sparkles size={13} className="text-[#D9B978]" />
+              {language === 'en' ? 'Physics Swipe:' : 'سحب فيزيائي مرن:'}
+            </span>
+            <div className="flex items-center gap-1.5 text-[10.5px]">
+              <span className="text-slate-400">{language === 'en' ? 'Right to' : 'لليمين'}</span>
+              <span className="text-rose-400 font-bold bg-rose-500/15 px-1.5 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
+                <Trash2 size={11} />
+                {language === 'en' ? 'Delete' : 'حذف'}
+              </span>
+              <span className="text-slate-500">•</span>
+              <span className="text-slate-400">{language === 'en' ? 'Left to' : 'لليسار'}</span>
+              <span className="text-[#D9B978] font-bold bg-[#D9B978]/15 px-1.5 py-0.5 rounded-md border border-[#D9B978]/30 flex items-center gap-1">
+                <Edit2 size={11} />
+                {language === 'en' ? 'Edit' : 'تعديل'}
+              </span>
+            </div>
+          </div>
+          <span className="text-[10px] text-slate-400 hidden sm:inline-flex items-center gap-1 font-bold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
+            {language === 'en' ? 'Magnetic snap' : 'إيقاف مغناطيسي'}
+          </span>
         </div>
       )}
 

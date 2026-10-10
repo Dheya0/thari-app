@@ -5,8 +5,9 @@ import {
   Camera, Image as ImageIcon, Trash2, CheckCircle2, Clock, 
   AlertCircle, Search, ArrowUpRight, ArrowDownLeft, 
   UserPlus, UserMinus, Scale, Check, Phone,
-  Tag, Edit3, ChevronRight, Coins, RefreshCw
+  Tag, Edit3, ChevronRight, Coins, RefreshCw, Calculator, Equal, Percent, Delete
 } from 'lucide-react';
+import { evaluateMathExpression, normalizeDigits as normalizeMathDigits } from '../services/mathExpressionService';
 import { 
   Transaction, 
   Category, 
@@ -218,14 +219,54 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleKeyDownPreventEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // If there is an active valid math expression, resolve it
+      if (mathEvaluation.hasOperators && mathEvaluation.isValid && mathEvaluation.result !== null) {
+        setAmount(mathEvaluation.result.toString());
+      }
       dismissKeyboard();
+    }
+  };
+
+  // Real-time safe math evaluation of current amount input
+  const mathEvaluation = useMemo(() => {
+    if (activeTab === 'adjustment') {
+      return { isValid: false, result: null, formattedResult: '', hasOperators: false, isPartial: false };
+    }
+    return evaluateMathExpression(amount);
+  }, [amount, activeTab]);
+
+  const [showCalculatorBar, setShowCalculatorBar] = useState<boolean>(true);
+
+  const applyMathResult = () => {
+    if (mathEvaluation.result !== null && !isNaN(mathEvaluation.result)) {
+      NativeHaptics.impact('MEDIUM').catch(() => {});
+      setAmount(mathEvaluation.result.toString());
+    }
+  };
+
+  const appendMathOp = (operator: string) => {
+    NativeHaptics.impact('LIGHT').catch(() => {});
+    const trimmed = (amount || '').trim();
+    if (!trimmed) {
+      if (operator === '-') setAmount('-');
+      return;
+    }
+    // If ending with another operator, replace it
+    if (/[\+\-\*\/%×÷]$/.test(trimmed)) {
+      setAmount(trimmed.slice(0, -1) + operator);
+    } else {
+      setAmount(trimmed + ' ' + operator + ' ');
     }
   };
 
   const addQuickAmount = (val: number) => {
     NativeHaptics.impact('LIGHT').catch(() => {});
-    const current = parseArabicNumber(amount) || 0;
-    setAmount((current + val).toString());
+    if (mathEvaluation.hasOperators && mathEvaluation.isValid && mathEvaluation.result !== null) {
+      setAmount((mathEvaluation.result + val).toString());
+    } else {
+      const current = parseArabicNumber(amount) || 0;
+      setAmount((current + val).toString());
+    }
   };
 
   const handleDeleteCurrent = () => {
@@ -290,8 +331,17 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleAmountChange = (val: string) => {
-    const sanitized = sanitizeNumericInput(val);
-    setAmount(sanitized);
+    // Convert Arabic-Indic and Persian numerals to ASCII digits
+    let normalized = normalizeMathDigits(val || '');
+    // Replace commas with dot if no dot exists yet, or remove commas
+    if (normalized.includes('.')) {
+      normalized = normalized.replace(/,/g, '');
+    } else {
+      normalized = normalized.replace(/,/g, '.');
+    }
+    // Allow digits, standard decimal dot, and arithmetic operators (+, -, *, /, %, parentheses, space)
+    const cleaned = normalized.replace(/[^0-9\.\+\-\*\/\%\(\)\s]/g, '');
+    setAmount(cleaned);
   };
 
   useEffect(() => {
@@ -410,23 +460,35 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     e.preventDefault();
     setErrorMessage('');
 
+    let finalEvaluatedAmount = 0;
     if (activeTab !== 'adjustment') {
       const rawClean = typeof amount === 'string' ? amount.trim() : String(amount || '');
-      if (rawClean.includes('-')) {
-        NativeHaptics.notification('ERROR').catch(() => {});
-        setErrorMessage(language === 'en' ? 'Negative values are forbidden in transactions' : 'ممنوع إدخال القيم السالبة في المعاملات المالية');
-        return;
+      
+      // If user typed a math expression, evaluate it cleanly
+      if (mathEvaluation.hasOperators) {
+        if (!mathEvaluation.isValid || mathEvaluation.result === null) {
+          NativeHaptics.notification('ERROR').catch(() => {});
+          setErrorMessage(language === 'en' ? 'Incomplete or invalid math calculation' : 'صيغة العملية الحسابية غير مكتملة أو غير صحيحة');
+          return;
+        }
+        finalEvaluatedAmount = mathEvaluation.result;
+      } else {
+        if (rawClean.includes('-')) {
+          NativeHaptics.notification('ERROR').catch(() => {});
+          setErrorMessage(language === 'en' ? 'Negative values are forbidden in transactions' : 'ممنوع إدخال القيم السالبة في المعاملات المالية');
+          return;
+        }
+        finalEvaluatedAmount = parseArabicNumber(amount);
       }
 
-      const numAmount = parseArabicNumber(amount);
-      if (isNaN(numAmount) || numAmount <= 0) {
+      if (isNaN(finalEvaluatedAmount) || finalEvaluatedAmount <= 0) {
         NativeHaptics.notification('ERROR').catch(() => {});
         setErrorMessage(language === 'en' ? 'Transaction amount must be greater than zero' : 'ممنوع إدخال قيمة سالبة أو صفر. يرجى إدخال مبلغ موجب أكبر من الصفر');
         return;
       }
     }
 
-    const numAmount = Math.abs(parseArabicNumber(amount));
+    const numAmount = Math.abs(finalEvaluatedAmount);
     setIsSubmitting(true);
 
     try {
@@ -632,7 +694,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-2.5 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
+      className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -640,8 +702,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       }}
     >
       <div 
-        className="w-full max-w-lg bg-[#0A0D10] border border-[#D9B978]/25 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[92dvh] max-h-[860px] my-auto"
+        className="w-full max-w-lg bg-[#0A0D10] border-t sm:border border-[#D9B978]/25 rounded-t-[28px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[92dvh] max-h-[860px] will-change-transform animate-in slide-in-from-bottom-6 duration-200"
+        style={{ overflowAnchor: 'none' }}
       >
+        {/* MOBILE DRAG HANDLE */}
+        <div className="sm:hidden pt-2 pb-0.5 flex justify-center bg-[#11161C] shrink-0">
+          <div className="w-12 h-1.5 rounded-full bg-[#D9B978]/30"></div>
+        </div>
+
         {/* TOP BAR / UNIFIED HEADER */}
         <div className="p-3.5 sm:p-4 border-b border-[#D9B978]/15 bg-[#11161C] shrink-0 space-y-3">
           <div className="flex items-center justify-between">
@@ -894,27 +962,152 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   </select>
                 </div>
 
-                {/* Quick amount increment pills */}
-                <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar py-0.5">
-                  {[50, 100, 500, 1000].map(inc => (
+                {/* LIVE CALCULATION PREVIEW BADGE */}
+                {mathEvaluation.hasOperators && (
+                  <div className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+                    mathEvaluation.isValid && mathEvaluation.result !== null
+                      ? 'bg-[#D9B978]/15 border-[#D9B978]/35 text-[#D9B978]'
+                      : 'bg-amber-500/10 border-amber-500/25 text-amber-300'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <Calculator size={14} className="shrink-0" />
+                      <span>
+                        {mathEvaluation.isValid && mathEvaluation.result !== null ? (
+                          <>
+                            {language === 'ar' ? 'الناتج الفوري:' : 'Instant Result:'}{' '}
+                            <span className="font-mono text-sm font-black text-white px-1">
+                              {mathEvaluation.formattedResult} {getCurrencySymbol(inputCurrency)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] font-medium opacity-80">
+                            {language === 'ar' ? 'اكتب رقماً لإكمال العملية الحسابية...' : 'Enter next number to calculate...'}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+
+                    {mathEvaluation.isValid && mathEvaluation.result !== null && (
+                      <button
+                        type="button"
+                        onClick={applyMathResult}
+                        className="px-2 py-0.5 rounded-lg bg-[#D9B978] text-[#0A0D10] text-[11px] font-black hover:bg-[#D9B978]/90 active:scale-95 transition-all shadow-xs"
+                      >
+                        {language === 'ar' ? 'اعتماد الناتج =' : 'Apply ='}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* INTERACTIVE FINANCIAL CALCULATOR BAR */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#F4F1EA]/60 flex items-center gap-1">
+                      <Calculator size={11} className="text-[#D9B978]" />
+                      {language === 'ar' ? 'شريط الحاسبة والعمليات المباشرة' : 'Quick Math & Calculator'}
+                    </span>
                     <button
-                      key={inc}
                       type="button"
-                      onClick={() => addQuickAmount(inc)}
-                      className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
+                      onClick={() => setShowCalculatorBar(!showCalculatorBar)}
+                      className="text-[10px] text-[#D9B978] hover:underline font-bold"
                     >
-                      +{inc}
+                      {showCalculatorBar ? (language === 'ar' ? 'إخفاء' : 'Hide') : (language === 'ar' ? 'إظهار الحاسبة' : 'Show Calc')}
                     </button>
-                  ))}
-                  {amount && (
-                    <button
-                      type="button"
-                      onClick={() => setAmount('')}
-                      className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
-                    >
-                      {language === 'ar' ? 'مسح' : 'Clear'}
-                    </button>
+                  </div>
+
+                  {showCalculatorBar && (
+                    <div className="grid grid-cols-7 gap-1.5 p-1.5 bg-[#0A0D10] rounded-xl border border-[#D9B978]/20">
+                      <button
+                        type="button"
+                        onClick={() => appendMathOp('+')}
+                        className="py-1.5 px-2 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/25 text-[#D9B978] text-sm font-black active:scale-95 transition-all border border-[#D9B978]/30 flex items-center justify-center"
+                        title={language === 'ar' ? 'جمع (+)' : 'Add (+)'}
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendMathOp('-')}
+                        className="py-1.5 px-2 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/25 text-[#D9B978] text-sm font-black active:scale-95 transition-all border border-[#D9B978]/30 flex items-center justify-center"
+                        title={language === 'ar' ? 'طرح (-)' : 'Subtract (-)'}
+                      >
+                        -
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendMathOp('*')}
+                        className="py-1.5 px-2 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/25 text-[#D9B978] text-sm font-black active:scale-95 transition-all border border-[#D9B978]/30 flex items-center justify-center"
+                        title={language === 'ar' ? 'ضرب (×)' : 'Multiply (×)'}
+                      >
+                        ×
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendMathOp('/')}
+                        className="py-1.5 px-2 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/25 text-[#D9B978] text-sm font-black active:scale-95 transition-all border border-[#D9B978]/30 flex items-center justify-center"
+                        title={language === 'ar' ? 'قسمة (÷)' : 'Divide (÷)'}
+                      >
+                        ÷
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendMathOp('%')}
+                        className="py-1.5 px-2 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/25 text-[#D9B978] text-sm font-black active:scale-95 transition-all border border-[#D9B978]/30 flex items-center justify-center"
+                        title={language === 'ar' ? 'نسبة مئوية (%) مثل 15% ضريبة' : 'Percent (%)'}
+                      >
+                        %
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyMathResult}
+                        disabled={!mathEvaluation.isValid || mathEvaluation.result === null}
+                        className="py-1.5 px-2 rounded-lg bg-[#D9B978] disabled:opacity-30 disabled:pointer-events-none text-[#0A0D10] text-sm font-black active:scale-95 transition-all border border-[#D9B978] flex items-center justify-center shadow-xs"
+                        title={language === 'ar' ? 'تطبيق الناتج (=)' : 'Calculate (=)'}
+                      >
+                        =
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="py-1.5 px-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-black active:scale-95 transition-all border border-rose-500/30 flex items-center justify-center"
+                        title={language === 'ar' ? 'مسح (C)' : 'Clear (C)'}
+                      >
+                        C
+                      </button>
+                    </div>
                   )}
+
+                  {/* Quick amount increment pills */}
+                  <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar py-0.5">
+                    {[50, 100, 500, 1000].map(inc => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => addQuickAmount(inc)}
+                        className="px-2.5 py-1 rounded-lg bg-[#171D24] hover:bg-[#D9B978]/20 text-[#D9B978] text-[11px] font-bold border border-[#D9B978]/25 shrink-0 active:scale-95 transition-all"
+                      >
+                        +{inc}
+                      </button>
+                    ))}
+                    {/* Common Tax Shortcuts (e.g. +15% VAT) */}
+                    <button
+                      type="button"
+                      onClick={() => appendMathOp('+ 15%')}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[11px] font-black border border-amber-500/30 shrink-0 active:scale-95 transition-all"
+                      title={language === 'ar' ? 'إضافة ضريبة 15%' : 'Add 15% VAT'}
+                    >
+                      +15% {language === 'ar' ? 'ضريبة' : 'VAT'}
+                    </button>
+                    {amount && (
+                      <button
+                        type="button"
+                        onClick={() => setAmount('')}
+                        className="px-2 py-1 rounded-lg bg-[#C98387]/15 hover:bg-[#C98387]/25 text-[#C98387] text-[11px] font-bold border border-[#C98387]/30 shrink-0 active:scale-95 transition-all"
+                      >
+                        {language === 'ar' ? 'مسح' : 'Clear'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
