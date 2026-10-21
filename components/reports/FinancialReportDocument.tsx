@@ -81,43 +81,42 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
     <div
       id={id}
       dir="rtl"
-      className="bg-white text-slate-900 font-sans p-6 sm:p-10 max-w-5xl mx-auto print:p-4 print:max-w-none print:w-full print:m-0 print:border-none shadow-xl print:shadow-none border border-slate-200 print:text-black antialiased"
+      className="bg-white text-slate-900 font-sans p-6 sm:p-10 max-w-5xl mx-auto print:p-0 print:max-w-none print:w-full print:m-0 print:border-none shadow-xl print:shadow-none border border-slate-200 print:text-black antialiased"
       style={{ minHeight: '100%' }}
     >
       {/* 1. Header Section */}
-      <div className="border-b-2 border-slate-900 pb-5 mb-6">
+      <div className="border-b-2 border-slate-900 pb-5 mb-6 print:pb-3 print:mb-4">
         <div className="flex justify-between items-start gap-4">
           
           {/* Logo and Brand Identity */}
           <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 rounded-2xl bg-slate-950 flex items-center justify-center p-2 border border-slate-800 shadow-md">
+            <div className="w-14 h-14 rounded-2xl bg-slate-950 flex items-center justify-center p-2 border border-slate-800 shadow-md print:w-11 print:h-11 print:rounded-xl">
               <Logo size={36} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-slate-950 tracking-tight">ثَـــري</h1>
-                <span className="text-sm font-bold text-amber-600 font-mono">THARI</span>
+                <h1 className="text-2xl font-black text-slate-950 tracking-tight print:text-lg">ثَـــري</h1>
+                <span className="text-sm font-bold text-amber-600 font-mono print:text-xs">THARI</span>
               </div>
-              <p className="text-[10px] font-bold text-slate-500 mt-0.5">
+              <p className="text-[10px] font-bold text-slate-500 mt-0.5 print:text-[8.5px]">
                 منظومة إدارة الأصول والميزانيات المالية المتكاملة
               </p>
-              <p className="text-[9px] font-medium text-slate-400">
+              <p className="text-[9px] font-medium text-slate-400 print:text-[7.5px]">
                 Institutional Financial Suite & Wealth Management
               </p>
             </div>
           </div>
 
           {/* Document Reference, Verification & QR Code */}
-          <div className="flex items-center gap-4">
-            <div className="text-left font-mono text-[10px] text-slate-600 hidden sm:block print:block">
-              <p className="font-black text-slate-950 text-xs">{metadata.reportId}</p>
-              <p className="text-slate-500 mt-0.5">بصمة: {metadata.fingerprint}</p>
-              <p className="text-slate-400 mt-0.5">{metadata.generatedAtFormattedAr}</p>
-              <p className="text-slate-400">{metadata.generatedTimeFormattedAr}</p>
+          <div className="flex items-center gap-4 print:gap-2.5">
+            <div className="text-left font-mono text-[10px] text-slate-600 hidden sm:block print:block print:text-[8px] print:leading-tight">
+              <p className="font-black text-slate-950 text-xs print:text-[9px]">{metadata.reportId}</p>
+              <p className="text-slate-500 mt-0.5">بصمة: {metadata.fingerprint.slice(0, 16)}...</p>
+              <p className="text-slate-400 mt-0.5">{metadata.generatedAtFormattedAr} • {metadata.generatedTimeFormattedAr}</p>
             </div>
             <ReportQRCode
               payload={metadata.qrPayload}
-              size={64}
+              size={56}
               reportId={metadata.reportId}
               dataUrl={metadata.qrDataUrl}
             />
@@ -126,18 +125,18 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
         </div>
 
         {/* Document Title Banner */}
-        <div className="mt-5 pt-4 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2">
+        <div className="mt-4 pt-3 border-t border-slate-200 flex flex-wrap justify-between items-center gap-2 print:mt-2.5 print:pt-2">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <h2 className="text-base sm:text-lg font-black text-slate-950">
+            <h2 className="text-base sm:text-lg font-black text-slate-950 print:text-sm">
               {titleInfo.ar}
             </h2>
-            <span className="text-xs font-bold text-slate-400 font-mono">
+            <span className="text-xs font-bold text-slate-400 font-mono print:text-[10px]">
               {titleInfo.en}
             </span>
           </div>
 
-          <div className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+          <div className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 print:text-[9px] print:py-0.5 print:px-2">
             حساب: <span className="font-black text-slate-900">{account.name}</span>
           </div>
         </div>
@@ -146,7 +145,7 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
         <ReportScopeHeader
           scope={model.scope}
           totalTransactions={model.kpis.totalTransactions}
-          className="mt-4"
+          className="mt-3 print:mt-2 print:p-2.5"
         />
       </div>
 

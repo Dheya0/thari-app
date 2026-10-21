@@ -269,13 +269,13 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const renderDetailedTableHeader7Col = (sym: string) => `
     <thead>
       <tr>
-        <th style="width: 26px; text-align: center;">#</th>
-        <th style="width: 68px; text-align: center;">التاريخ</th>
-        <th style="width: 85px; text-align: right;">التصنيف</th>
-        <th style="width: 75px; text-align: right;">المحفظة</th>
-        <th style="text-align: right;">البيان / تفاصيل القيد</th>
-        <th style="width: 88px; text-align: left;">المبلغ (${esc(sym)})</th>
-        <th style="width: 95px; text-align: left;">الرصيد التراكمي (${esc(sym)})</th>
+        <th style="width: 4%; text-align: center;">#</th>
+        <th style="width: 11%; text-align: center;">التاريخ</th>
+        <th style="width: 14%; text-align: right;">التصنيف</th>
+        <th style="width: 12%; text-align: right;">المحفظة</th>
+        <th style="width: 31%; text-align: right;">البيان / تفاصيل القيد</th>
+        <th style="width: 14%; text-align: left;">المبلغ (${esc(sym)})</th>
+        <th style="width: 14%; text-align: left;">الرصيد (${esc(sym)})</th>
       </tr>
     </thead>
   `;
@@ -289,21 +289,21 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 
     return `
       <tr>
-        <td style="text-align: center; color: #64748b; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px;">${idx + 1}</td>
-        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px; color: #334155; white-space: nowrap;">${esc(tx.date)}</td>
-        <td style="text-align: right; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 3px;"></span>
+        <td style="text-align: center; color: #64748b; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 7.5px;">${idx + 1}</td>
+        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 7.5px; color: #334155; white-space: nowrap;">${esc(tx.date)}</td>
+        <td style="text-align: right; font-weight: 700; color: #1e293b; font-size: 8px;">
+          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 2px;"></span>
           <span style="vertical-align: middle;">${esc(tx.categoryName)}</span>
         </td>
-        <td style="text-align: right; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(tx.walletName)}</td>
+        <td style="text-align: right; color: #475569; font-size: 7.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(tx.walletName)}</td>
         <td style="text-align: right; color: #0f172a;" title="${esc(tx.note || tx.categoryName)}">
-          <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;">${esc(tx.note || tx.categoryName)}</div>
-          ${tx.conversionNote ? `<div style="font-size: 7.5px; color: #b45309; line-height: 10px; margin-top: 1px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
+          <div style="font-size: 8px; line-height: 11px; word-break: break-word; overflow-wrap: break-word; max-width: 240px;">${esc(tx.note || tx.categoryName)}</div>
+          ${tx.conversionNote ? `<div style="font-size: 7px; color: #b45309; line-height: 9px; margin-top: 1px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
         </td>
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: ${amtColor}; white-space: nowrap;">
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: ${amtColor}; white-space: nowrap; font-size: 8px;">
           ${amtSign}${formatNum(tx.originalAmount)}
         </td>
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; background: #fffdf5;">
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; font-size: 8px; background: #fffdf5;">
           ${effectiveBal !== undefined ? formatNum(effectiveBal) : '-'}
         </td>
       </tr>
@@ -1338,6 +1338,13 @@ export function buildPrintableReportHTML(model: ReportModel): string {
         background: #ffffff;
       }
       .report-page {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: auto !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        padding: 6mm 6mm !important;
         margin: 0 !important;
         border: none !important;
         box-shadow: none !important;
@@ -1347,6 +1354,10 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       .report-page:last-child {
         page-break-after: avoid !important;
         break-after: avoid !important;
+      }
+      .page-footer-container {
+        position: static !important;
+        margin-top: 8px !important;
       }
     }
     .badge-account {
@@ -1373,8 +1384,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     table.report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 8.5px;
-      line-height: 13px;
+      font-size: 8px;
+      line-height: 12px;
       margin-bottom: 4px;
       table-layout: fixed;
     }
@@ -1385,21 +1396,21 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       background-color: #0f172a;
       color: #ffffff;
       font-weight: 800;
-      font-size: 8.5px;
-      line-height: 13px;
-      padding: 5px 5px;
+      font-size: 8px;
+      line-height: 12px;
+      padding: 3.5px 4px;
       border: 1px solid #1e293b;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     table.report-table td {
-      padding: 4px 5px;
+      padding: 3px 4px;
       border: 1px solid #e2e8f0;
       color: #1e293b;
       vertical-align: middle;
-      font-size: 8.5px;
-      line-height: 13px;
+      font-size: 8px;
+      line-height: 11.5px;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -1410,9 +1421,9 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       background-color: #0f172a;
       border-top: 1.5px solid #0f172a;
       font-weight: 900;
-      font-size: 8.5px;
-      line-height: 13px;
-      padding: 5px 5px;
+      font-size: 8px;
+      line-height: 12px;
+      padding: 3.5px 4px;
     }
   </style>
 </head>

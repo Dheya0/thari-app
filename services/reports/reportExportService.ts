@@ -1089,3 +1089,69 @@ export async function exportAndShareNativeFile(
     console.error('Export download error:', err);
   }
 }
+
+/**
+ * Generates an executive, beautifully formatted plain-text financial summary
+ * ideal for instant clipboard copying or sharing via WhatsApp, Telegram, or Email.
+ */
+export function buildReportTextSummary(model: ReportModel): string {
+  const { metadata, reportType, account, scope, kpis, currencyBreakdown = [], expenseCategories = [] } = model;
+  const baseSymbol = scope.baseCurrency?.symbol || 'SAR';
+  const baseCode = scope.baseCurrency?.code || 'SAR';
+
+  const typeTitles: Record<ReportType, string> = {
+    summary: 'الملخص المالي التنفيذي',
+    detailed: 'كشف القيود والمعاملات التفصيلي',
+    category: 'تقرير تحليل الميزانية والإنفاق',
+    wealth: 'تقرير صافي الثروة وتوزيع المحافظ',
+    debts: 'كشف الذمم والديون والالتزامات',
+    savings_goals: 'تقرير الأهداف المالية والمدخرات',
+  };
+
+  const titleAr = typeTitles[reportType] || 'التقرير المالي';
+  const sign = kpis.netSavings >= 0 ? '+' : '';
+
+  const lines: string[] = [
+    `📊 *تطبيق ثـري المالي | ${titleAr}*`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `👤 *الحساب:* ${account.name}`,
+    `💼 *النطاق:* ${scope.walletNameAr}`,
+    `📅 *الفترة:* ${scope.periodLabelAr}`,
+    `🔢 *إجمالي العمليات:* ${kpis.totalTransactions} حركة`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `📈 *المؤشرات المالية الرئيسية (${baseCode}):*`,
+    `• الواردات (المقبوضات): +${Math.round(kpis.totalIncome).toLocaleString()} ${baseSymbol} (${kpis.incomeCount} قيد)`,
+    `• المنصرفات (المصروفات): -${Math.round(kpis.totalExpense).toLocaleString()} ${baseSymbol} (${kpis.expenseCount + kpis.transferCount} قيد)`,
+    `• صافي الفائض / العجز: ${sign}${Math.round(kpis.netSavings).toLocaleString()} ${baseSymbol} (${kpis.savingsRatePercent}% ادخار)`,
+    `• الرصيد الختامي: ${Math.round(kpis.closingBalance).toLocaleString()} ${baseSymbol}`,
+  ];
+
+  if (currencyBreakdown.length > 1) {
+    lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+    lines.push(`💱 *تفصيل العملات المتعددة:*`);
+    currencyBreakdown.forEach((cb) => {
+      lines.push(
+        `• ${cb.code} (${cb.metadata.nameAr}): صافي ${cb.net >= 0 ? '+' : ''}${Math.round(cb.net).toLocaleString()} ${cb.metadata.symbol} | ختامي: ${Math.round(cb.closingBalance).toLocaleString()} ${cb.metadata.symbol}`
+      );
+    });
+  }
+
+  if (expenseCategories.length > 0) {
+    lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+    lines.push(`🏷️ *أبرز بنود الإنفاق:*`);
+    expenseCategories.slice(0, 4).forEach((cat) => {
+      lines.push(
+        `• ${cat.name}: ${Math.round(cat.totalAmount).toLocaleString()} ${baseSymbol} (${Math.round(cat.percentageOfTotal)}%)`
+      );
+    });
+  }
+
+  lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+  lines.push(`🔒 وثيقة مالية معتمدة وموثقة إلكترونياً`);
+  lines.push(`🏷️ كود التقرير: ${metadata.reportId}`);
+  lines.push(`🔐 بصمة التوثيق: ${metadata.fingerprint.slice(0, 16)}...`);
+  lines.push(`📱 مستخرج عبر منظومة ثـري المالية`);
+
+  return lines.join('\n');
+}
+

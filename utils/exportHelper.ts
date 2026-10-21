@@ -147,3 +147,32 @@ export const generateAndShareCSV = async (
   const fileName = `Thari_Transactions_${formatLocalDateOnly(new Date())}.xlsx`;
   await exportAndShareXlsxFile(wb, fileName, 'سجل معاملات ثـري (Excel XLSX)');
 };
+
+export const shareReportTextSummary = async (
+  transactions: Transaction[],
+  categories: Category[],
+  wallets: Wallet[],
+  currency?: Currency,
+  userName = 'مستخدم ثري'
+): Promise<string> => {
+  const [{ generateFinancialReportSync }, { buildReportTextSummary }] = await Promise.all([
+    import('../services/reports/reportService'),
+    import('../services/reports/reportExportService')
+  ]);
+  const model = generateFinancialReportSync({
+    transactions,
+    categories,
+    wallets,
+    userName,
+    baseCurrencyCode: currency?.code || 'SAR',
+    exchangeRates: {},
+    params: {
+      type: 'summary',
+      walletId: null,
+      currencyCode: null,
+      targetCurrencyCode: currency?.code || 'SAR',
+    },
+  });
+  return buildReportTextSummary(model);
+};
+

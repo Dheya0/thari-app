@@ -21,6 +21,11 @@ import {
   PieChart,
   BookOpen,
   SlidersHorizontal,
+  Copy,
+  Share2,
+  ZoomIn,
+  ZoomOut,
+  CheckCheck,
 } from 'lucide-react';
 import { Category, Currency, Transaction, Wallet, Budget, Debt, SavingsGoal } from '../../types';
 import { ReportModel, ReportType } from '../../services/reports/reportTypes';
@@ -30,6 +35,7 @@ import {
   buildExcelReportCSV,
   buildExcelReportHTML,
   buildPrintableReportHTML,
+  buildReportTextSummary,
   exportAndShareNativeFile,
   printOrShareFinancialReport,
 } from '../../services/reports/reportExportService';
@@ -97,6 +103,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [previewZoom, setPreviewZoom] = useState<number>(100);
+  const [copiedSummary, setCopiedSummary] = useState<boolean>(false);
 
   // Check if all wallets are selected
   const isAllWalletsSelected = useMemo(() => {
@@ -309,6 +317,33 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
   };
 
+  // Quick Executive Text Summary Copy Handler (WhatsApp, Telegram, Notes)
+  const handleCopySummary = async (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    try {
+      const summaryText = buildReportTextSummary(reportModel);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(summaryText);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = summaryText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedSummary(true);
+      showFeedback('تم نسخ ملخص التقرير المالي للحافظة بنجاح! جاهز للصق في واتساب أو أي تطبيق');
+      setTimeout(() => setCopiedSummary(false), 3000);
+    } catch (err) {
+      console.warn('Failed to copy summary:', err);
+      showFeedback('تعذر النسخ التلقائي، يرجى المحاولة مرة أخرى', 'info');
+    }
+  };
+
   if (!isOpen) return null;
 
   const REPORT_TYPE_OPTIONS: Array<{
@@ -430,25 +465,65 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         {/* Modal Body */}
         {showPreview ? (
           <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-950/60 custom-scrollbar overscroll-contain">
-            <div className="max-w-3xl mx-auto space-y-4">
-              <div className="flex items-center justify-between bg-[#171D24] p-3 px-4 rounded-2xl border border-[#D9B978]/30 shadow-md">
+            <div className="max-w-4xl mx-auto space-y-4">
+              {/* Preview Control Strip */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 bg-[#171D24] p-3 px-4 rounded-2xl border border-[#D9B978]/30 shadow-md">
                 <div className="flex items-center gap-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="text-xs font-bold text-slate-200">
-                    معاينة المستند المالي التفاعلي • تفصيل المحافظ وفصل العملات
+                    معاينة المستند المالي التفاعلي • جاهز للطباعة والمشاركة
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPreview(false)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[#D9B978] text-xs font-bold transition-all border border-[#D9B978]/30 active:scale-95"
-                >
-                  <ArrowRight size={14} />
-                  <span>تعديل الفلاتر</span>
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {/* Zoom controls */}
+                  <div className="hidden sm:inline-flex items-center bg-black/40 rounded-xl p-0.5 border border-white/10 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom(Math.max(60, previewZoom - 15))}
+                      className="p-1.5 hover:text-[#D9B978] transition-colors"
+                      title="تصغير المعاينة"
+                    >
+                      <ZoomOut size={14} />
+                    </button>
+                    <span className="px-1.5 font-mono font-bold text-[11px] text-slate-300">
+                      {previewZoom}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom(Math.min(120, previewZoom + 15))}
+                      className="p-1.5 hover:text-[#D9B978] transition-colors"
+                      title="تكبير المعاينة"
+                    >
+                      <ZoomIn size={14} />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCopySummary}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-bold transition-all border border-white/10 active:scale-95"
+                    title="نسخ ملخص نصي لواتساب أو الملاحظات"
+                  >
+                    {copiedSummary ? <CheckCheck size={14} className="text-emerald-400" /> : <Copy size={14} className="text-[#D9B978]" />}
+                    <span className="hidden sm:inline">{copiedSummary ? 'تم النسخ!' : 'نسخ الملخص'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPreview(false)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 text-[#D9B978] text-xs font-bold transition-all border border-[#D9B978]/30 active:scale-95"
+                  >
+                    <ArrowRight size={14} />
+                    <span>تعديل الفلاتر</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-300 overflow-hidden shadow-2xl bg-white">
+              <div 
+                className="rounded-2xl border border-slate-300 overflow-hidden shadow-2xl bg-white origin-top transition-transform duration-200"
+                style={{ transform: previewZoom !== 100 ? `scale(${previewZoom / 100})` : undefined }}
+              >
                 <FinancialReportDocument model={reportModel} />
               </div>
             </div>
@@ -743,6 +818,37 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               )}
             </div>
 
+            {/* 5. Quick Share & Instant Copy */}
+            <div className="p-3.5 bg-[#0A0D10]/80 rounded-2xl border border-white/10 space-y-2.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                  5. مشاركة سريعة ونسخ مباشر
+                </span>
+                <span className="text-[10px] text-[#D9B978] font-bold">
+                  واتساب • تليجرام • الرسائل
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopySummary}
+                  className="p-2.5 rounded-xl border border-white/10 bg-[#171D24] hover:bg-[#1E252E] text-xs font-bold text-slate-200 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs"
+                >
+                  {copiedSummary ? <CheckCheck size={15} className="text-emerald-400" /> : <Copy size={15} className="text-[#D9B978]" />}
+                  <span>{copiedSummary ? 'تم نسخ الملخص!' : 'نسخ ملخص واتساب'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareReport}
+                  disabled={isProcessing}
+                  className="p-2.5 rounded-xl border border-white/10 bg-[#171D24] hover:bg-[#1E252E] text-xs font-bold text-slate-200 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs"
+                >
+                  <Share2 size={15} className="text-[#759BC8]" />
+                  <span>مشاركة ملف PDF</span>
+                </button>
+              </div>
+            </div>
+
             {/* Scope Summary Preview Box */}
             <div className="p-4 bg-[#0A0D10]/80 rounded-2xl border border-white/10 flex items-center justify-between">
               <div className="space-y-0.5">
@@ -804,6 +910,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
           <button
             type="button"
+            onClick={handleCopySummary}
+            className="py-3.5 px-3 bg-white/5 hover:bg-white/10 text-slate-200 font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all shrink-0"
+            title="نسخ ملخص نصي لواتساب"
+          >
+            {copiedSummary ? <CheckCheck size={16} className="text-emerald-400" /> : <Copy size={16} className="text-[#D9B978]" />}
+            <span className="hidden sm:inline">{copiedSummary ? 'تم النسخ' : 'نسخ الملخص'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handlePrint}
             disabled={isProcessing}
             className={`flex-1 py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -818,7 +934,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             disabled={isProcessing}
             className={`flex-1 py-3.5 px-3 bg-[#759BC8] hover:bg-[#688DB9] text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#759BC8]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <FileText size={16} className={isProcessing ? 'animate-spin' : ''} />
+            <Share2 size={16} className={isProcessing ? 'animate-spin' : ''} />
             <span>{isProcessing ? 'جاري التصدير...' : 'مشاركة التقرير'}</span>
           </button>
 

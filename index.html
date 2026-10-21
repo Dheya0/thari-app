@@ -226,21 +226,11 @@
 
             @page {
                 size: A4 portrait;
-                margin: 10mm 10mm 12mm 10mm;
+                margin: 8mm 8mm 10mm 8mm;
             }
 
             @page :first {
-                margin-top: 8mm;
-            }
-
-            @page :left {
-                margin-left: 10mm;
-                margin-right: 10mm;
-            }
-
-            @page :right {
-                margin-left: 10mm;
-                margin-right: 10mm;
+                margin-top: 6mm;
             }
 
             html, body {
@@ -256,8 +246,8 @@
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: visible !important;
-                font-size: 11pt !important;
-                line-height: 1.45 !important;
+                font-size: 10pt !important;
+                line-height: 1.35 !important;
                 -webkit-font-smoothing: antialiased !important;
             }
 
@@ -266,15 +256,15 @@
             header, 
             nav, 
             aside, 
-            footer:not(#printable-report footer),
+            footer:not(#printable-report footer):not(#financial-report-print-container footer),
             .glass-effect, 
             .no-print, 
             button, 
             select, 
             input, 
             textarea,
-            .fixed:not(#printable-report),
-            [role="dialog"]:not(#printable-report),
+            .fixed:not(#printable-report):not(#financial-report-print-container),
+            [role="dialog"]:not(#printable-report):not(#financial-report-print-container),
             .modal,
             .bottom-nav-safe,
             .animate-pulse,
@@ -314,6 +304,7 @@
 
             /* Luxury Invoice & Institutional Statement Document Frame */
             #printable-report,
+            #financial-report-print-container,
             #financial-report-print-area { 
                 display: block !important; 
                 position: static !important;
@@ -328,6 +319,7 @@
             }
 
             #printable-report > div,
+            #financial-report-print-container > div,
             #financial-report-print-area > div {
                 max-width: 100% !important;
                 width: 100% !important;
@@ -338,58 +330,80 @@
             }
 
             /* Institutional Typography & Crisp Financial Data */
-            #printable-report h1,
-            #printable-report h2,
-            #printable-report h3,
-            #printable-report h4 {
+            #printable-report h1, #financial-report-print-area h1,
+            #printable-report h2, #financial-report-print-area h2,
+            #printable-report h3, #financial-report-print-area h3,
+            #printable-report h4, #financial-report-print-area h4 {
                 color: #090d16 !important;
                 font-weight: 800 !important;
                 page-break-after: avoid !important;
                 break-after: avoid !important;
             }
 
-            #printable-report p,
-            #printable-report span,
-            #printable-report td,
-            #printable-report th {
+            #printable-report p, #financial-report-print-area p,
+            #printable-report span, #financial-report-print-area span,
+            #printable-report td, #financial-report-print-area td,
+            #printable-report th, #financial-report-print-area th {
                 font-feature-settings: "tnum" 1 !important;
                 font-variant-numeric: tabular-nums !important;
             }
 
             /* Table Formatting & Page Breaks for Multi-Page Audit Reports */
-            #printable-report table {
+            #printable-report table,
+            #financial-report-print-area table {
                 width: 100% !important;
                 border-collapse: collapse !important;
+                table-layout: fixed !important;
                 page-break-inside: auto !important;
             }
 
-            #printable-report thead {
+            #printable-report thead,
+            #financial-report-print-area thead {
                 display: table-header-group !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
             }
 
-            #printable-report tfoot {
+            #printable-report tfoot,
+            #financial-report-print-area tfoot {
                 display: table-footer-group !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
             }
 
-            #printable-report tr {
+            #printable-report tr,
+            #financial-report-print-area tr {
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
             }
 
-            #printable-report th {
-                background-color: #090d16 !important;
+            #printable-report th,
+            #financial-report-print-area th {
+                background-color: #0f172a !important;
                 color: #ffffff !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
+                padding: 4pt 4.5pt !important;
+                font-size: 8pt !important;
+                font-weight: 800 !important;
+                line-height: 1.25 !important;
             }
 
             #printable-report td,
-            #printable-report th {
-                padding: 6pt 7pt !important;
+            #financial-report-print-area td {
+                padding: 3.5pt 4pt !important;
+                font-size: 8pt !important;
+                line-height: 1.25 !important;
+                vertical-align: middle !important;
+            }
+
+            /* Prevent text squashing or premature truncation in print */
+            .print\:truncate-none,
+            #financial-report-print-area .truncate {
+                text-overflow: clip !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: break-word !important;
             }
 
             /* Prevent awkward page cutoffs */
@@ -402,7 +416,8 @@
             }
 
             /* Enhanced Vector Clarity for Crest and Barcodes */
-            #printable-report svg {
+            #printable-report svg,
+            #financial-report-print-area svg {
                 max-width: 100% !important;
                 height: auto !important;
                 shape-rendering: geometricPrecision !important;
