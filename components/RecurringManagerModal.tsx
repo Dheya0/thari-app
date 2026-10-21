@@ -169,7 +169,7 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
   const content = (
     <div 
       dir={isRTL ? 'rtl' : 'ltr'}
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+      className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto overscroll-contain no-print"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           if (isAdding) setIsAdding(false);
@@ -181,7 +181,7 @@ export const RecurringManagerModal: React.FC<RecurringManagerModalProps> = ({
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl my-auto max-h-[88dvh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-start"
+        className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl my-auto max-h-[90vh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-start"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

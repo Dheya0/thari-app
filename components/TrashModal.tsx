@@ -78,14 +78,14 @@ export const TrashModal: React.FC<TrashModalProps> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       dir={isRTL ? 'rtl' : 'ltr'}
-      className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+      className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 no-print overflow-y-auto overscroll-contain"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
         initial={{ scale: 0.95, y: 15, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 15, opacity: 0 }}
-        className="bg-slate-900 w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 flex flex-col max-h-[88dvh] sm:max-h-[88vh] overflow-hidden text-start my-auto"
+        className="bg-slate-900 w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden text-start my-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

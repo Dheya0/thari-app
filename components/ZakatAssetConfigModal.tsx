@@ -121,7 +121,7 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
   const content = (
     <AnimatePresence>
       <div 
-        className="fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 bg-black/80 backdrop-blur-md overflow-hidden" 
+        className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain bg-black/80 backdrop-blur-md no-print" 
         dir="rtl"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
@@ -130,11 +130,10 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 12 }}
           transition={{ duration: 0.2 }}
-          className="w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col"
+          className="w-full max-w-xl rounded-3xl border shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh] sm:max-h-[85vh]"
           style={{
             backgroundColor: isDark ? '#10151C' : '#FFFFFF',
-            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-            maxHeight: 'calc(var(--vh, 100dvh) - 1rem)'
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -163,8 +162,7 @@ export const ZakatAssetConfigModal: React.FC<ZakatAssetConfigModalProps> = ({
 
           {/* Modal Scrollable Body */}
           <div 
-            className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs"
-            style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2.5rem)' }}
+            className="p-4 sm:p-5 overflow-y-auto custom-scrollbar space-y-4 text-xs pb-6 overscroll-contain"
           >
             
             {/* 1. METALS RATES MODAL CONTENT */}

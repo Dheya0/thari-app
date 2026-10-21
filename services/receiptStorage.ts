@@ -146,10 +146,27 @@ export async function shareReceipt(receipt: ReceiptAttachment): Promise<void> {
     } else {
       const dataUrl = await loadReceiptDataUrl(receipt);
       if (dataUrl) {
-        const win = window.open();
-        if (win) {
-          win.document.write(`<iframe src="${dataUrl}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+        if (navigator.share && navigator.canShare) {
+          try {
+            const res = await fetch(dataUrl);
+            const blob = await res.blob();
+            const file = new File([blob], receipt.fileName || 'receipt.png', { type: blob.type });
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: receipt.fileName || 'Receipt' });
+              return;
+            }
+          } catch {
+            // fallback
+          }
         }
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = receipt.fileName || 'receipt.png';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          if (a.parentNode) a.parentNode.removeChild(a);
+        }, 300);
       }
     }
   } catch (err) {

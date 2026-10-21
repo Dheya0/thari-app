@@ -246,12 +246,11 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
       {/* Add Goal Modal */}
       {showAdd && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAdd(false); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden" 
-            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 max-h-[90vh] sm:max-h-[85vh] my-auto overflow-hidden" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -260,8 +259,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
               <button onClick={() => setShowAdd(false)} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all"><X size={18} /></button>
             </div>
             <div 
-              className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 overscroll-contain"
-              style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)' }}
+              className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-6 overscroll-contain"
             >
                <div className="space-y-1.5">
                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">{t.goalDreamPrompt}</label>
@@ -299,12 +297,11 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
       {/* Deposit to Goal Modal */}
       {depositGoalId && activeDepositGoal && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) { setDepositGoalId(null); setDepositAmount(''); } }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden" 
-            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 max-h-[90vh] sm:max-h-[85vh] my-auto overflow-hidden" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -316,7 +313,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
               <button onClick={() => { setDepositGoalId(null); setDepositAmount(''); }} className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all"><X size={18} /></button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pb-6 overscroll-contain">
               <div className="p-3 bg-[#0A0D10] rounded-2xl border border-white/5 flex justify-between items-center text-xs">
                 <span className="text-slate-400">{isRtl ? 'المحقق حالياً' : 'Current Progress'}</span>
                 <span className="font-bold text-[#F4F1EA] font-numeric">{formatFinancialNumber(activeDepositGoal.currentAmount)} / {formatFinancialNumber(activeDepositGoal.targetAmount)} {currencySymbol}</span>
@@ -382,12 +379,11 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
       {/* Withdraw / Refund from Goal Modal */}
       {withdrawGoalId && activeWithdrawGoal && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) { setWithdrawGoalId(null); setWithdrawAmount(''); } }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 animate-slide-up overflow-hidden" 
-            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl relative flex flex-col min-h-0 border border-white/10 max-h-[90vh] sm:max-h-[85vh] my-auto overflow-hidden" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -403,7 +399,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pb-6 overscroll-contain">
               <div className="p-3 bg-[#0A0D10] rounded-2xl border border-white/5 flex justify-between items-center text-xs">
                 <span className="text-slate-400">{isRtl ? 'الرصيد المدخر في الهدف' : 'Saved Balance in Goal'}</span>
                 <span className="font-bold text-[#8EB9A7] font-numeric">

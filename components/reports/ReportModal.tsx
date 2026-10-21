@@ -399,7 +399,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden no-print"
+      className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto overscroll-contain no-print"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           if (showPreview) {
@@ -414,7 +414,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className={`w-full ${showPreview ? 'max-w-4xl' : 'max-w-2xl'} bg-[#11161C] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col my-auto max-h-[88dvh] sm:max-h-[88vh] text-[#F4F1EA] transition-all duration-200`}
+        className={`w-full ${showPreview ? 'max-w-4xl' : 'max-w-2xl'} bg-[#11161C] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col my-auto max-h-[90vh] sm:max-h-[85vh] text-[#F4F1EA] transition-all duration-200`}
         dir="rtl"
         onClick={e => e.stopPropagation()}
       >

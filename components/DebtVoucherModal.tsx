@@ -166,7 +166,15 @@ ${rateNote ? `${rateNote}\n` : ''}${termsStr ? `${termsStr}\n` : ''}━━━━
       ? `https://wa.me/${phoneClean}?text=${encodeURIComponent(text)}`
       : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
 
-    window.open(url, '_blank');
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (link.parentNode) link.parentNode.removeChild(link);
+    }, 300);
   };
 
   // Copy text summary

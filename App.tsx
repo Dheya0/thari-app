@@ -363,24 +363,24 @@ const App: React.FC = () => {
     }
 
     const updateViewport = () => {
-      const viewportHeight = window.visualViewport?.height || window.innerHeight;
-      if (viewportHeight && viewportHeight > 150) {
-        document.documentElement.style.setProperty('--vh', `${viewportHeight}px`);
-        const keyboardHeight = Math.max(0, window.innerHeight - viewportHeight);
-        document.documentElement.style.setProperty('--keyboard-inset', `${keyboardHeight}px`);
-        document.documentElement.style.setProperty('--keyboard-active', keyboardHeight > 120 ? '1' : '0');
+      const vh = window.innerHeight;
+      if (vh && vh > 150) {
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        if (window.visualViewport) {
+          const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+          document.documentElement.style.setProperty('--keyboard-inset', `${keyboardHeight}px`);
+          document.documentElement.style.setProperty('--keyboard-active', keyboardHeight > 120 ? '1' : '0');
+        }
       }
     };
 
     updateViewport();
     window.addEventListener('resize', updateViewport);
     window.visualViewport?.addEventListener('resize', updateViewport);
-    window.visualViewport?.addEventListener('scroll', updateViewport);
 
     return () => {
       window.removeEventListener('resize', updateViewport);
       window.visualViewport?.removeEventListener('resize', updateViewport);
-      window.visualViewport?.removeEventListener('scroll', updateViewport);
     };
   }, []);
   const [printType, setPrintType] = useState<'summary' | 'detailed'>('summary');
@@ -1986,7 +1986,8 @@ const App: React.FC = () => {
     <div 
       className="w-full flex flex-col relative print:block print:bg-white print:max-w-none print:h-auto overflow-hidden text-right bg-slate-950/30"
       style={{
-        height: 'var(--vh, var(--app-height))',
+        height: '100%',
+        minHeight: '100%',
         paddingLeft: 'env(safe-area-inset-left, 0px)',
         paddingRight: 'env(safe-area-inset-right, 0px)'
       } as React.CSSProperties}

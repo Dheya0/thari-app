@@ -1471,18 +1471,14 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       <AnimatePresence>
         {showNewProfileModal && typeof document !== 'undefined' && createPortal(
           <div 
-            className="fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain bg-slate-950/80 backdrop-blur-md"
             onClick={(e) => { if (e.target === e.currentTarget) setShowNewProfileModal(false); }}
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-5 shadow-2xl text-start overflow-y-auto custom-scrollbar"
-              style={{ 
-                maxHeight: 'calc(var(--vh, 100dvh) - 1rem)',
-                paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)'
-              }}
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-5 shadow-2xl text-start my-auto max-h-[90vh] sm:max-h-[85vh] overflow-y-auto overscroll-contain custom-scrollbar pb-6"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
@@ -1512,7 +1508,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
                   type="button"
                   onClick={handleCreateProfile}
                   disabled={!editingProfileName.trim()}
-                  className="flex-1 py-3 rounded-2xl bg-[#D9B978] hover:bg-[#E5C17B] text-[#0A0D10] text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 py-3 rounded-2xl bg-[#D9B978] hover:bg-[#E5C98D] text-[#0A0D10] text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {t.saveAndActivateProfile}
                 </button>
@@ -1534,18 +1530,14 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
       <AnimatePresence>
         {showPaymentModal && typeof document !== 'undefined' && createPortal(
           <div 
-            className="fixed inset-0 z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 bg-slate-950/80 backdrop-blur-md overflow-hidden"
+            className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain bg-slate-950/80 backdrop-blur-md"
             onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentModal(false); }}
           >
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start overflow-y-auto custom-scrollbar"
-              style={{ 
-                maxHeight: 'calc(var(--vh, 100dvh) - 1rem)',
-                paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)'
-              }}
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start my-auto max-h-[90vh] sm:max-h-[85vh] overflow-y-auto overscroll-contain custom-scrollbar pb-6"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
@@ -1640,7 +1632,7 @@ export const ZakatCalculator: React.FC<ZakatCalculatorProps> = ({
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start my-auto max-h-[88dvh] sm:max-h-[88vh] overflow-y-auto custom-scrollbar"
+              className="w-full max-w-md bg-[#11161C] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-start my-auto max-h-[90vh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar"
               onClick={e => e.stopPropagation()}
             >
               <div className="flex items-center gap-3 text-amber-400 border-b border-white/[0.06] pb-3">

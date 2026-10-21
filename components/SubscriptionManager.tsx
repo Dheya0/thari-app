@@ -276,12 +276,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
       {/* Add Subscription Modal */}
       {showAdd && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-2 sm:pt-4 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) setShowAdd(false); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 animate-slide-up flex flex-col min-h-0 overflow-hidden" 
-            style={{ maxHeight: 'calc(var(--vh, 100dvh) - 1rem)' }}
+            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 max-h-[90vh] sm:max-h-[85vh] my-auto flex flex-col min-h-0 overflow-hidden" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -297,8 +296,7 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
             </div>
 
             <div 
-              className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 overscroll-contain"
-              style={{ paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)' }}
+              className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 pr-1 pl-1 pb-6 overscroll-contain"
             >
               {/* Subscription Name */}
               <div className="space-y-1">
@@ -435,11 +433,11 @@ const SubscriptionManager: React.FC<SubscriptionManagerProps> = ({
       {/* Pay / Renew Confirmation Modal */}
       {payingSub && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start justify-center p-3 sm:p-4 pt-4 sm:pt-6 animate-fade no-print overflow-hidden"
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) setPayingSub(null); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-[#8EB9A7]/40 animate-slide-up flex flex-col space-y-4"
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-[#8EB9A7]/40 max-h-[90vh] sm:max-h-[85vh] my-auto flex flex-col space-y-4"
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >

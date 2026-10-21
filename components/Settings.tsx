@@ -17,6 +17,7 @@ import { exportAndShareNativeFile, buildModernExcelWorkbook, exportAndShareXlsxF
 import { generateFinancialReportSync } from '../services/reports/reportService';
 import { ReportModal } from './reports/ReportModal';
 import { useBackNavigation } from '../utils/backNavigation';
+import { NativeHaptics } from '../services/nativeServices';
 
 const COLORS = ['#D9B978', '#8EB9A7', '#759BC8', '#C98387', '#C5A25D', '#A898D0', '#D4836A', '#9EAA9F', '#BFA054', '#8C9BAE'];
 const ICONS = ['Utensils', 'Car', 'Home', 'Receipt', 'Film', 'HeartPulse', 'GraduationCap', 'Briefcase', 'Wallet', 'CreditCard', 'ShoppingBag', 'Gift', 'PiggyBank', 'Coffee', 'Zap', 'Bus', 'Plane', 'Smartphone', 'ShieldCheck'];
@@ -24,20 +25,20 @@ const ICONS = ['Utensils', 'Car', 'Home', 'Receipt', 'Film', 'HeartPulse', 'Grad
 const Modal = ({ title, children, onClose }: { title: string, children?: React.ReactNode, onClose: () => void }) => {
     const modalContent = (
         <div 
-            className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 animate-fade no-print overflow-hidden"
+            className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div 
-                className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 animate-slide-up flex flex-col max-h-[88dvh] sm:max-h-[88vh] overflow-hidden my-auto"
+                className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-7 shadow-2xl border border-white/10 flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden my-auto"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-between items-center mb-4 sm:mb-6 shrink-0 pb-3 border-b border-white/5">
                     <h3 className="text-lg sm:text-xl font-black text-[#F4F1EA] tracking-tight">{title}</h3>
                     <button onClick={onClose} className="p-2.5 bg-[#0A0D10] hover:bg-[#11161C] rounded-2xl text-slate-400 hover:text-white active:scale-90 transition-all"><X size={18} /></button>
                 </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 overscroll-contain">
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 min-h-0 px-1 pb-6 overscroll-contain">
                     {children}
                 </div>
             </div>
@@ -254,6 +255,7 @@ export default function Settings({
   const [autoBackupHistory, setAutoBackupHistory] = useState<any[]>([]);
   const [isSecurityEnabled, setIsSecurityEnabled] = useState(!!pin);
   const [isTravelMode, setIsTravelMode] = useState(Boolean(appState?.isTravelMode || appState?.showSeparateCurrencies));
+  const [isHapticsActive, setIsHapticsActive] = useState(() => NativeHaptics.isEnabled());
   const [isExporting, setIsExporting] = useState(false);
   const [activeSection, setActiveSection] = useState<'main' | 'wallets' | 'categories' | 'currencies'>('main');
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
@@ -530,11 +532,18 @@ export default function Settings({
   const handleDirectStoreRating = () => {
     const isIOSPlatform = typeof window !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
     showToast(t.rateSuccessToast);
-    if (isIOSPlatform) {
-      window.open('https://apps.apple.com/app/id64762459927?action=write-review', '_blank');
-    } else {
-      window.open('https://play.google.com/store/apps/details?id=com.thari.finance.app', '_blank');
-    }
+    const storeUrl = isIOSPlatform 
+      ? 'https://apps.apple.com/app/id64762459927?action=write-review'
+      : 'https://play.google.com/store/apps/details?id=com.thari.finance.app';
+    const link = document.createElement('a');
+    link.href = storeUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (link.parentNode) link.parentNode.removeChild(link);
+    }, 300);
   };
 
   const handleSupportClick = () => {
@@ -1776,7 +1785,31 @@ export default function Settings({
             onToggle={() => setOpenAccordion(openAccordion === 'security' ? null : 'security')}
          >
             <div className="space-y-5 divide-y divide-white/5">
+                {/* Haptic Vibrations Toggle */}
                 <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-[#0A0D10] p-3.5 rounded-2xl border border-white/5">
+                        <div className="space-y-0.5">
+                            <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                <Smartphone size={14} className="text-[#D9B978]" />
+                                {localLanguage === 'en' ? 'Touch & Button Haptics' : 'اهتزازات اللمس والتفاعل (Haptic)'}
+                            </label>
+                            <p className="text-[9px] text-slate-500 font-bold">
+                                {localLanguage === 'en' ? 'Subtle tactile feedback on taps and transactions' : 'اهتزازات فيزيائية خفيفة عند الضغط وتسجيل العمليات'}
+                            </p>
+                        </div>
+                        <div dir="ltr" className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${isHapticsActive ? 'bg-[#D9B978]' : 'bg-slate-700'}`} onClick={() => {
+                            const next = !isHapticsActive;
+                            setIsHapticsActive(next);
+                            NativeHaptics.setEnabled(next);
+                            if (next) NativeHaptics.impact('LIGHT');
+                            showToast(next ? (localLanguage === 'en' ? 'Haptics enabled' : 'تم تفعيل اهتزازات اللمس') : (localLanguage === 'en' ? 'Haptics muted' : 'تم تعطيل الاهتزازات'));
+                        }}>
+                            <div className={`w-4 h-4 bg-[#0A0D10] rounded-full shadow-md transition-transform ${isHapticsActive ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-4 space-y-2">
                     <div className="flex justify-between items-center bg-[#0A0D10] p-3.5 rounded-2xl border border-white/5">
                         <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-2"><Plane size={14} className="text-[#D9B978]" /> {t.travelMode}</label>
                         <div dir="ltr" className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all ${isTravelMode ? 'bg-[#D9B978]' : 'bg-slate-700'}`} onClick={() => {

@@ -694,7 +694,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const modalContent = (
     <div 
-      className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-hidden"
+      className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain no-print"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -702,8 +702,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       }}
     >
       <div 
-        className="w-full max-w-lg bg-[#0A0D10] border-t sm:border border-[#D9B978]/25 rounded-t-[28px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[92dvh] max-h-[860px] will-change-transform animate-in slide-in-from-bottom-6 duration-200"
-        style={{ overflowAnchor: 'none' }}
+        className="w-full max-w-lg bg-[#0A0D10] border-t sm:border border-[#D9B978]/25 rounded-t-[28px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[90vh] sm:h-auto sm:max-h-[860px] max-h-[92vh]"
+        style={{ overflowAnchor: 'none', WebkitOverflowScrolling: 'touch' }}
       >
         {/* MOBILE DRAG HANDLE */}
         <div className="sm:hidden pt-2 pb-0.5 flex justify-center bg-[#11161C] shrink-0">

@@ -582,12 +582,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
       <div
         ref={scrollContainerRef}
         onScroll={isLargeDataset ? handleScroll : undefined}
-        className="space-y-2.5 overflow-y-auto relative pr-1 custom-scrollbar"
-        style={{ 
-          maxHeight: 'calc(var(--vh, 100dvh) - 240px)',
-          paddingBottom: 'calc(var(--keyboard-inset, 0px) + 2rem)',
-          willChange: 'transform' 
-        }}
+        className="space-y-2.5 overflow-y-auto relative pr-1 custom-scrollbar pb-16 overscroll-contain"
       >
         {totalCount === 0 ? (
           <div className="text-center py-10 bg-[#11161C]/60 rounded-2xl border border-white/5">

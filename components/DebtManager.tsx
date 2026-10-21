@@ -382,18 +382,30 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
     }
   };
 
+  const safeOpenLink = (url: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (link.parentNode) link.parentNode.removeChild(link);
+    }, 300);
+  };
+
   const handleSendWhatsApp = () => {
     const clean = (reminderRecipientPhone || '').replace(/[^0-9]/g, '');
     const encoded = encodeURIComponent(customReminderText);
     const url = clean ? `https://wa.me/${clean}?text=${encoded}` : `https://api.whatsapp.com/send?text=${encoded}`;
-    window.open(url, '_blank');
+    safeOpenLink(url);
   };
 
   const handleSendSMS = () => {
     const clean = (reminderRecipientPhone || '').replace(/[^0-9+]/g, '');
     const encoded = encodeURIComponent(customReminderText);
     const url = clean ? `sms:${clean}?body=${encoded}` : `sms:?body=${encoded}`;
-    window.open(url, '_blank');
+    safeOpenLink(url);
   };
 
   const handleAddToCalendar = () => {
@@ -408,7 +420,7 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       `المبلغ: ${reminderModalData.amount.toLocaleString()} ${getDebtCurrencySymbol(reminderModalData.currency)}\n${customReminderText}`
     );
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dateFormatted}/${dateFormatted}&details=${details}`;
-    window.open(url, '_blank');
+    safeOpenLink(url);
   };
 
   // Unique contact names for quick suggestion chips
@@ -1277,11 +1289,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       {/* MODAL 3: PAYMENT HISTORY MODAL */}
       {historyModalDebt && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) setHistoryModalDebt(null); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 text-start my-auto" 
+            className="bg-[#11161C] w-full max-w-md mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-white/10 overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col min-h-0 text-start my-auto" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >
@@ -1360,11 +1372,11 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
       {/* MODAL 4: DEBT REMINDER & SHARING MODAL (تذكير بالديون ومشاركتها) */}
       {reminderModalData && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-4 no-print overflow-hidden"
+          className="fixed inset-0 bg-[#0A0D10]/85 backdrop-blur-md z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto overscroll-contain no-print"
           onClick={(e) => { if (e.target === e.currentTarget) setReminderModalData(null); }}
         >
           <div 
-            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#D9B978]/30 overflow-hidden max-h-[88dvh] sm:max-h-[88vh] flex flex-col min-h-0 text-start relative my-auto" 
+            className="bg-[#11161C] w-full max-w-lg mx-auto rounded-3xl p-5 sm:p-6 shadow-2xl border border-[#D9B978]/30 overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col min-h-0 text-start relative my-auto" 
             dir={isRtl ? 'rtl' : 'ltr'}
             onClick={e => e.stopPropagation()}
           >

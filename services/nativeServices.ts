@@ -202,6 +202,8 @@ export interface INativeHapticsService {
   selection(): Promise<void>;
   notification(type?: 'SUCCESS' | 'WARNING' | 'ERROR'): Promise<void>;
   vibrate(durationMs?: number): Promise<void>;
+  isEnabled(): boolean;
+  setEnabled(enabled: boolean): void;
 }
 
 // 5. Capacitor Native Keyboard Bridge
@@ -282,13 +284,36 @@ export const NativeKeyboard: INativeKeyboardService = {
   },
 };
 
-// 6. Capacitor Native & Web Haptics Bridge
+// 6. Capacitor Native & Web Haptics Bridge (Smooth, Non-Intrusive, Fully User-Controllable)
 export const NativeHaptics: INativeHapticsService = {
   isAvailable(): boolean {
     return Capacitor.isPluginAvailable('Haptics') || (typeof navigator !== 'undefined' && 'vibrate' in navigator);
   },
 
+  isEnabled(): boolean {
+    if (typeof localStorage === 'undefined') return false;
+    try {
+      const stored = localStorage.getItem('thari_haptics_enabled');
+      // If user explicitly set a preference, respect it 100%
+      if (stored !== null) {
+        return stored === 'true';
+      }
+      // By default on Web browsers, do NOT trigger physical motor vibrations to prevent annoying user device shaking
+      return Capacitor.isNativePlatform();
+    } catch {
+      return false;
+    }
+  },
+
+  setEnabled(enabled: boolean): void {
+    try {
+      localStorage.setItem('thari_haptics_enabled', enabled ? 'true' : 'false');
+    } catch {}
+  },
+
   async impact(style: 'LIGHT' | 'MEDIUM' | 'HEAVY' = 'LIGHT'): Promise<void> {
+    if (!this.isEnabled()) return;
+
     if (Capacitor.isPluginAvailable('Haptics')) {
       try {
         const mapped = style === 'HEAVY' ? ImpactStyle.Heavy : style === 'MEDIUM' ? ImpactStyle.Medium : ImpactStyle.Light;
@@ -296,15 +321,17 @@ export const NativeHaptics: INativeHapticsService = {
         return;
       } catch {}
     }
-    // Web Fallback
+    // Subtle Web Fallback micro-pulse (never harsh or annoying)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try {
-        navigator.vibrate(style === 'HEAVY' ? 24 : style === 'MEDIUM' ? 14 : 8);
+        navigator.vibrate(style === 'HEAVY' ? 12 : style === 'MEDIUM' ? 8 : 4);
       } catch {}
     }
   },
 
   async selection(): Promise<void> {
+    if (!this.isEnabled()) return;
+
     if (Capacitor.isPluginAvailable('Haptics')) {
       try {
         await Haptics.selectionStart();
@@ -314,12 +341,14 @@ export const NativeHaptics: INativeHapticsService = {
     }
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try {
-        navigator.vibrate(6);
+        navigator.vibrate(4);
       } catch {}
     }
   },
 
   async notification(type: 'SUCCESS' | 'WARNING' | 'ERROR' = 'SUCCESS'): Promise<void> {
+    if (!this.isEnabled()) return;
+
     if (Capacitor.isPluginAvailable('Haptics')) {
       try {
         const mapped = type === 'ERROR' ? NotificationType.Error : type === 'WARNING' ? NotificationType.Warning : NotificationType.Success;
@@ -327,23 +356,26 @@ export const NativeHaptics: INativeHapticsService = {
         return;
       } catch {}
     }
+    // Safe gentle web pulse (avoiding harsh double/triple motor bursts)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try {
-        navigator.vibrate(type === 'ERROR' ? [20, 50, 20] : type === 'WARNING' ? [15, 30] : 15);
+        navigator.vibrate(type === 'ERROR' ? [8, 30, 8] : 8);
       } catch {}
     }
   },
 
-  async vibrate(durationMs = 15): Promise<void> {
+  async vibrate(durationMs = 8): Promise<void> {
+    if (!this.isEnabled()) return;
+
     if (Capacitor.isPluginAvailable('Haptics')) {
       try {
-        await Haptics.vibrate({ duration: durationMs });
+        await Haptics.vibrate({ duration: Math.min(durationMs, 20) });
         return;
       } catch {}
     }
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       try {
-        navigator.vibrate(durationMs);
+        navigator.vibrate(Math.min(durationMs, 10));
       } catch {}
     }
   },

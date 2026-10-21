@@ -114,7 +114,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
     <AnimatePresence>
       <div 
         dir={isRTL ? 'rtl' : 'ltr'}
-        className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade no-print overflow-hidden"
+        className="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto overscroll-contain no-print"
         onClick={onClose}
       >
         <motion.div
@@ -122,7 +122,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="relative w-full max-w-xl bg-[#0F141C] border border-white/10 rounded-3xl p-5 sm:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-start overflow-hidden flex flex-col my-auto max-h-[88dvh] sm:max-h-[88vh]"
+          className="relative w-full max-w-xl bg-[#0F141C] border border-white/10 rounded-3xl p-5 sm:p-8 shadow-[0_25px_60px_rgba(0,0,0,0.7)] text-start overflow-hidden flex flex-col my-auto max-h-[90vh] sm:max-h-[85vh]"
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
