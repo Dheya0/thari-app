@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3, Globe } from 'lucide-react';
+import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3, Globe, TrendingUp, BookOpen, Bell, PieChart } from 'lucide-react';
 import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType, Subscription, ZakatPaymentRecord } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
@@ -39,6 +39,9 @@ import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import WelcomeScreen from './components/WelcomeScreen';
 import OnboardingGuideModal from './components/OnboardingGuideModal';
 import LockScreen from './components/LockScreen';
+import { CashflowForecast } from './components/CashflowForecast';
+import { OfficialReportsTab } from './components/OfficialReportsTab';
+import { SmartAlertsDrawer, computeSmartAlerts } from './components/SmartAlertsDrawer';
 const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
 const FinancialReport = React.lazy(() => import('./components/FinancialReport'));
 const ReportModal = React.lazy(() => import('./components/reports/ReportModal').then(m => ({ default: m.ReportModal })));
@@ -329,7 +332,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  type TabType = 'dashboard' | 'transactions' | 'debts' | 'chat' | 'subscriptions' | 'settings' | 'budgets' | 'goals' | 'zakat';
+  type TabType = 'dashboard' | 'forecast' | 'budgets' | 'debts' | 'reports' | 'transactions' | 'chat' | 'subscriptions' | 'settings' | 'goals' | 'zakat';
   const [activeTab, setActiveTabState] = useState<TabType>('dashboard');
   const [debtFilter, setDebtFilter] = useState<'all' | 'to_me' | 'on_me' | 'active' | 'settled' | 'overdue'>('all');
   const [tabHistory, setTabHistory] = useState<TabType[]>(['dashboard']);
@@ -396,6 +399,25 @@ const App: React.FC = () => {
   const [showCurrencySelector, setShowCurrencySelector] = useState<boolean>(false);
   const [showCurrencyOnboarding, setShowCurrencyOnboarding] = useState<boolean>(false);
   const [showWalletSelector, setShowWalletSelector] = useState<boolean>(false);
+  const [showSmartAlertsDrawer, setShowSmartAlertsDrawer] = useState<boolean>(false);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('thari_dismissed_alerts');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleDismissAlert = useCallback((alertId: string) => {
+    setDismissedAlertIds(prev => {
+      const next = [...prev, alertId];
+      try {
+        localStorage.setItem('thari_dismissed_alerts', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   
   // Wallet Filter State (null = All Wallets)
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
@@ -582,6 +604,28 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const activeSmartAlerts = useMemo(() => {
+    return computeSmartAlerts(
+      state.budgets || [],
+      state.transactions || [],
+      state.debts || [],
+      state.wallets || [],
+      state.categories || [],
+      state.currency,
+      state.exchangeRates,
+      dismissedAlertIds
+    );
+  }, [
+    state.budgets,
+    state.transactions,
+    state.debts,
+    state.wallets,
+    state.categories,
+    state.currency,
+    state.exchangeRates,
+    dismissedAlertIds
+  ]);
+
   const isAnyModalActive = Boolean(
     transactionToDelete ||
     showPrivacyPolicy ||
@@ -592,6 +636,7 @@ const App: React.FC = () => {
     showWalletSelector ||
     showReportModal ||
     showRecurringModal ||
+    showSmartAlertsDrawer ||
     showAddForm
   );
 
@@ -599,6 +644,10 @@ const App: React.FC = () => {
   useBackNavigation(() => {
     if (transactionToDelete) {
       setTransactionToDelete(null);
+      return true;
+    }
+    if (showSmartAlertsDrawer) {
+      setShowSmartAlertsDrawer(false);
       return true;
     }
     if (showPrivacyPolicy) {
@@ -2032,7 +2081,9 @@ const App: React.FC = () => {
           currency={state.currency}
           onOpenCurrencySelector={() => setShowCurrencySelector(true)}
           onOpenToolsHub={() => setShowToolsHub(true)}
-          hasPendingAlerts={((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0)}
+          onOpenAlerts={() => setShowSmartAlertsDrawer(true)}
+          alertsCount={activeSmartAlerts.length}
+          hasPendingAlerts={activeSmartAlerts.length > 0 || ((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0)}
           userName={state.userName}
         />
 
@@ -2162,6 +2213,25 @@ const App: React.FC = () => {
                     </button>
                   );
                 })()}
+
+                {/* Smart Alerts Center Trigger */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    NativeHaptics.selection().catch(() => {});
+                    setShowSmartAlertsDrawer(true);
+                  }}
+                  aria-label="مركز التنبيهات الذكية الاستباقية"
+                  className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-300 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center w-[30px] h-[30px] sm:w-auto sm:h-auto"
+                  title="مركز التنبيهات الذكية الاستباقية"
+                >
+                  <Bell size={14} className="sm:w-4 sm:h-4 text-[#D9B978]" />
+                  {activeSmartAlerts.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-[#0A0D10] tabular-nums animate-pulse">
+                      {activeSmartAlerts.length}
+                    </span>
+                  )}
+                </button>
 
                 {/* 1-Tap Instant Language Switcher (AR ⇄ EN) */}
                 <button
@@ -2307,6 +2377,41 @@ const App: React.FC = () => {
                     isTravelMode={state.isTravelMode}
                     showSeparateCurrencies={state.showSeparateCurrencies}
                     onToggleSeparateCurrencies={(val) => setState(p => ({ ...p, showSeparateCurrencies: val }))}
+                  />
+                )}
+
+                {activeTab === 'forecast' && (
+                  <CashflowForecast
+                    wallets={state.wallets}
+                    transactions={state.transactions}
+                    recurringRules={state.recurringRules}
+                    debts={state.debts}
+                    budgets={state.budgets}
+                    exchangeRates={state.exchangeRates}
+                    baseCurrency={state.currency}
+                    currencies={localizedCurrencies}
+                    language={activeLanguage}
+                    onOpenRecurringManager={() => setShowRecurringModal(true)}
+                    onOpenNewTransaction={(type) => {
+                      setEditingTransaction(null);
+                      setFormDefaultType(type);
+                      setShowAddForm(true);
+                    }}
+                  />
+                )}
+
+                {activeTab === 'reports' && (
+                  <OfficialReportsTab
+                    transactions={state.transactions}
+                    categories={state.categories}
+                    wallets={state.wallets}
+                    currencies={localizedCurrencies}
+                    currentCurrency={state.currency}
+                    userName={state.userName}
+                    exchangeRates={state.exchangeRates}
+                    budgets={state.budgets}
+                    debts={state.debts}
+                    goals={state.goals}
                   />
                 )}
                 
@@ -2550,9 +2655,9 @@ const App: React.FC = () => {
             ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
             : 'opacity-100 translate-y-0'
         }`}>
-            <nav className="pointer-events-auto w-full max-w-md bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2.5 py-2 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+            <nav className="pointer-events-auto w-full max-w-md bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2 py-1.5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
                 <NavButton icon={<LayoutDashboard />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-                <NavButton icon={<History />} label={activeLanguage === 'en' ? 'Transactions' : 'المعاملات'} active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
+                <NavButton icon={<TrendingUp />} label={activeLanguage === 'en' ? 'Forecast' : 'التخطيط'} active={activeTab === 'forecast'} onClick={() => setActiveTab('forecast')} />
                 
                 <motion.button 
                   whileHover={{ scale: 1.06 }}
@@ -2562,14 +2667,14 @@ const App: React.FC = () => {
                     setEditingTransaction(null); 
                     setShowAddForm(true); 
                   }}
-                  className="w-14 h-14 bg-gradient-to-tr from-[#C9A45C] to-[#E2C78C] hover:brightness-110 text-slate-950 rounded-[1.5rem] shadow-[0_10px_25px_rgba(217,185,120,0.4)] flex items-center justify-center z-50 border-[4px] border-[#11161C] mx-1 shrink-0 active:scale-95 transition-transform"
+                  className="w-13 h-13 bg-gradient-to-tr from-[#C9A45C] to-[#E2C78C] hover:brightness-110 text-slate-950 rounded-[1.35rem] shadow-[0_10px_25px_rgba(217,185,120,0.4)] flex items-center justify-center z-50 border-[3.5px] border-[#11161C] mx-0.5 shrink-0 active:scale-95 transition-transform"
                   title={activeLanguage === 'en' ? 'Add Transaction' : 'إضافة معاملة جديدة'}
                 >
-                  <Plus size={28} strokeWidth={3.5} />
+                  <Plus size={26} strokeWidth={3.5} />
                 </motion.button>
 
                 <NavButton icon={<HandCoins />} label={t.debts} active={activeTab === 'debts'} onClick={() => setActiveTab('debts')} />
-                <NavButton icon={<SettingsIcon />} label={t.more} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+                <NavButton icon={<BookOpen />} label={activeLanguage === 'en' ? 'Statement' : 'كشف الحساب'} active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
             </nav>
         </div>
 
@@ -2761,6 +2866,39 @@ const App: React.FC = () => {
               t={t}
             />
           )}
+
+          <SmartAlertsDrawer
+            isOpen={showSmartAlertsDrawer}
+            onClose={() => setShowSmartAlertsDrawer(false)}
+            budgets={state.budgets}
+            transactions={state.transactions}
+            debts={state.debts}
+            wallets={state.wallets}
+            categories={state.categories}
+            currentCurrency={state.currency}
+            exchangeRates={state.exchangeRates}
+            dismissedAlertIds={dismissedAlertIds}
+            onDismissAlert={handleDismissAlert}
+            onOpenPayDebt={(debt) => {
+              setShowSmartAlertsDrawer(false);
+              setEditingTransaction(null);
+              setFormPrefillDebtId(debt.id);
+              setFormPrefillPerson(debt.personName);
+              setFormPrefillDebt(debt);
+              setFormDefaultType('debt_repayment');
+              setShowAddForm(true);
+            }}
+            onOpenAdjustBudget={() => {
+              setShowSmartAlertsDrawer(false);
+              setActiveTab('budgets');
+            }}
+            onNavigateToTab={(tab) => {
+              setShowSmartAlertsDrawer(false);
+              if (tab === 'debts' || tab === 'budgets' || tab === 'dashboard' || tab === 'forecast' || tab === 'reports') {
+                setActiveTab(tab as TabType);
+              }
+            }}
+          />
 
           <OnboardingGuideModal
             isOpen={showWalkthroughModal}

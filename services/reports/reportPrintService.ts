@@ -55,7 +55,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 
   const typeTitles: Record<ReportType, { ar: string; en: string }> = {
     summary: { ar: 'الملخص المالي التنفيذي العام', en: 'Executive Financial Summary' },
-    detailed: { ar: 'كشف القيود والمعاملات المحاسبي التفصيلي', en: 'Detailed Financial Ledger' },
+    detailed: { ar: 'كشف حساب العمليات والقيود التفصيلي', en: 'Official Statement of Account & Ledger' },
     category: { ar: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي', en: 'Budget & Category Performance' },
     wealth: { ar: 'تقرير صافي الثروة وتوزيع المحافظ والعملات', en: 'Wealth & Multi-Currency Portfolio' },
     debts: { ar: 'كشف الذمم والديون والالتزامات المالية', en: 'Debts & Liabilities Statement' },
@@ -265,44 +265,52 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     </table>
   `;
 
-  // --- 7-Column Detailed Ledger Table Header (Per Currency) ---
+  // --- 8-Column Bank Statement Ledger Table Header (Per Currency) ---
   const renderDetailedTableHeader7Col = (sym: string) => `
     <thead>
-      <tr>
-        <th style="width: 4%; text-align: center;">#</th>
-        <th style="width: 11%; text-align: center;">التاريخ</th>
-        <th style="width: 14%; text-align: right;">التصنيف</th>
-        <th style="width: 12%; text-align: right;">المحفظة</th>
-        <th style="width: 31%; text-align: right;">البيان / تفاصيل القيد</th>
-        <th style="width: 14%; text-align: left;">المبلغ (${esc(sym)})</th>
-        <th style="width: 14%; text-align: left;">الرصيد (${esc(sym)})</th>
+      <tr style="border-bottom: 2px solid #d97706;">
+        <th style="width: 4%; text-align: center; background: #0f172a; color: #ffffff;">#</th>
+        <th style="width: 10%; text-align: center; background: #0f172a; color: #ffffff;">التاريخ</th>
+        <th style="width: 28%; text-align: right; background: #0f172a; color: #ffffff;">البيان / تفاصيل القيد</th>
+        <th style="width: 12%; text-align: right; background: #0f172a; color: #ffffff;">التصنيف</th>
+        <th style="width: 10%; text-align: right; background: #0f172a; color: #ffffff;">المحفظة</th>
+        <th style="width: 12%; text-align: left; background: #0f172a; color: #fca5a5;">مدين (-)</th>
+        <th style="width: 12%; text-align: left; background: #0f172a; color: #86efac;">دائن (+)</th>
+        <th style="width: 12%; text-align: left; background: #0f172a; color: #fde68a;">الرصيد (${esc(sym)})</th>
       </tr>
     </thead>
   `;
 
   const renderDetailedTableRow7Col = (tx: ReportLedgerEntry, idx: number, sym: string) => {
     const isIncome = tx.type === 'income';
-    const isExpense = tx.type === 'expense';
-    const amtSign = isIncome ? '+' : isExpense ? '-' : '⇄';
-    const amtColor = isIncome ? '#15803d' : isExpense ? '#be123c' : '#2563eb';
+    const isExpense = tx.type === 'expense' || tx.type === 'transfer';
     const effectiveBal = tx.currencyRunningBalance !== undefined ? tx.currencyRunningBalance : tx.runningBalance;
 
     return `
       <tr>
         <td style="text-align: center; color: #64748b; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 7.5px;">${idx + 1}</td>
         <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 7.5px; color: #334155; white-space: nowrap;">${esc(tx.date)}</td>
-        <td style="text-align: right; font-weight: 700; color: #1e293b; font-size: 8px;">
-          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 2px;"></span>
+        <td style="text-align: right; color: #0f172a;" title="${esc(tx.note || tx.categoryName)}">
+          <div style="font-size: 8px; line-height: 11.5px; word-break: break-word; overflow-wrap: break-word; max-width: 220px; font-weight: 600;">${esc(tx.note || tx.categoryName)}</div>
+          ${tx.conversionNote ? `<div style="font-size: 7px; color: #b45309; line-height: 9px; margin-top: 1px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
+        </td>
+        <td style="text-align: right; font-weight: 700; color: #1e293b; font-size: 7.5px;">
+          <span style="display: inline-block; width: 4.5px; height: 4.5px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 2px;"></span>
           <span style="vertical-align: middle;">${esc(tx.categoryName)}</span>
         </td>
         <td style="text-align: right; color: #475569; font-size: 7.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(tx.walletName)}</td>
-        <td style="text-align: right; color: #0f172a;" title="${esc(tx.note || tx.categoryName)}">
-          <div style="font-size: 8px; line-height: 11px; word-break: break-word; overflow-wrap: break-word; max-width: 240px;">${esc(tx.note || tx.categoryName)}</div>
-          ${tx.conversionNote ? `<div style="font-size: 7px; color: #b45309; line-height: 9px; margin-top: 1px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
+        
+        <!-- Debit Column (مدين / منصرف) -->
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #be123c; white-space: nowrap; font-size: 8px;">
+          ${isExpense ? `-${formatNum(tx.originalAmount)}` : `<span style="color: #cbd5e1; font-weight: normal;">-</span>`}
         </td>
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: ${amtColor}; white-space: nowrap; font-size: 8px;">
-          ${amtSign}${formatNum(tx.originalAmount)}
+
+        <!-- Credit Column (دائن / وارد) -->
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #15803d; white-space: nowrap; font-size: 8px;">
+          ${isIncome ? `+${formatNum(tx.originalAmount)}` : `<span style="color: #cbd5e1; font-weight: normal;">-</span>`}
         </td>
+
+        <!-- Running Balance Column -->
         <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; font-size: 8px; background: #fffdf5;">
           ${effectiveBal !== undefined ? formatNum(effectiveBal) : '-'}
         </td>
@@ -529,7 +537,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
             <table class="report-table">
               ${renderDetailedTableHeader7Col(sec.sym)}
               <tbody>
-                ${rowsHTML || `<tr><td colspan="7" style="text-align: center; padding: 12px; color: #94a3b8;">لا توجد قيود مسجلة بهذه العملة</td></tr>`}
+                ${rowsHTML || `<tr><td colspan="8" style="text-align: center; padding: 12px; color: #94a3b8;">لا توجد قيود مسجلة بهذه العملة</td></tr>`}
               </tbody>
             </table>
           </div>

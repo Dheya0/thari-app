@@ -25,8 +25,8 @@ export const FinancialReportDocument: React.FC<ReportDocumentProps> = ({
     switch (reportType) {
       case 'detailed':
         return {
-          ar: 'كشف القيود والمعاملات المالية التفصيلي',
-          en: '(Financial Transaction Ledger)',
+          ar: 'كشف حساب العمليات والقيود التفصيلي',
+          en: '(Official Statement of Account & Ledger)',
         };
       case 'category':
         return {

@@ -38,7 +38,7 @@ export function buildExcelReportCSV(model: ReportModel): string {
 
   const typeTitles: Record<ReportType, string> = {
     summary: 'الملخص المالي التنفيذي العام',
-    detailed: 'كشف القيود والمعاملات المحاسبي التفصيلي',
+    detailed: 'كشف حساب العمليات والقيود التفصيلي',
     category: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي',
     wealth: 'تقرير صافي الثروة وتوزيع المحافظ والعملات',
     debts: 'كشف الذمم والديون والالتزامات المالية',
@@ -164,17 +164,21 @@ export function buildExcelReportCSV(model: ReportModel): string {
   if (reportType === 'detailed' || reportType === 'summary') {
     const displayTxs = isSummary ? transactions.slice(0, 15) : transactions;
     lines.push(`جدول القيود المحاسبية والمعاملات المسجلة (${displayTxs.length} حركة معروضة):`);
-    lines.push(`رقم القيد,التاريخ,نوع الحركة,التصنيف,المحفظة,المبلغ بالعملة الأصلية,العملة الأصلية,المقيد/المخصوم بالمحفظة,الرصيد التراكمي للعملة,المعادل بـ (${scope.baseCurrency.code}),الرصيد التراكمي الموحد,البيان / تفاصيل القيد`);
+    lines.push(`رقم القيد,التاريخ,البيان / تفاصيل القيد,التصنيف,المحفظة,مدين (-),دائن (+),العملة الأصلية,المقيد/المخصوم بالمحفظة,الرصيد التراكمي للعملة,المعادل بـ (${scope.baseCurrency.code}),الرصيد التراكمي الموحد`);
 
     displayTxs.forEach(t => {
-      const sign = t.type === 'income' ? '+' : '-';
+      const isIncome = t.type === 'income';
+      const isExpense = t.type === 'expense' || t.type === 'transfer';
+      const debitVal = isExpense ? `-${t.originalAmount.toLocaleString()}` : '';
+      const creditVal = isIncome ? `+${t.originalAmount.toLocaleString()}` : '';
+      const sign = isIncome ? '+' : '-';
       const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
         ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
         : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
       const curRunBalStr = t.currencyRunningBalance !== undefined ? `${Math.round(t.currencyRunningBalance).toLocaleString()} ${t.currencyCode}` : '-';
 
       lines.push(
-        `${t.index},${escapeCSV(t.date)},${escapeCSV(t.typeLabelAr)},${escapeCSV(t.categoryName)},${escapeCSV(t.walletName)},${sign}${t.originalAmount.toLocaleString()},${escapeCSV(t.currencyCode)},${escapeCSV(walletDeductionStr)},${escapeCSV(curRunBalStr)},${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol},${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'},${escapeCSV(t.note || '-')}`
+        `${t.index},${escapeCSV(t.date)},${escapeCSV(t.note || t.categoryName)},${escapeCSV(t.categoryName)},${escapeCSV(t.walletName)},${escapeCSV(debitVal)},${escapeCSV(creditVal)},${escapeCSV(t.currencyCode)},${escapeCSV(walletDeductionStr)},${escapeCSV(curRunBalStr)},${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol},${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'}`
       );
     });
     lines.push(`--------------------------------------------------------------------------------------------------------`);
@@ -270,14 +274,18 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
   wsSummary['!views'] = [{ RTL: true }];
   XLSX.utils.book_append_sheet(wb, wsSummary, 'الملخص التنفيذي');
 
-  // --- 2. ورقة القيود والمعاملات المحاسبية العامة ---
+  // --- 2. ورقة القيود والمعاملات المحاسبية العامة (كشف الحساب البنكي) ---
   if (transactions && transactions.length > 0) {
     const txAoa: any[][] = [
-      ['رقم القيد', 'التاريخ', 'الوقت', 'نوع الحركة', 'التصنيف', 'المحفظة', 'المبلغ بالعملة الأصلية', 'العملة الأصلية', 'المقيد بالمحفظة', 'الرصيد التراكمي للعملة', 'المعادل بالأساسية', 'عملة التقييم', 'الرصيد التراكمي الموحد', 'البيان والملاحظات', 'ملاحظات الصرف']
+      ['رقم القيد', 'التاريخ', 'الوقت', 'البيان وتفاصيل القيد', 'التصنيف', 'المحفظة', 'مدين (-)', 'دائن (+)', 'العملة الأصلية', 'المقيد بالمحفظة', 'الرصيد التراكمي للعملة', 'المعادل بالأساسية (' + scope.baseCurrency.code + ')', 'الرصيد التراكمي الموحد', 'توثيق الصرف']
     ];
 
     transactions.forEach(t => {
-      const sign = t.type === 'income' ? '+' : '-';
+      const isIncome = t.type === 'income';
+      const isExpense = t.type === 'expense' || t.type === 'transfer';
+      const debitNum = isExpense ? t.originalAmount : '';
+      const creditNum = isIncome ? t.originalAmount : '';
+      const sign = isIncome ? '+' : '-';
       const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
         ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
         : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
@@ -286,29 +294,28 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
         t.index,
         t.date,
         t.time || '',
-        t.typeLabelAr,
+        t.note || t.categoryName,
         t.categoryName,
         t.walletName,
-        t.originalAmount,
+        debitNum,
+        creditNum,
         t.currencyCode,
         walletDeductionStr,
         t.currencyRunningBalance !== undefined ? Math.round(t.currencyRunningBalance) : '',
         Math.round(t.convertedAmount),
-        scope.baseCurrency.code,
         t.runningBalance !== undefined ? Math.round(t.runningBalance) : '',
-        t.note || '',
         t.conversionNote || ''
       ]);
     });
 
     const wsTx = XLSX.utils.aoa_to_sheet(txAoa);
     wsTx['!cols'] = [
-      { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 18 },
-      { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 22 }, { wch: 20 },
-      { wch: 20 }, { wch: 14 }, { wch: 20 }, { wch: 35 }, { wch: 25 }
+      { wch: 10 }, { wch: 14 }, { wch: 10 }, { wch: 38 }, { wch: 18 },
+      { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 22 },
+      { wch: 20 }, { wch: 22 }, { wch: 20 }, { wch: 25 }
     ];
     wsTx['!views'] = [{ RTL: true }];
-    XLSX.utils.book_append_sheet(wb, wsTx, 'سجل العمليات العام');
+    XLSX.utils.book_append_sheet(wb, wsTx, 'كشف الحساب العام');
 
     // --- 2B. أوراق مستقلة مخصصة لكل عملة على حدة عند تعدد العملات ---
     if (model.currencyLedgers && model.currencyLedgers.length > 1) {
@@ -316,35 +323,37 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
         const curAoa: any[][] = [
           [`كشف حساب المعاملات المحاسبية - عملة ${group.metadata?.nameAr || group.currencyCode} (${group.currencyCode})`],
           [],
-          ['الرصيد الافتتاحي', Math.round(group.openingBalance), group.metadata?.symbol || group.currencyCode, 'إجمالي المقبوضات (+)', Math.round(group.totalIncome), group.metadata?.symbol || group.currencyCode],
-          ['إجمالي المنصرفات (-)', Math.round(group.totalExpense), group.metadata?.symbol || group.currencyCode, 'الرصيد الختامي (=)', Math.round(group.closingBalance), group.metadata?.symbol || group.currencyCode],
+          ['الرصيد الافتتاحي', Math.round(group.openingBalance), group.metadata?.symbol || group.currencyCode, 'إجمالي الإيداعات (+)', Math.round(group.totalIncome), group.metadata?.symbol || group.currencyCode],
+          ['إجمالي المسحوبات (-)', Math.round(group.totalExpense), group.metadata?.symbol || group.currencyCode, 'الرصيد الختامي (=)', Math.round(group.closingBalance), group.metadata?.symbol || group.currencyCode],
           ['صافي حركة الفترة', Math.round(group.netAmount), group.metadata?.symbol || group.currencyCode, 'إجمالي عدد العمليات', group.transactions.length, 'حركة'],
           [],
-          ['#', 'التاريخ', 'الوقت', 'نوع الحركة', 'التصنيف', 'المحفظة', 'المبلغ بالعملة', 'الرصيد التراكمي للعملة', 'البيان والملاحظات', 'توثيق الصرف']
+          ['#', 'التاريخ', 'الوقت', 'البيان وتفاصيل القيد', 'التصنيف', 'المحفظة', 'مدين (-)', 'دائن (+)', 'الرصيد التراكمي للعملة', 'توثيق الصرف']
         ];
 
         group.transactions.forEach((t, idx) => {
+          const isIncome = t.type === 'income';
+          const isExpense = t.type === 'expense' || t.type === 'transfer';
           curAoa.push([
             idx + 1,
             t.date,
             t.time || '',
-            t.typeLabelAr,
+            t.note || t.categoryName,
             t.categoryName,
             t.walletName,
-            t.originalAmount,
+            isExpense ? t.originalAmount : '',
+            isIncome ? t.originalAmount : '',
             t.currencyRunningBalance !== undefined ? Math.round(t.currencyRunningBalance) : '',
-            t.note || '',
             t.conversionNote || ''
           ]);
         });
 
         const wsCur = XLSX.utils.aoa_to_sheet(curAoa);
         wsCur['!cols'] = [
-          { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 18 },
-          { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 35 }, { wch: 25 }
+          { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 38 }, { wch: 18 },
+          { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 25 }
         ];
         wsCur['!views'] = [{ RTL: true }];
-        XLSX.utils.book_append_sheet(wb, wsCur, `سجل (${group.currencyCode})`);
+        XLSX.utils.book_append_sheet(wb, wsCur, `كشف (${group.currencyCode})`);
       });
     }
   }
@@ -744,23 +753,25 @@ export function buildExcelReportHTML(model: ReportModel): string {
   ` : ''}
 
   ${(reportType === 'detailed' || reportType === 'summary') && transactions.length > 0 ? `
-  <h2>جدول القيود المحاسبية والمعاملات المسجلة (${(isSummary ? transactions.slice(0, 15) : transactions).length} حركة)</h2>
+  <h2>كشف حساب القيود والمعاملات المسجلة (${(isSummary ? transactions.slice(0, 15) : transactions).length} حركة)</h2>
   <table>
     <tr>
       <th>#</th>
       <th>التاريخ</th>
-      <th>نوع الحركة</th>
+      <th>البيان والتفاصيل</th>
       <th>التصنيف</th>
       <th>المحفظة</th>
-      <th>المبلغ الأصلي</th>
+      <th style="color: #be123c;">مدين (-)</th>
+      <th style="color: #047857;">دائن (+)</th>
       <th>العملة</th>
       <th>المقيد بالحساب</th>
       <th>المعادل بـ (${scope.baseCurrency.code})</th>
       <th>الرصيد التراكمي</th>
-      <th>البيان / التفاصيل</th>
     </tr>
     ${(isSummary ? transactions.slice(0, 15) : transactions).map(t => {
-      const sign = t.type === 'income' ? '+' : '-';
+      const isIncome = t.type === 'income';
+      const isExpense = t.type === 'expense' || t.type === 'transfer';
+      const sign = isIncome ? '+' : '-';
       const walletDeductionStr = t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined
         ? `${sign}${t.walletDeductionAmount.toLocaleString()} ${t.walletCurrencyCode}`
         : `${sign}${t.originalAmount.toLocaleString()} ${t.currencyCode}`;
@@ -768,15 +779,15 @@ export function buildExcelReportHTML(model: ReportModel): string {
       <tr>
         <td>${t.index}</td>
         <td>${t.date}</td>
-        <td style="color: ${t.type === 'income' ? '#047857' : t.type === 'expense' ? '#be123c' : '#2563eb'}; font-weight: bold;">${t.typeLabelAr}</td>
+        <td><b>${t.note || t.categoryName}</b></td>
         <td>${t.categoryName}</td>
         <td>${t.walletName}</td>
-        <td style="font-weight: bold; color: ${t.type === 'income' ? '#047857' : '#be123c'};">${sign}${t.originalAmount.toLocaleString()}</td>
+        <td style="color: #be123c; font-weight: bold; text-align: left; direction: ltr;">${isExpense ? `-${t.originalAmount.toLocaleString()}` : '-'}</td>
+        <td style="color: #047857; font-weight: bold; text-align: left; direction: ltr;">${isIncome ? `+${t.originalAmount.toLocaleString()}` : '-'}</td>
         <td>${t.currencyCode}</td>
         <td>${walletDeductionStr}</td>
         <td><b>${Math.round(t.convertedAmount).toLocaleString()} ${baseSymbol}</b></td>
-        <td>${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'}</td>
-        <td>${t.note || '-'}</td>
+        <td style="font-weight: bold; text-align: left; direction: ltr;">${t.runningBalance !== undefined ? Math.round(t.runningBalance).toLocaleString() + ' ' + baseSymbol : '-'}</td>
       </tr>
       `;
     }).join('')}

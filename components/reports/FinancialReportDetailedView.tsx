@@ -23,41 +23,41 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
   // View mode switcher: 'grouped' (default) vs 'unified'
   const [viewMode, setViewMode] = useState<'grouped' | 'unified'>('grouped');
 
-  // Helper to render a single ledger table
+  // Helper to render an authentic bank statement ledger table
   const renderLedgerTable = (
     txList: ReportLedgerEntry[],
     currencyCode?: string,
     runningBalanceField: 'currencyRunningBalance' | 'runningBalance' = 'currencyRunningBalance'
   ) => {
     return (
-      <div className="rounded-2xl border border-slate-300 overflow-hidden shadow-2xs print:overflow-visible print:border print:border-slate-300 print:rounded-lg print:shadow-none">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs print:overflow-visible print:border print:border-slate-300 print:rounded-none print:shadow-none">
         <table className="w-full table-fixed text-xs border-collapse print:text-[8.5px]">
           <thead className="print:table-header-group">
-            <tr className="bg-slate-950 text-white break-avoid border-b border-slate-800 text-[10px] print:text-[8px] print:bg-slate-900 print:text-white">
-              <th className="py-2 px-1 text-center font-black w-[4%] print:w-[4%]">#</th>
-              <th className="py-2 px-1.5 text-center font-black w-[11%] print:w-[11%]">التاريخ</th>
-              <th className="py-2 px-2 text-right font-black w-[13%] print:w-[13%]">التصنيف</th>
-              <th className="py-2 px-2 text-right font-black w-[11%] print:w-[11%]">المحفظة</th>
-              <th className="py-2 px-2 text-right font-black w-[30%] print:w-[31%]">البيان / تفاصيل القيد</th>
-              <th className="py-2 px-1 text-center font-black w-[5%] print:w-[5%]">العملة</th>
-              <th className="py-2 px-2 text-left font-black w-[13%] print:w-[13%]">المبلغ الأصلي</th>
-              <th className="py-2 px-2 text-left font-black w-[13%] print:w-[13%]">
-                {runningBalanceField === 'currencyRunningBalance'
-                  ? `الرصيد (${currencyCode || ''})`
-                  : `الرصيد (${baseCurrency.code})`}
+            <tr className="bg-slate-900 text-white break-avoid border-b-2 border-[#D9B978] text-[10px] print:text-[8px] print:bg-slate-900 print:text-white">
+              <th className="py-2.5 px-1.5 text-center font-black w-[4%] print:w-[4%]">#</th>
+              <th className="py-2.5 px-2 text-center font-black w-[11%] print:w-[11%]">التاريخ</th>
+              <th className="py-2.5 px-2.5 text-right font-black w-[27%] print:w-[28%]">البيان / تفاصيل القيد</th>
+              <th className="py-2.5 px-2 text-right font-black w-[12%] print:w-[12%]">التصنيف</th>
+              <th className="py-2.5 px-2 text-right font-black w-[11%] print:w-[11%]">المحفظة</th>
+              <th className="py-2.5 px-1.5 text-center font-black w-[5%] print:w-[5%]">العملة</th>
+              <th className="py-2.5 px-2 text-left font-black w-[10%] print:w-[10%] text-rose-300">مدين (-)</th>
+              <th className="py-2.5 px-2 text-left font-black w-[10%] print:w-[10%] text-emerald-300">دائن (+)</th>
+              <th className="py-2.5 px-2 text-left font-black w-[10%] print:w-[10%] text-[#F3E5AB]">
+                الرصيد
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
+          <tbody className="divide-y divide-slate-100 bg-white">
             {txList.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-400 text-xs">
+                <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
                   لا توجد قيود مسجلة تطابق محددات التصفية
                 </td>
               </tr>
             ) : (
               txList.map((t, i) => {
                 const isIncome = t.type === 'income';
+                const isExpense = t.type === 'expense' || t.type === 'transfer';
                 const runBal = runningBalanceField === 'currencyRunningBalance'
                   ? (t.currencyRunningBalance !== undefined ? t.currencyRunningBalance : t.runningBalance)
                   : t.runningBalance;
@@ -65,83 +65,87 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                 return (
                   <tr
                     key={t.id || i}
-                    className={`break-inside-avoid page-break-inside-avoid ${
-                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
+                    className={`break-inside-avoid page-break-inside-avoid transition-colors hover:bg-amber-50/20 ${
+                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
                     }`}
                   >
                     {/* Index */}
-                    <td className="py-1.5 px-1 print:py-1 print:px-0.5 text-center font-mono font-bold text-slate-400 text-[10px] print:text-[8px] align-middle">
+                    <td className="py-2 px-1.5 print:py-1 print:px-0.5 text-center font-mono font-semibold text-slate-400 text-[10px] print:text-[8px] align-middle">
                       {t.index}
                     </td>
 
                     {/* Date */}
-                    <td className="py-1.5 px-1.5 print:py-1 print:px-1 font-medium text-slate-600 text-[10px] print:text-[8px] whitespace-nowrap text-center align-middle">
+                    <td className="py-2 px-2 print:py-1 print:px-1 font-medium text-slate-600 text-[10px] print:text-[8px] whitespace-nowrap text-center align-middle font-mono">
                       {t.date}
                     </td>
 
+                    {/* Note / Statement Description (Full, Breathable, Natural Wrap) */}
+                    <td className="py-2 px-2.5 print:py-1 print:px-1.5 text-slate-800 text-[11px] print:text-[8.5px] align-middle">
+                      <div className="font-medium leading-relaxed break-words">
+                        {t.note || <span className="text-slate-400 italic font-normal">قيد محاسبي مسجل ({t.categoryName})</span>}
+                      </div>
+                      {(t.conversionNote || (t.foreignAmount && t.exchangeRate)) && (
+                        <div className="text-[8.5px] print:text-[7px] font-bold text-amber-900 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-300 mt-1 inline-flex items-center gap-1 max-w-full">
+                          <span className="shrink-0 text-amber-600">💱</span>
+                          <span className="break-words">{t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}</span>
+                        </div>
+                      )}
+                    </td>
+
                     {/* Category */}
-                    <td className="py-1.5 px-2 print:py-1 print:px-1.5 align-middle">
+                    <td className="py-2 px-2 print:py-1 print:px-1.5 align-middle">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <div
                           className="w-2 h-2 rounded-full shrink-0"
                           style={{ backgroundColor: t.categoryColor }}
                         />
-                        <span className="font-bold text-slate-900 truncate print:truncate-none text-[11px] print:text-[8.5px] leading-snug">{t.categoryName}</span>
+                        <span className="font-semibold text-slate-700 truncate text-[10.5px] print:text-[8px]">{t.categoryName}</span>
                       </div>
                     </td>
 
                     {/* Wallet */}
-                    <td className="py-1.5 px-2 print:py-1 print:px-1.5 font-semibold text-slate-700 truncate print:truncate-none text-[10.5px] print:text-[8px] align-middle">
+                    <td className="py-2 px-2 print:py-1 print:px-1.5 font-medium text-slate-600 truncate text-[10.5px] print:text-[8px] align-middle">
                       {t.walletName}
                     </td>
 
-                    {/* Note / Statement Description (Legible & Breathable, Never Squashed) */}
-                    <td className="py-1.5 px-2 print:py-1 print:px-1.5 text-slate-700 text-[10.5px] print:text-[8px] align-middle">
-                      <div className="truncate print:truncate-none print:whitespace-normal print:break-words leading-tight">
-                        {t.note || <span className="text-slate-400 italic">بدون ملاحظات</span>}
-                      </div>
-                      {(t.conversionNote || (t.foreignAmount && t.exchangeRate)) && (
-                        <div className="text-[8.5px] print:text-[7px] font-bold text-amber-900 bg-amber-50 px-1 py-0.5 rounded border border-amber-300/80 mt-0.5 inline-flex items-center gap-1 max-w-full truncate print:truncate-none print:whitespace-normal" title={t.conversionNote}>
-                          <span className="shrink-0">💱</span>
-                          <span className="truncate print:truncate-none">{t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}</span>
-                          <span className="text-[7.5px] font-black text-amber-900 bg-amber-200/80 px-1 rounded shrink-0 print:hidden">موثق</span>
-                        </div>
-                      )}
-                    </td>
-
                     {/* Currency Badge */}
-                    <td className="py-1.5 px-1 print:py-1 print:px-0.5 text-center align-middle">
-                      <span className="px-1 py-0.2 rounded bg-slate-100 border border-slate-300 text-slate-800 font-mono font-bold text-[9px] print:text-[7.5px]">
+                    <td className="py-2 px-1.5 print:py-1 print:px-0.5 text-center align-middle">
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono font-bold text-[9px] print:text-[7.5px]">
                         {t.currencyCode}
                       </span>
                     </td>
 
-                    {/* Original Amount */}
-                    <td
-                      className={`py-1.5 px-2 print:py-1 print:px-1 text-left font-bold dir-ltr whitespace-nowrap tabular-nums font-mono text-[10.5px] print:text-[8px] align-middle ${
-                        isIncome ? 'text-emerald-700' : 'text-rose-700'
-                      }`}
-                    >
-                      <div>
-                        {isIncome ? '+' : '-'}{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}{' '}
-                        <span className="text-[8.5px] print:text-[7px] font-semibold text-slate-500 font-sans">{t.currencySymbol}</span>
-                      </div>
-                      {t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined && (
-                        <div className="text-[8px] print:text-[6.5px] font-normal text-amber-700 dir-rtl text-right mt-0.5">
-                          المقيد: {t.walletDeductionAmount.toLocaleString(undefined, { maximumFractionDigits: 1 })} {t.walletCurrencyCode}
+                    {/* Debit Column (مدين / منصرف / مسحوبات) */}
+                    <td className="py-2 px-2 print:py-1 print:px-1 text-left font-mono font-bold tabular-nums text-[10.5px] print:text-[8px] align-middle text-rose-700 dir-ltr whitespace-nowrap">
+                      {isExpense ? (
+                        <div>
+                          -{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          {t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined && (
+                            <div className="text-[7.5px] print:text-[6.5px] font-normal text-amber-800 font-sans dir-rtl text-right">
+                              المخصوم: {t.walletDeductionAmount.toLocaleString(undefined, { maximumFractionDigits: 1 })} {t.walletCurrencyCode}
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <span className="text-slate-300 font-normal">-</span>
                       )}
                     </td>
 
-                    {/* Running Balance */}
-                    <td className="py-1.5 px-2 print:py-1 print:px-1 text-left font-black text-slate-900 dir-ltr whitespace-nowrap tabular-nums font-mono text-[10.5px] print:text-[8px] bg-amber-50/30 print:bg-transparent align-middle">
+                    {/* Credit Column (دائن / مقبوض / إيداعات) */}
+                    <td className="py-2 px-2 print:py-1 print:px-1 text-left font-mono font-bold tabular-nums text-[10.5px] print:text-[8px] align-middle text-emerald-700 dir-ltr whitespace-nowrap">
+                      {isIncome ? (
+                        <div>
+                          +{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300 font-normal">-</span>
+                      )}
+                    </td>
+
+                    {/* Running Balance Column (الرصيد التراكمي) */}
+                    <td className="py-2 px-2 print:py-1 print:px-1 text-left font-mono font-black tabular-nums text-[11px] print:text-[8.5px] align-middle text-slate-900 bg-amber-50/40 print:bg-transparent dir-ltr whitespace-nowrap">
                       {runBal !== undefined ? (
-                        <>
-                          {Math.round(runBal).toLocaleString()}{' '}
-                          <span className="text-[8.5px] print:text-[7px] font-bold text-amber-800 font-sans">
-                            {runningBalanceField === 'currencyRunningBalance' ? t.currencySymbol : baseCurrency.symbol}
-                          </span>
-                        </>
+                        <span>{Math.round(runBal).toLocaleString()}</span>
                       ) : (
                         '-'
                       )}
@@ -158,39 +162,47 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
 
   return (
     <div className="space-y-6">
-      {/* 1. Ledger Summary Metrics Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 print:gap-1.5">
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 print:p-2 min-w-0">
-          <span className="text-[10px] print:text-[8px] font-bold text-emerald-800 uppercase block truncate">إجمالي المقبوضات (دائن)</span>
-          <p className="text-base print:text-xs font-black text-emerald-950 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            +{Math.round(kpis.totalIncome).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans">{baseCurrency.symbol}</span>
+      {/* 1. Official Bank Statement Summary Metrics (Clean White & Gold) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 print:gap-2">
+        {/* Opening Balance */}
+        <div className="bg-white border border-amber-200/80 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 left-0 h-1 bg-amber-400/80" />
+          <span className="text-[10px] print:text-[8px] font-bold text-slate-500 uppercase block truncate">الرصيد الافتتاحي</span>
+          <p className="text-base print:text-xs font-black text-slate-900 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
+            {Math.round(kpis.openingBalance).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-amber-700">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] print:text-[7.5px] text-emerald-700 font-semibold block truncate">{kpis.incomeCount} قيد</span>
+          <span className="text-[9px] print:text-[7.5px] text-slate-400 font-medium block truncate mt-0.5">رصيد بداية الفترة المسجلة</span>
         </div>
 
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 print:p-2 min-w-0">
-          <span className="text-[10px] print:text-[8px] font-bold text-rose-800 uppercase block truncate">إجمالي المنصرفات (مدين)</span>
-          <p className="text-base print:text-xs font-black text-rose-950 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            -{Math.round(kpis.totalExpense).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans">{baseCurrency.symbol}</span>
+        {/* Total Credits / Inflows */}
+        <div className="bg-white border border-emerald-200/90 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
+          <span className="text-[10px] print:text-[8px] font-bold text-emerald-800 uppercase block truncate">إجمالي الإيداعات (دائن)</span>
+          <p className="text-base print:text-xs font-black text-emerald-700 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
+            +{Math.round(kpis.totalIncome).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-slate-500">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] print:text-[7.5px] text-rose-700 font-semibold block truncate">{kpis.expenseCount + kpis.transferCount} قيد</span>
+          <span className="text-[9px] print:text-[7.5px] text-emerald-700/80 font-bold block truncate mt-0.5">{kpis.incomeCount} قيد إيداع</span>
         </div>
 
-        <div className="bg-slate-100 border border-slate-300 rounded-xl p-3 print:p-2 min-w-0">
-          <span className="text-[10px] print:text-[8px] font-bold text-slate-700 uppercase block truncate">صافي حركة الفترة</span>
-          <p className={`text-base print:text-xs font-black dir-ltr text-right mt-1 truncate tabular-nums font-mono ${kpis.netSavings >= 0 ? 'text-slate-950' : 'text-rose-950'}`}>
-            {kpis.netSavings >= 0 ? '+' : ''}{Math.round(kpis.netSavings).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans">{baseCurrency.symbol}</span>
+        {/* Total Debits / Outflows */}
+        <div className="bg-white border border-rose-200/90 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
+          <span className="text-[10px] print:text-[8px] font-bold text-rose-800 uppercase block truncate">إجمالي المسحوبات (مدين)</span>
+          <p className="text-base print:text-xs font-black text-rose-700 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
+            -{Math.round(kpis.totalExpense).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-slate-500">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] print:text-[7.5px] text-slate-500 font-semibold block truncate">ادخار: {kpis.savingsRatePercent}%</span>
+          <span className="text-[9px] print:text-[7.5px] text-rose-700/80 font-bold block truncate mt-0.5">{kpis.expenseCount + kpis.transferCount} قيد سحب</span>
         </div>
 
-        <div className="bg-slate-900 text-white rounded-xl p-3 print:p-2 min-w-0">
-          <span className="text-[10px] print:text-[8px] font-bold text-slate-400 uppercase block truncate">الرصيد الختامي</span>
-          <p className="text-base print:text-xs font-black text-amber-400 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            {Math.round(kpis.closingBalance).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold text-slate-300 font-sans">{baseCurrency.symbol}</span>
+        {/* Closing Balance */}
+        <div className="bg-white border border-slate-900 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 left-0 h-1 bg-[#D9B978]" />
+          <span className="text-[10px] print:text-[8px] font-bold text-slate-700 uppercase block truncate">الرصيد الختامي الحالي</span>
+          <p className="text-base print:text-xs font-black text-slate-950 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
+            {Math.round(kpis.closingBalance).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-amber-700">{baseCurrency.symbol}</span>
           </p>
-          <span className="text-[9.5px] print:text-[7.5px] text-slate-400 font-semibold block truncate">
-            {kpis.openingBalance !== 0 ? `افتتاحي: ${Math.round(kpis.openingBalance).toLocaleString()} ${baseCurrency.symbol}` : 'رصيد محتسب'}
+          <span className="text-[9px] print:text-[7.5px] text-slate-500 font-bold block truncate mt-0.5">
+            صافي الحركة: {kpis.netSavings >= 0 ? '+' : ''}{Math.round(kpis.netSavings).toLocaleString()} {baseCurrency.symbol}
           </span>
         </div>
       </div>

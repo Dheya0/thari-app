@@ -354,17 +354,17 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     color: string;
   }> = [
     {
-      type: 'summary',
-      title: 'ملخص تنفيذي',
-      desc: 'مؤشرات عامة، تحليل التدفق، وتوزيع الأرصدة والعملات.',
-      icon: PieChart,
+      type: 'detailed',
+      title: 'كشف حساب بنكي تفصيلي',
+      desc: 'كشف حساب رسمي أنيق ومفصل (مدين/دائن/رصيد) لكافة القيود المحاسبية مع التواريخ والملاحظات.',
+      icon: BookOpen,
       color: '#D9B978',
     },
     {
-      type: 'detailed',
-      title: 'كشف قيود تفصيلي',
-      desc: 'كشف حساب محاسبي كامل يشمل جدول جميع المعاملات مفصولة بالعملات.',
-      icon: BookOpen,
+      type: 'summary',
+      title: 'ملخص تنفيذي عام',
+      desc: 'مؤشرات عامة، تحليل التدفق النقدي، وتوزيع الأرصدة والعملات.',
+      icon: PieChart,
       color: '#759BC8',
     },
     {

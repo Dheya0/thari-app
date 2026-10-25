@@ -15,14 +15,17 @@ import {
   Calculator,
   ChevronLeft,
   ChevronRight,
-  WifiOff
+  WifiOff,
+  TrendingUp,
+  BookOpen,
+  Bell
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { Currency, Wallet } from '../types';
 import { getLocalizedCurrency } from '../utils/translations';
 import { NativeHaptics } from '../services/nativeServices';
 
-export type TabType = 'dashboard' | 'transactions' | 'debts' | 'chat' | 'subscriptions' | 'settings' | 'budgets' | 'goals' | 'zakat';
+export type TabType = 'dashboard' | 'forecast' | 'budgets' | 'debts' | 'reports' | 'transactions' | 'chat' | 'subscriptions' | 'settings' | 'goals' | 'zakat';
 
 interface DesktopSidebarProps {
   activeTab: TabType;
@@ -36,6 +39,8 @@ interface DesktopSidebarProps {
   currency: Currency;
   onOpenCurrencySelector: () => void;
   onOpenToolsHub: () => void;
+  onOpenAlerts?: () => void;
+  alertsCount?: number;
   hasPendingAlerts?: boolean;
   userName?: string;
 }
@@ -52,6 +57,8 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   currency,
   onOpenCurrencySelector,
   onOpenToolsHub,
+  onOpenAlerts,
+  alertsCount = 0,
   hasPendingAlerts = false,
   userName = ''
 }) => {
@@ -80,30 +87,37 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const navItems = [
     {
       id: 'dashboard' as TabType,
-      label: isEn ? 'Dashboard' : 'الرئيسية والمركز المالي',
-      shortLabel: isEn ? 'Home' : 'الرئيسية',
+      label: isEn ? 'Wallets & Operations' : 'العمليات والمحافظ',
+      shortLabel: isEn ? 'Wallets' : 'المحافظ',
       icon: LayoutDashboard,
       badge: null
     },
     {
-      id: 'transactions' as TabType,
-      label: isEn ? 'Transactions Ledger' : 'سجل المعاملات والتحليلات',
-      shortLabel: isEn ? 'Ledger' : 'المعاملات',
-      icon: History,
+      id: 'forecast' as TabType,
+      label: isEn ? 'Cashflow & Runway' : 'التخطيط والتدفق النقدي',
+      shortLabel: isEn ? 'Forecast' : 'التخطيط',
+      icon: TrendingUp,
+      badge: 'جديد'
+    },
+    {
+      id: 'budgets' as TabType,
+      label: isEn ? 'Budgets & Limits' : 'الميزانيات والتحليلات',
+      shortLabel: isEn ? 'Budgets' : 'الميزانيات',
+      icon: PieChart,
       badge: null
     },
     {
       id: 'debts' as TabType,
-      label: isEn ? 'Debts & Receivables' : 'دفتر الديون والسندات',
+      label: isEn ? 'Debts & Liabilities' : 'الديون والالتزامات',
       shortLabel: isEn ? 'Debts' : 'الديون',
       icon: HandCoins,
       badge: null
     },
     {
-      id: 'budgets' as TabType,
-      label: isEn ? 'Budgets & Limits' : 'الميزانيات والحدود',
-      shortLabel: isEn ? 'Budgets' : 'الميزانيات',
-      icon: PieChart,
+      id: 'reports' as TabType,
+      label: isEn ? 'Bank Statements' : 'كشف الحساب والتقارير',
+      shortLabel: isEn ? 'Reports' : 'كشف الحساب',
+      icon: BookOpen,
       badge: null
     },
     {
@@ -174,22 +188,43 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
           </div>
         )}
 
-        {/* Collapse / Expand Toggle Button */}
-        <button
-          type="button"
-          onClick={toggleCollapse}
-          className={`p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/5 transition-all cursor-pointer active:scale-95 ${
-            isCollapsed ? 'hidden' : 'flex'
-          }`}
-          title={isCollapsed ? (isEn ? 'Expand sidebar' : 'توسيع القائمة') : (isEn ? 'Collapse sidebar' : 'طي القائمة')}
-          aria-label={isCollapsed ? 'توسيع' : 'طي'}
-        >
-          {isRtl ? (
-            isCollapsed ? <ChevronLeft size={15} /> : <ChevronRight size={15} />
-          ) : (
-            isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />
+        <div className="flex items-center gap-1.5">
+          {/* Smart Alerts Center Button */}
+          {onOpenAlerts && (
+            <button
+              type="button"
+              onClick={onOpenAlerts}
+              className={`relative p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-[#D9B978] border border-white/5 hover:border-[#D9B978]/30 transition-all cursor-pointer active:scale-95 ${
+                isCollapsed ? 'hidden' : 'flex'
+              }`}
+              title={isEn ? 'Smart Alerts Center' : 'مركز التنبيهات الذكية'}
+            >
+              <Bell size={15} />
+              {alertsCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white font-mono text-[9px] font-black flex items-center justify-center shadow-xs">
+                  {alertsCount}
+                </span>
+              )}
+            </button>
           )}
-        </button>
+
+          {/* Collapse / Expand Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            className={`p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-white border border-white/5 transition-all cursor-pointer active:scale-95 ${
+              isCollapsed ? 'hidden' : 'flex'
+            }`}
+            title={isCollapsed ? (isEn ? 'Expand sidebar' : 'توسيع القائمة') : (isEn ? 'Collapse sidebar' : 'طي القائمة')}
+            aria-label={isCollapsed ? 'توسيع' : 'طي'}
+          >
+            {isRtl ? (
+              isCollapsed ? <ChevronLeft size={15} /> : <ChevronRight size={15} />
+            ) : (
+              isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* 2. Primary Action: Luminous Golden Add Button */}
