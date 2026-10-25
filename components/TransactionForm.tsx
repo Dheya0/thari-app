@@ -33,6 +33,7 @@ export type DebtSubMode = 'to_me' | 'on_me' | 'repayment';
 interface TransactionFormProps {
   categories: Category[];
   wallets: Wallet[];
+  walletBalances?: Record<string, { currentBalance: number; currencyCode?: string }>;
   transactions?: Transaction[];
   debts?: Debt[];
   onSubmit: (transaction: Omit<Transaction, 'id'> & { id?: string }) => void;
@@ -63,6 +64,7 @@ interface TransactionFormProps {
 const TransactionForm: React.FC<TransactionFormProps> = ({
   categories,
   wallets,
+  walletBalances = {},
   transactions = [],
   debts = [],
   onSubmit,
@@ -203,7 +205,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       } else if (newTab === 'adjustment') {
         const selW = wallets.find(w => w.id === walletId) || wallets[0];
         if (selW && !actualRealBalance) {
-          setActualRealBalance((selW.currentBalance ?? selW.openingBalance ?? 0).toString());
+          setActualRealBalance(getWalletLiveBalance(selW.id).toString());
         }
       }
     }
@@ -441,9 +443,17 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
+  const getWalletLiveBalance = (wId: string) => {
+    if (walletBalances && walletBalances[wId] !== undefined) {
+      return walletBalances[wId].currentBalance;
+    }
+    const w = wallets.find(item => item.id === wId);
+    return Number(w?.currentBalance) || Number(w?.openingBalance) || 0;
+  };
+
   const adjustmentCalc = useMemo(() => {
     if (activeTab !== 'adjustment') return null;
-    const current = selectedSourceWallet ? (selectedSourceWallet.currentBalance ?? selectedSourceWallet.openingBalance ?? 0) : 0;
+    const current = selectedSourceWallet ? getWalletLiveBalance(selectedSourceWallet.id) : 0;
     const actual = actualRealBalance === '' ? null : parseArabicNumber(actualRealBalance);
     if (actual === null || isNaN(actual)) return { current, actual: null, diff: 0, isIncrease: true, absDiff: 0 };
     const diff = actual - current;
@@ -454,7 +464,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       isIncrease: diff >= 0,
       absDiff: Math.abs(diff)
     };
-  }, [activeTab, selectedSourceWallet, actualRealBalance]);
+  }, [activeTab, selectedSourceWallet, actualRealBalance, walletBalances]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1130,7 +1140,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     if (activeTab === 'adjustment') {
                       const target = wallets.find(w => w.id === e.target.value);
                       if (target) {
-                        setActualRealBalance((target.currentBalance ?? target.openingBalance ?? 0).toString());
+                        setActualRealBalance(getWalletLiveBalance(target.id).toString());
                       }
                     }
                   }}
@@ -1138,7 +1148,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                 >
                   {wallets.map(w => {
                     const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                    const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                    const curBal = getWalletLiveBalance(w.id);
                     return (
                       <option key={w.id} value={w.id} className="bg-[#0A0D10] text-[#F4F1EA]">
                         {w.name} ({wCurrLoc.symbol}) — {t.totalBalance || 'الرصيد'}: {curBal.toLocaleString()} {wCurrLoc.symbol}
@@ -1179,7 +1189,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     >
                       {wallets.map(w => {
                         const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                        const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                        const curBal = getWalletLiveBalance(w.id);
                         return (
                           <option key={w.id} value={w.id} disabled={w.id === destinationWalletId} className="bg-[#0A0D10] text-[#F4F1EA]">
                             {w.name} ({curBal.toLocaleString()} {wCurrLoc.symbol})
@@ -1201,7 +1211,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     >
                       {wallets.map(w => {
                         const wCurrLoc = getLocalizedCurrency(w.currencyCode, undefined, undefined, language);
-                        const curBal = (w.currentBalance ?? w.openingBalance ?? 0);
+                        const curBal = getWalletLiveBalance(w.id);
                         return (
                           <option key={w.id} value={w.id} disabled={w.id === walletId} className="bg-[#0A0D10] text-[#F4F1EA]">
                             {w.name} ({curBal.toLocaleString()} {wCurrLoc.symbol})

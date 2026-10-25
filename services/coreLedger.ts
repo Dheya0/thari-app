@@ -251,9 +251,11 @@ export function generateCoreLedger(
   // 1. OPENING BALANCES (Equity -> Assets)
   activeWallets.forEach(wallet => {
     const openingBal = Number(wallet.openingBalance) || 0;
-    if (openingBal > 0) {
+    if (openingBal !== 0) {
+      const isPositive = openingBal > 0;
+      const absOpening = Math.abs(openingBal);
       const rate = getRateSnapshot(wallet.currencyCode);
-      const baseAmount = calcBaseAmount(openingBal, wallet.currencyCode, rate);
+      const absBaseAmount = Math.abs(calcBaseAmount(absOpening, wallet.currencyCode, rate));
 
       journal.push({
         id: `entry-open-${wallet.id}`,
@@ -269,11 +271,11 @@ export function generateCoreLedger(
             accountId: wallet.id,
             accountName: wallet.name,
             accountType: 'asset',
-            debit: openingBal,
-            credit: 0,
+            debit: isPositive ? absOpening : 0,
+            credit: isPositive ? 0 : absOpening,
             currency: wallet.currencyCode,
             rateSnapshot: rate,
-            amountInBaseCurrency: baseAmount,
+            amountInBaseCurrency: absBaseAmount,
             note: 'رصيد افتتاحي للمحفظة'
           },
           {
@@ -281,11 +283,11 @@ export function generateCoreLedger(
             accountId: 'equity-opening-balance',
             accountName: 'حقوق الملكية / أرصدة افتتاحية',
             accountType: 'equity',
-            debit: 0,
-            credit: openingBal,
+            debit: isPositive ? 0 : absOpening,
+            credit: isPositive ? absOpening : 0,
             currency: wallet.currencyCode,
             rateSnapshot: rate,
-            amountInBaseCurrency: baseAmount,
+            amountInBaseCurrency: absBaseAmount,
             note: 'حساب موازنة رأس المال الأولي'
           }
         ]
@@ -309,7 +311,7 @@ export function generateCoreLedger(
   // 2. TRANSACTIONS (Expense, Income, Transfer, Adjustment, and Financing/Debt movements)
   activeTxs.forEach(tx => {
     const amount = Number(tx.amount) || 0;
-    if (amount <= 0) return;
+    if (amount === 0 || (amount < 0 && tx.type !== 'adjustment')) return;
 
     const sourceWallet = activeWallets.find(w => w.id === tx.walletId);
     const walletCurrency = sourceWallet?.currencyCode || tx.currency || 'SAR';
@@ -598,7 +600,7 @@ export function generateCoreLedger(
             credit: isPositive ? 0 : absAmount,
             currency: walletCurrency,
             rateSnapshot: getRateSnapshot(walletCurrency),
-            amountInBaseCurrency: baseAmount,
+            amountInBaseCurrency: Math.abs(baseAmount),
             note: tx.note
           },
           {
@@ -610,7 +612,7 @@ export function generateCoreLedger(
             credit: isPositive ? absAmount : 0,
             currency: walletCurrency,
             rateSnapshot: getRateSnapshot(walletCurrency),
-            amountInBaseCurrency: baseAmount,
+            amountInBaseCurrency: Math.abs(baseAmount),
             note: 'فروقات جرد الرصيد الفعلي'
           }
         ]

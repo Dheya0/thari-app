@@ -111,15 +111,15 @@ export const FinancialReportSummaryView: React.FC<SummaryViewProps> = ({ model }
           <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-xs print:text-[10px] border-collapse">
               <thead className="print:table-header-group">
-                <tr className="bg-slate-100 text-slate-600 font-black border-b border-slate-300 text-[10px]">
-                  <th className="py-2.5 px-3 text-right">العملة</th>
-                  <th className="py-2.5 px-3 text-left">الرصيد الافتتاحي</th>
-                  <th className="py-2.5 px-3 text-left text-emerald-800">+ المقبوضات</th>
-                  <th className="py-2.5 px-3 text-left text-rose-800">- المنصرفات</th>
-                  <th className="py-2.5 px-3 text-left">= صافي الفترة</th>
-                  <th className="py-2.5 px-3 text-left font-black text-slate-900">الرصيد الختامي</th>
+                <tr className="bg-slate-100 text-slate-700 font-black border-b border-slate-300 text-[11px] print:text-[8px]">
+                  <th className="py-3 px-3.5 text-right">العملة</th>
+                  <th className="py-3 px-3.5 text-left">الرصيد الافتتاحي</th>
+                  <th className="py-3 px-3.5 text-left text-emerald-800">+ المقبوضات</th>
+                  <th className="py-3 px-3.5 text-left text-rose-800">- المنصرفات</th>
+                  <th className="py-3 px-3.5 text-left">= صافي الفترة</th>
+                  <th className="py-3 px-3.5 text-left font-black text-slate-900">الرصيد الختامي</th>
                   {currencyBreakdown.length > 1 && (
-                    <th className="py-2.5 px-3 text-left text-amber-900">المعادل بـ ({baseCurrency.code})</th>
+                    <th className="py-3 px-3.5 text-left text-amber-900">المعادل بـ ({baseCurrency.code})</th>
                   )}
                 </tr>
               </thead>
@@ -127,52 +127,52 @@ export const FinancialReportSummaryView: React.FC<SummaryViewProps> = ({ model }
                 {currencyBreakdown.map((cb) => {
                   const isNetPositive = cb.net >= 0;
                   return (
-                    <tr key={cb.code} className="hover:bg-slate-50 transition-colors">
+                    <tr key={cb.code} className="hover:bg-amber-50/20 transition-colors border-b border-slate-100">
                       {/* Currency badge and name */}
-                      <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                      <td className="py-3.5 px-3.5 font-bold text-slate-900 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-300 font-mono text-[10px] font-black text-slate-800">
                             {cb.code}
                           </span>
-                          <span className="truncate text-slate-700 font-bold">{cb.metadata.nameAr}</span>
+                          <span className="truncate text-slate-800 font-bold text-xs">{cb.metadata.nameAr}</span>
                         </div>
                       </td>
 
                       {/* Opening Balance */}
-                      <td className="py-2.5 px-3 text-left font-bold text-slate-700 dir-ltr tabular-nums font-mono whitespace-nowrap">
+                      <td className="py-3.5 px-3.5 text-left font-bold text-slate-700 dir-ltr tabular-nums font-mono whitespace-nowrap text-xs">
                         {Math.round(cb.openingBalance).toLocaleString()}{' '}
-                        <span className="text-[9px] font-normal text-slate-400 font-sans">{cb.metadata.symbol}</span>
+                        <span className="text-[9.5px] font-normal text-slate-400 font-sans">{cb.metadata.symbol}</span>
                       </td>
 
                       {/* Income (+) */}
-                      <td className="py-2.5 px-3 text-left font-black text-emerald-700 dir-ltr tabular-nums font-mono whitespace-nowrap">
+                      <td className="py-3.5 px-3.5 text-left font-black text-emerald-700 dir-ltr tabular-nums font-mono whitespace-nowrap text-xs">
                         +{Math.round(cb.income).toLocaleString()}{' '}
-                        <span className="text-[9px] font-bold text-emerald-600 font-sans">{cb.metadata.symbol}</span>
+                        <span className="text-[9.5px] font-bold text-emerald-600 font-sans">{cb.metadata.symbol}</span>
                       </td>
 
                       {/* Expense (-) */}
-                      <td className="py-2.5 px-3 text-left font-black text-rose-700 dir-ltr tabular-nums font-mono whitespace-nowrap">
+                      <td className="py-3.5 px-3.5 text-left font-black text-rose-700 dir-ltr tabular-nums font-mono whitespace-nowrap text-xs">
                         -{Math.round(cb.expense).toLocaleString()}{' '}
-                        <span className="text-[9px] font-bold text-rose-600 font-sans">{cb.metadata.symbol}</span>
+                        <span className="text-[9.5px] font-bold text-rose-600 font-sans">{cb.metadata.symbol}</span>
                       </td>
 
                       {/* Net (=) */}
-                      <td className={`py-2.5 px-3 text-left font-black dir-ltr tabular-nums font-mono whitespace-nowrap ${
+                      <td className={`py-3.5 px-3.5 text-left font-black dir-ltr tabular-nums font-mono whitespace-nowrap text-xs ${
                         isNetPositive ? 'text-slate-900' : 'text-rose-900'
                       }`}>
                         {isNetPositive ? '+' : ''}{Math.round(cb.net).toLocaleString()}{' '}
-                        <span className="text-[9px] font-normal text-slate-400 font-sans">{cb.metadata.symbol}</span>
+                        <span className="text-[9.5px] font-normal text-slate-400 font-sans">{cb.metadata.symbol}</span>
                       </td>
 
                       {/* Closing Balance */}
-                      <td className="py-2.5 px-3 text-left font-black text-slate-950 dir-ltr tabular-nums font-mono whitespace-nowrap bg-amber-50/50">
+                      <td className="py-3.5 px-3.5 text-left font-black text-slate-950 dir-ltr tabular-nums font-mono whitespace-nowrap bg-amber-50/50 text-xs">
                         {Math.round(cb.closingBalance).toLocaleString()}{' '}
-                        <span className="text-[9.5px] font-black text-amber-700 font-sans">{cb.metadata.symbol}</span>
+                        <span className="text-[10px] font-black text-amber-700 font-sans">{cb.metadata.symbol}</span>
                       </td>
 
                       {/* Converted Equivalent in Base Currency */}
                       {currencyBreakdown.length > 1 && (
-                        <td className="py-2.5 px-3 text-left font-black text-amber-900 dir-ltr tabular-nums font-mono whitespace-nowrap">
+                        <td className="py-3.5 px-3.5 text-left font-black text-amber-900 dir-ltr tabular-nums font-mono whitespace-nowrap text-xs">
                           {Math.round(cb.convertedClosingToBase).toLocaleString()}{' '}
                           <span className="text-[9px] font-bold text-amber-700 font-sans">{baseCurrency.symbol}</span>
                         </td>

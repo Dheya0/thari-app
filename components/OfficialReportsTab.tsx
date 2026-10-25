@@ -34,6 +34,8 @@ interface OfficialReportsTabProps {
   budgets?: Budget[];
   debts?: Debt[];
   goals?: SavingsGoal[];
+  onPrint?: (...args: any[]) => any;
+  onExportExcel?: (...args: any[]) => any;
 }
 
 type DateRangePreset = 'all' | 'this_month' | 'last_month' | 'last_90_days' | 'custom';
@@ -48,7 +50,9 @@ export const OfficialReportsTab: React.FC<OfficialReportsTabProps> = ({
   exchangeRates = {},
   budgets = [],
   debts = [],
-  goals = []
+  goals = [],
+  onPrint,
+  onExportExcel
 }) => {
   const [reportType, setReportType] = useState<ReportType>('detailed');
   const [selectedWalletIds, setSelectedWalletIds] = useState<string[]>(() => wallets.map(w => w.id));

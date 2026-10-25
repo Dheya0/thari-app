@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3, Globe, TrendingUp, BookOpen, Bell, PieChart } from 'lucide-react';
-import { AppState, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType, Subscription, ZakatPaymentRecord } from './types';
+import { AppState, Wallet, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType, Subscription, ZakatPaymentRecord } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
 import { formatLocalDateOnly } from './utils/formatters';
@@ -41,6 +41,7 @@ import OnboardingGuideModal from './components/OnboardingGuideModal';
 import LockScreen from './components/LockScreen';
 import { CashflowForecast } from './components/CashflowForecast';
 import { OfficialReportsTab } from './components/OfficialReportsTab';
+import { FinancialSuiteTab } from './components/FinancialSuiteTab';
 import { SmartAlertsDrawer, computeSmartAlerts } from './components/SmartAlertsDrawer';
 const AboutAndPrivacy = React.lazy(() => import('./components/AboutAndPrivacy').then(m => ({ default: m.AboutAndPrivacy })));
 const FinancialReport = React.lazy(() => import('./components/FinancialReport'));
@@ -604,28 +605,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const activeSmartAlerts = useMemo(() => {
-    return computeSmartAlerts(
-      state.budgets || [],
-      state.transactions || [],
-      state.debts || [],
-      state.wallets || [],
-      state.categories || [],
-      state.currency,
-      state.exchangeRates,
-      dismissedAlertIds
-    );
-  }, [
-    state.budgets,
-    state.transactions,
-    state.debts,
-    state.wallets,
-    state.categories,
-    state.currency,
-    state.exchangeRates,
-    dismissedAlertIds
-  ]);
-
   const isAnyModalActive = Boolean(
     transactionToDelete ||
     showPrivacyPolicy ||
@@ -1002,6 +981,30 @@ const App: React.FC = () => {
       return safeAdd(sum, convertCurrency(bal, w.currencyCode, state.currency.code, state.exchangeRates));
     }, 0);
   }, [state.wallets, totals.walletSummaries, state.currency.code, state.exchangeRates]);
+
+  const activeSmartAlerts = useMemo(() => {
+    return computeSmartAlerts(
+      state.budgets || [],
+      state.transactions || [],
+      state.debts || [],
+      state.wallets || [],
+      state.categories || [],
+      state.currency,
+      state.exchangeRates,
+      dismissedAlertIds,
+      totals.walletSummaries
+    );
+  }, [
+    state.budgets,
+    state.transactions,
+    state.debts,
+    state.wallets,
+    state.categories,
+    state.currency,
+    state.exchangeRates,
+    dismissedAlertIds,
+    totals.walletSummaries
+  ]);
 
   // Synchronize with native home screen widgets (iOS WidgetKit / Android AppWidget)
   useEffect(() => {
@@ -2380,38 +2383,29 @@ const App: React.FC = () => {
                   />
                 )}
 
-                {activeTab === 'forecast' && (
-                  <CashflowForecast
-                    wallets={state.wallets}
+                {(activeTab === 'forecast' || activeTab === 'reports') && (
+                  <FinancialSuiteTab
+                    initialSubTab={activeTab === 'forecast' ? 'forecast' : 'reports'}
                     transactions={state.transactions}
+                    wallets={state.wallets}
+                    categories={state.categories}
                     recurringRules={state.recurringRules}
                     debts={state.debts}
                     budgets={state.budgets}
-                    exchangeRates={state.exchangeRates}
-                    baseCurrency={state.currency}
+                    goals={state.goals}
+                    currency={state.currency}
                     currencies={localizedCurrencies}
+                    exchangeRates={state.exchangeRates}
+                    userName={state.userName}
                     language={activeLanguage}
+                    onPrint={handlePrint}
+                    onExportExcel={handleExportExcelReport}
                     onOpenRecurringManager={() => setShowRecurringModal(true)}
                     onOpenNewTransaction={(type) => {
                       setEditingTransaction(null);
                       setFormDefaultType(type);
                       setShowAddForm(true);
                     }}
-                  />
-                )}
-
-                {activeTab === 'reports' && (
-                  <OfficialReportsTab
-                    transactions={state.transactions}
-                    categories={state.categories}
-                    wallets={state.wallets}
-                    currencies={localizedCurrencies}
-                    currentCurrency={state.currency}
-                    userName={state.userName}
-                    exchangeRates={state.exchangeRates}
-                    budgets={state.budgets}
-                    debts={state.debts}
-                    goals={state.goals}
                   />
                 )}
                 
@@ -2582,6 +2576,7 @@ const App: React.FC = () => {
                         {...state} 
                         currency={localizedCurrency}
                         currencies={localizedCurrencies}
+                        walletBalances={totals.walletSummaries}
                         appState={state} 
                         onUpdateSettings={(updates) => setState(p => ({...p, ...updates}))} 
                         onAddCurrency={(c) => setState(p => ({...p, currencies: [...p.currencies, c]}))} 
@@ -2599,8 +2594,71 @@ const App: React.FC = () => {
                                 currency: nextCurrency
                             };
                         })} 
-                        onAddWallet={(w) => setState(p => ({ ...p, wallets: [...p.wallets, { ...w, id: 'w-' + Date.now() }] }))} 
-                        onUpdateWallet={(id, updates) => setState(p => ({ ...p, wallets: p.wallets.map(w => w.id === id ? { ...w, ...updates } : w) }))}
+                        onAddWallet={(w) => {
+                          const initBal = Number(w.openingBalance ?? (w as any).targetBalance ?? w.currentBalance) || 0;
+                          const newWallet: Wallet = {
+                            ...w,
+                            id: 'w-' + Date.now(),
+                            openingBalance: initBal,
+                            currentBalance: initBal,
+                            balance: initBal,
+                            createdAt: new Date().toISOString()
+                          };
+                          setState(p => ({ ...p, wallets: [...p.wallets, newWallet] }));
+                        }} 
+                        onUpdateWallet={(id, updates) => setState(p => {
+                          const existingWallet = p.wallets.find(w => w.id === id);
+                          if (!existingWallet) return p;
+
+                          if (updates.targetBalance !== undefined) {
+                            const targetBal = Number(updates.targetBalance) || 0;
+                            const currentLive = totals.walletSummaries?.[id]?.currentBalance ?? (Number(existingWallet.currentBalance) || Number(existingWallet.openingBalance) || 0);
+                            const diff = targetBal - currentLive;
+
+                            const walletTxs = p.transactions.filter(t => (t.walletId === id || t.destinationWalletId === id) && !t.isDeleted);
+
+                            let nextTransactions = p.transactions;
+                            let nextOpening = existingWallet.openingBalance;
+
+                            if (walletTxs.length === 0) {
+                              nextOpening = targetBal;
+                            } else if (Math.abs(diff) > 0.0001) {
+                              const isIncrease = diff > 0;
+                              const adjTx: Transaction = {
+                                id: 'tx-adj-' + Date.now(),
+                                type: 'adjustment',
+                                amount: diff,
+                                walletId: id,
+                                categoryId: 'adjustment',
+                                date: formatLocalDateOnly(new Date()),
+                                createdAt: new Date().toISOString(),
+                                currency: updates.currencyCode || existingWallet.currencyCode,
+                                note: isIncrease ? 'تسوية وتصحيح رصيد بالزيادة (جرد فعلي)' : 'تسوية وتصحيح رصيد بالنقصان (جرد فعلي)',
+                                description: isIncrease ? 'تسوية رصيد بالزيادة' : 'تسوية رصيد بالنقصان',
+                                frequency: 'once',
+                                isDeleted: false
+                              };
+                              nextTransactions = [adjTx, ...p.transactions];
+                            }
+
+                            return {
+                              ...p,
+                              wallets: p.wallets.map(w => w.id === id ? {
+                                ...w,
+                                ...updates,
+                                openingBalance: nextOpening,
+                                currentBalance: targetBal,
+                                balance: targetBal
+                              } : w),
+                              transactions: nextTransactions
+                            };
+                          }
+
+                          return {
+                            ...p,
+                            wallets: p.wallets.map(w => w.id === id ? { ...w, ...updates } : w)
+                          };
+                        })}
                         onRemoveWallet={(id) => {
                           if (state.wallets.length <= 1) {
                             showToast(activeLanguage === 'en' ? 'Cannot delete the only wallet' : 'لا يمكن حذف المحفظة الوحيدة المتبقية في التطبيق', 'error');
@@ -2650,14 +2708,15 @@ const App: React.FC = () => {
         </main>
 
         {/* Floating Mobile Bottom Dock (< 768px - md:hidden) */}
-        <div className={`fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-4 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent transition-all duration-300 md:hidden ${
+        <div className={`fixed bottom-0 left-0 right-0 pt-16 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] px-2.5 xs:px-4 flex justify-center pointer-events-none z-50 bg-gradient-to-t from-[#0A0D10] via-[#0A0D10]/80 to-transparent transition-all duration-300 md:hidden ${
           isAnyModalActive || isKeyboardVisible
             ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
             : 'opacity-100 translate-y-0'
         }`}>
-            <nav className="pointer-events-auto w-full max-w-md bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-2 py-1.5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+            <nav className="pointer-events-auto w-full max-w-lg bg-[#11161C]/95 backdrop-blur-2xl border border-white/10 flex items-center justify-between px-1.5 xs:px-2.5 py-1.5 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
                 <NavButton icon={<LayoutDashboard />} label={t.dashboard} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-                <NavButton icon={<TrendingUp />} label={activeLanguage === 'en' ? 'Forecast' : 'التخطيط'} active={activeTab === 'forecast'} onClick={() => setActiveTab('forecast')} />
+                <NavButton icon={<History />} label={activeLanguage === 'en' ? 'History' : 'السجل'} active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
+                <NavButton icon={<HandCoins />} label={activeLanguage === 'en' ? 'Debts' : 'الديون'} active={activeTab === 'debts'} onClick={() => setActiveTab('debts')} />
                 
                 <motion.button 
                   whileHover={{ scale: 1.06 }}
@@ -2667,14 +2726,14 @@ const App: React.FC = () => {
                     setEditingTransaction(null); 
                     setShowAddForm(true); 
                   }}
-                  className="w-13 h-13 bg-gradient-to-tr from-[#C9A45C] to-[#E2C78C] hover:brightness-110 text-slate-950 rounded-[1.35rem] shadow-[0_10px_25px_rgba(217,185,120,0.4)] flex items-center justify-center z-50 border-[3.5px] border-[#11161C] mx-0.5 shrink-0 active:scale-95 transition-transform"
+                  className="w-12 h-12 xs:w-13 xs:h-13 bg-gradient-to-tr from-[#C9A45C] to-[#E2C78C] hover:brightness-110 text-slate-950 rounded-[1.2rem] xs:rounded-[1.35rem] shadow-[0_10px_25px_rgba(217,185,120,0.4)] flex items-center justify-center z-50 border-[3px] xs:border-[3.5px] border-[#11161C] mx-0.5 shrink-0 active:scale-95 transition-transform"
                   title={activeLanguage === 'en' ? 'Add Transaction' : 'إضافة معاملة جديدة'}
                 >
-                  <Plus size={26} strokeWidth={3.5} />
+                  <Plus size={24} strokeWidth={3.5} />
                 </motion.button>
 
-                <NavButton icon={<HandCoins />} label={t.debts} active={activeTab === 'debts'} onClick={() => setActiveTab('debts')} />
-                <NavButton icon={<BookOpen />} label={activeLanguage === 'en' ? 'Statement' : 'كشف الحساب'} active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
+                <NavButton icon={<BookOpen />} label={activeLanguage === 'en' ? 'Statements' : 'التقارير'} active={activeTab === 'reports' || activeTab === 'forecast'} onClick={() => setActiveTab('reports')} />
+                <NavButton icon={<SettingsIcon />} label={t.settings || (activeLanguage === 'en' ? 'Settings' : 'الإعدادات')} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
             </nav>
         </div>
 
@@ -2779,6 +2838,7 @@ const App: React.FC = () => {
               <TransactionForm 
                 categories={state.categories} 
                 wallets={state.wallets} 
+                walletBalances={totals.walletSummaries}
                 transactions={state.transactions}
                 debts={state.debts}
                 onSubmit={handleSubmitTransaction} 
@@ -2874,6 +2934,7 @@ const App: React.FC = () => {
             transactions={state.transactions}
             debts={state.debts}
             wallets={state.wallets}
+            walletBalances={totals.walletSummaries}
             categories={state.categories}
             currentCurrency={state.currency}
             exchangeRates={state.exchangeRates}
@@ -2943,18 +3004,18 @@ const NavButton = ({ icon, label, active, onClick }: { icon: any, label: string,
       onClick();
     }} 
     aria-label={label}
-    className={`flex flex-col items-center justify-center gap-1 transition-all flex-1 min-w-[55px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
+    className={`flex flex-col items-center justify-center gap-0.5 xs:gap-1 transition-all flex-1 min-w-[38px] xs:min-w-[46px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
   >
-    <div className={`p-2 rounded-2xl transition-all duration-300 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/20 to-[#D9B978]/5 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.25)] border border-[#D9B978]/30' : 'group-hover:bg-white/5'}`}>
-        {React.cloneElement(icon, { size: 22, strokeWidth: active ? 2.4 : 1.8 })}
+    <div className={`p-1.5 xs:p-2 rounded-2xl transition-all duration-300 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/20 to-[#D9B978]/5 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.25)] border border-[#D9B978]/30' : 'group-hover:bg-white/5'}`}>
+        {React.cloneElement(icon, { size: 19, strokeWidth: active ? 2.4 : 1.8 })}
         {active && (
           <motion.div 
             layoutId="activeTabGlow" 
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-[#D9B978] rounded-full shadow-[0_0_10px_#D9B978]" 
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3.5 h-1 bg-[#D9B978] rounded-full shadow-[0_0_10px_#D9B978]" 
           />
         )}
     </div>
-    <span className={`text-[10px] font-black tracking-tight transition-all duration-300 ${active ? 'opacity-100 text-[#D9B978]' : 'opacity-70 text-slate-400'}`}>{label}</span>
+    <span className={`text-[8.5px] xs:text-[9.5px] font-black tracking-tight transition-all duration-300 truncate max-w-[56px] text-center ${active ? 'opacity-100 text-[#D9B978]' : 'opacity-70 text-slate-400'}`}>{label}</span>
   </motion.button>
 );
 

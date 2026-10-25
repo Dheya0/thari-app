@@ -87,17 +87,24 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   const navItems = [
     {
       id: 'dashboard' as TabType,
-      label: isEn ? 'Wallets & Operations' : 'العمليات والمحافظ',
-      shortLabel: isEn ? 'Wallets' : 'المحافظ',
+      label: isEn ? 'Wallets & Overview' : 'الرئيسية والمحافظ',
+      shortLabel: isEn ? 'Overview' : 'الرئيسية',
       icon: LayoutDashboard,
       badge: null
     },
     {
-      id: 'forecast' as TabType,
-      label: isEn ? 'Cashflow & Runway' : 'التخطيط والتدفق النقدي',
-      shortLabel: isEn ? 'Forecast' : 'التخطيط',
-      icon: TrendingUp,
-      badge: 'جديد'
+      id: 'transactions' as TabType,
+      label: isEn ? 'Transactions History' : 'السجل والقيود المالية',
+      shortLabel: isEn ? 'History' : 'السجل',
+      icon: History,
+      badge: null
+    },
+    {
+      id: 'reports' as TabType,
+      label: isEn ? 'Planning & Statements' : 'التخطيط وكشف الحساب',
+      shortLabel: isEn ? 'Suite' : 'التقارير',
+      icon: BookOpen,
+      badge: 'عائم'
     },
     {
       id: 'budgets' as TabType,
@@ -111,13 +118,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       label: isEn ? 'Debts & Liabilities' : 'الديون والالتزامات',
       shortLabel: isEn ? 'Debts' : 'الديون',
       icon: HandCoins,
-      badge: null
-    },
-    {
-      id: 'reports' as TabType,
-      label: isEn ? 'Bank Statements' : 'كشف الحساب والتقارير',
-      shortLabel: isEn ? 'Reports' : 'كشف الحساب',
-      icon: BookOpen,
       badge: null
     },
     {

@@ -38,6 +38,7 @@ interface SmartAlertsDrawerProps {
   transactions: Transaction[];
   debts: Debt[];
   wallets: Wallet[];
+  walletBalances?: Record<string, { currentBalance: number; currencyCode?: string }>;
   categories: Category[];
   currentCurrency: Currency;
   exchangeRates: Record<string, number>;
@@ -56,17 +57,24 @@ export function computeSmartAlerts(
   categories: Category[],
   currentCurrency: Currency,
   exchangeRates: Record<string, number>,
-  dismissedIds: string[] = []
+  dismissedIds: string[] = [],
+  walletBalances?: Record<string, { currentBalance: number; currencyCode?: string }>
 ): SmartAlertItem[] {
   const list: SmartAlertItem[] = [];
   const dismissedSet = new Set(dismissedIds);
 
-  // 1. Budget Alerts (70% visual is on progress bar, 85% and 100%+ trigger alerts here)
+  // 1. Budget Alerts (Current Month's spending vs budget limit)
+  const currentYearMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
   budgets.forEach(b => {
     const categoryName = categories.find(c => c.id === b.categoryId)?.name || 'تصنيف';
     const spent = transactions
-      .filter(t => t.categoryId === b.categoryId && t.type === 'expense' && !t.isDeleted)
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.categoryId === b.categoryId && (t.type === 'expense' || t.type === 'transfer_to_goal') && !t.isDeleted && !t.isFinancing && t.date && t.date.startsWith(currentYearMonth))
+      .reduce((sum, t) => {
+        const txAmt = Number(t.amount) || 0;
+        const txCurr = t.currency || currentCurrency.code;
+        const inBase = convertCurrency(txAmt, txCurr, b.currencyCode || currentCurrency.code, exchangeRates);
+        return sum + inBase;
+      }, 0);
 
     const percent = b.amount > 0 ? (spent / b.amount) * 100 : 0;
     const alertId100 = `b-breach-${b.categoryId}`;
@@ -79,7 +87,7 @@ export function computeSmartAlerts(
         type: 'critical',
         category: 'budget_breach',
         title: `تجاوز ميزانية ${categoryName}`,
-        message: `تم استهلاك ${Math.round(percent)}% من السقف المحدد، بتجاوز قدره ${Math.round(overAmount).toLocaleString()} ${b.currencyCode || currentCurrency.code}.`,
+        message: `تم استهلاك ${Math.round(percent)}% من السقف المحدد لشهر ${new Date().toLocaleDateString('ar-SA', { month: 'long' })}، بتجاوز قدره ${Math.round(overAmount).toLocaleString()} ${b.currencyCode || currentCurrency.code}.`,
         actionType: 'adjust_budget',
         targetId: b.categoryId,
         budgetId: b.categoryId,
@@ -92,7 +100,7 @@ export function computeSmartAlerts(
         type: 'warning',
         category: 'budget_warning',
         title: `اقتراب نفاد ميزانية ${categoryName}`,
-        message: `وصل الإنفاق إلى ${Math.round(percent)}% من السقف المعتمد. يرجى مراقبة المصروفات المتبقية.`,
+        message: `وصل إنفاق الشهر الحالي إلى ${Math.round(percent)}% من السقف المعتمد. يرجى مراقبة المصروفات المتبقية.`,
         actionType: 'adjust_budget',
         targetId: b.categoryId,
         budgetId: b.categoryId
@@ -176,17 +184,17 @@ export function computeSmartAlerts(
     }
   });
 
-  // 3. Low Wallet Balance Alerts
+  // 3. Low Wallet Balance Alerts (Uses live computed balances)
   wallets.forEach(w => {
-    const bal = w.currentBalance !== undefined ? w.currentBalance : (w.balance || 0);
+    const liveBal = walletBalances?.[w.id]?.currentBalance ?? (w.currentBalance !== undefined ? w.currentBalance : (w.openingBalance || 0));
     const alertId = `wallet-low-${w.id}`;
-    if (bal <= 0 && !dismissedSet.has(alertId)) {
+    if (liveBal <= 0 && !dismissedSet.has(alertId)) {
       list.push({
         id: alertId,
         type: 'critical',
         category: 'wallet_low',
         title: `نفاد رصيد محفظة ${w.name}`,
-        message: `رصيد المحفظة حالياً (${Math.round(bal).toLocaleString()} ${w.currencyCode}). قد يؤدي ذلك لعجز عند سداد الالتزامات.`,
+        message: `رصيد المحفظة حالياً (${Math.round(liveBal).toLocaleString()} ${w.currencyCode}). قد يؤدي ذلك لعجز عند سداد الالتزامات.`,
         actionType: 'view_wallet',
         targetId: w.id
       });
@@ -203,6 +211,7 @@ export const SmartAlertsDrawer: React.FC<SmartAlertsDrawerProps> = ({
   transactions,
   debts,
   wallets,
+  walletBalances = {},
   categories,
   currentCurrency,
   exchangeRates,
@@ -221,9 +230,10 @@ export const SmartAlertsDrawer: React.FC<SmartAlertsDrawerProps> = ({
       categories,
       currentCurrency,
       exchangeRates,
-      dismissedAlertIds
+      dismissedAlertIds,
+      walletBalances
     );
-  }, [budgets, transactions, debts, wallets, categories, currentCurrency, exchangeRates, dismissedAlertIds]);
+  }, [budgets, transactions, debts, wallets, walletBalances, categories, currentCurrency, exchangeRates, dismissedAlertIds]);
 
   if (!isOpen) return null;
 

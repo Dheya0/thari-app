@@ -190,6 +190,7 @@ interface SettingsProps {
   currency: Currency;
   currencies: Currency[];
   wallets: Wallet[];
+  walletBalances?: Record<string, { currentBalance: number; currencyCode?: string }>;
   categories: Category[];
   exchangeRates?: Record<string, number>;
   appState: any; 
@@ -197,7 +198,7 @@ interface SettingsProps {
   onAddCurrency: (curr: Currency) => void;
   onRemoveCurrency: (code: string) => void;
   onAddWallet: (w: Omit<Wallet, 'id'>) => void;
-  onUpdateWallet: (id: string, w: Partial<Wallet>) => void;
+  onUpdateWallet: (id: string, w: Partial<Wallet> & { targetBalance?: number }) => void;
   onRemoveWallet: (id: string) => void;
   onAddCategory: (c: Omit<Category, 'id'>) => void;
   onUpdateCategory: (id: string, c: Partial<Category>) => void;
@@ -219,7 +220,7 @@ interface SettingsProps {
 }
 
 export default function Settings({ 
-  userName = '', pin = '', currency, currencies, wallets, categories, exchangeRates = {}, appState = {}, onUpdateSettings, 
+  userName = '', pin = '', currency, currencies, wallets, walletBalances = {}, categories, exchangeRates = {}, appState = {}, onUpdateSettings, 
   onAddCurrency, onRemoveCurrency, onAddWallet, onUpdateWallet, onRemoveWallet,
   onAddCategory, onUpdateCategory, onRemoveCategory,
   onRestore, onClearData, onShowPrivacyPolicy, onOpenWalkthrough, onOpenTrash, onOpenCurrencySelector, onSelectCurrency, trashCount = 0, onPrint, onShare, onExportExcel,
@@ -488,7 +489,7 @@ export default function Settings({
   // Wallet Form State
   const [showWalletForm, setShowWalletForm] = useState(false);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
-  const [walletData, setWalletData] = useState({ name: '', currencyCode: currency?.code || 'SAR', color: COLORS[0], type: 'cash' as Wallet['type'] });
+  const [walletData, setWalletData] = useState({ name: '', currencyCode: currency?.code || 'SAR', color: COLORS[0], type: 'cash' as Wallet['type'], initialBalance: '0' });
 
   // Category Form State
   const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -780,11 +781,27 @@ export default function Settings({
       showToast(t.walletNameRequired, 'error');
       return;
     }
+    const balNum = parseFloat(walletData.initialBalance) || 0;
     if (editingWallet) {
-      onUpdateWallet(editingWallet.id, walletData);
+      onUpdateWallet(editingWallet.id, {
+        name: walletData.name,
+        currencyCode: walletData.currencyCode,
+        color: walletData.color,
+        type: walletData.type,
+        targetBalance: balNum,
+        currentBalance: balNum,
+        openingBalance: balNum
+      });
       showToast(t.walletUpdatedSuccess);
     } else {
-      onAddWallet({ ...walletData, openingBalance: 0, currentBalance: 0 });
+      onAddWallet({ 
+        name: walletData.name,
+        currencyCode: walletData.currencyCode,
+        color: walletData.color,
+        type: walletData.type,
+        openingBalance: balNum, 
+        currentBalance: balNum 
+      });
       showToast(t.walletAddedSuccess);
     }
     setShowWalletForm(false);
@@ -823,34 +840,45 @@ export default function Settings({
             </button>
             <h3 className="font-black text-[#F4F1EA] text-lg">{t.walletsManagement}</h3>
           </div>
-          <button onClick={() => { setEditingWallet(null); setWalletData({ name: '', currencyCode: currency?.code || 'SAR', color: COLORS[0], type: 'cash' }); setShowWalletForm(true); }} className="bg-[#D9B978] text-[#0A0D10] px-5 py-2.5 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 flex items-center gap-1.5">
+          <button onClick={() => { setEditingWallet(null); setWalletData({ name: '', currencyCode: currency?.code || 'SAR', color: COLORS[0], type: 'cash', initialBalance: '0' }); setShowWalletForm(true); }} className="bg-[#D9B978] text-[#0A0D10] px-5 py-2.5 rounded-2xl font-black text-xs active:scale-95 transition-all shadow-lg shadow-[#D9B978]/10 flex items-center gap-1.5">
              <Plus size={16} /> {t.addWallet}
           </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-           {safeWallets.map(wallet => (
-              <div key={wallet.id} className="bg-[#11161C] p-5 rounded-[2rem] border border-white/10 flex justify-between items-center shadow-lg">
-                 <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[#0A0D10] font-black" style={{ backgroundColor: wallet.color || '#D9B978' }}>
-                       <WalletIcon size={24} />
-                    </div>
-                    <div>
-                       <h4 className="text-[#F4F1EA] font-black text-sm">{wallet.name}</h4>
-                       <p className="text-xs text-slate-400 font-bold">{(wallet.currentBalance ?? wallet.openingBalance ?? 0).toLocaleString()} {wallet.currencyCode}</p>
-                    </div>
-                 </div>
-                 <button onClick={() => { setEditingWallet(wallet); setWalletData({ name: wallet.name, currencyCode: wallet.currencyCode, color: wallet.color || COLORS[0], type: wallet.type || 'cash' }); setShowWalletForm(true); }} className="p-2.5 bg-[#0A0D10] text-slate-400 hover:text-white rounded-xl border border-white/5">
-                    <Edit2 size={16} />
-                 </button>
-              </div>
-           ))}
+           {safeWallets.map(wallet => {
+              const computedBal = walletBalances?.[wallet.id]?.currentBalance ?? (Number(wallet.currentBalance) || Number(wallet.openingBalance) || 0);
+              return (
+                <div key={wallet.id} className="bg-[#11161C] p-5 rounded-[2rem] border border-white/10 flex justify-between items-center shadow-lg">
+                   <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-[#0A0D10] font-black" style={{ backgroundColor: wallet.color || '#D9B978' }}>
+                         <WalletIcon size={24} />
+                      </div>
+                      <div>
+                         <h4 className="text-[#F4F1EA] font-black text-sm">{wallet.name}</h4>
+                         <p className="text-xs text-slate-400 font-bold tabular-nums">{computedBal.toLocaleString()} {wallet.currencyCode}</p>
+                      </div>
+                   </div>
+                   <button onClick={() => { setEditingWallet(wallet); setWalletData({ name: wallet.name, currencyCode: wallet.currencyCode, color: wallet.color || COLORS[0], type: wallet.type || 'cash', initialBalance: String(computedBal) }); setShowWalletForm(true); }} className="p-2.5 bg-[#0A0D10] text-slate-400 hover:text-white rounded-xl border border-white/5 active:scale-95 transition-all">
+                      <Edit2 size={16} />
+                   </button>
+                </div>
+              );
+           })}
         </div>
 
         {showWalletForm && (
             <Modal title={editingWallet ? t.editWallet : t.addWallet} onClose={() => setShowWalletForm(false)}>
                 <div className="space-y-6">
                     <InputField label={t.walletNameOrAccount} value={walletData.name} onChange={(v: string) => setWalletData({...walletData, name: v})} placeholder={t.walletPlaceholder} />
+                    <InputField 
+                      label={editingWallet ? (localLanguage === 'en' ? 'Current Balance in Wallet' : 'الرصيد الفعلي الحالي في المحفظة') : (localLanguage === 'en' ? 'Initial Opening Balance' : 'الرصيد الافتتاحي المتوفر')} 
+                      value={walletData.initialBalance} 
+                      onChange={(v: string) => setWalletData({...walletData, initialBalance: sanitizeNumericInput(v)})} 
+                      placeholder="0.00" 
+                      type="text" 
+                      inputMode="decimal" 
+                    />
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{t.currency}</label>
                         <select 

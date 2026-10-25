@@ -30,19 +30,19 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
     runningBalanceField: 'currencyRunningBalance' | 'runningBalance' = 'currencyRunningBalance'
   ) => {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs print:overflow-visible print:border print:border-slate-300 print:rounded-none print:shadow-none">
+      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs print:overflow-visible print:border print:border-slate-300 print:rounded-none print:shadow-none">
         <table className="w-full table-fixed text-xs border-collapse print:text-[8.5px]">
           <thead className="print:table-header-group">
-            <tr className="bg-slate-900 text-white break-avoid border-b-2 border-[#D9B978] text-[10px] print:text-[8px] print:bg-slate-900 print:text-white">
-              <th className="py-2.5 px-1.5 text-center font-black w-[4%] print:w-[4%]">#</th>
-              <th className="py-2.5 px-2 text-center font-black w-[11%] print:w-[11%]">التاريخ</th>
-              <th className="py-2.5 px-2.5 text-right font-black w-[27%] print:w-[28%]">البيان / تفاصيل القيد</th>
-              <th className="py-2.5 px-2 text-right font-black w-[12%] print:w-[12%]">التصنيف</th>
-              <th className="py-2.5 px-2 text-right font-black w-[11%] print:w-[11%]">المحفظة</th>
-              <th className="py-2.5 px-1.5 text-center font-black w-[5%] print:w-[5%]">العملة</th>
-              <th className="py-2.5 px-2 text-left font-black w-[10%] print:w-[10%] text-rose-300">مدين (-)</th>
-              <th className="py-2.5 px-2 text-left font-black w-[10%] print:w-[10%] text-emerald-300">دائن (+)</th>
-              <th className="py-2.5 px-2 text-left font-black w-[10%] print:w-[10%] text-[#F3E5AB]">
+            <tr className="bg-slate-900 text-white break-avoid border-b-2 border-[#D9B978] text-[11px] print:text-[8px] print:bg-slate-900 print:text-white">
+              <th className="py-3.5 px-2 text-center font-black w-[4%] print:w-[4%] print:py-2">#</th>
+              <th className="py-3.5 px-3 text-center font-black w-[11%] print:w-[11%] print:py-2">التاريخ</th>
+              <th className="py-3.5 px-3.5 text-right font-black w-[27%] print:w-[28%] print:py-2">البيان / تفاصيل القيد</th>
+              <th className="py-3.5 px-3 text-right font-black w-[12%] print:w-[12%] print:py-2">التصنيف</th>
+              <th className="py-3.5 px-3 text-right font-black w-[11%] print:w-[11%] print:py-2">المحفظة</th>
+              <th className="py-3.5 px-2 text-center font-black w-[5%] print:w-[5%] print:py-2">العملة</th>
+              <th className="py-3.5 px-3 text-left font-black w-[10%] print:w-[10%] text-rose-300 print:py-2">مدين (-)</th>
+              <th className="py-3.5 px-3 text-left font-black w-[10%] print:w-[10%] text-emerald-300 print:py-2">دائن (+)</th>
+              <th className="py-3.5 px-3 text-left font-black w-[10%] print:w-[10%] text-[#F3E5AB] print:py-2">
                 الرصيد
               </th>
             </tr>
@@ -50,7 +50,7 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
           <tbody className="divide-y divide-slate-100 bg-white">
             {txList.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
+                <td colSpan={9} className="py-12 text-center text-slate-400 text-sm">
                   لا توجد قيود مسجلة تطابق محددات التصفية
                 </td>
               </tr>
@@ -65,27 +65,27 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                 return (
                   <tr
                     key={t.id || i}
-                    className={`break-inside-avoid page-break-inside-avoid transition-colors hover:bg-amber-50/20 ${
-                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'
+                    className={`break-inside-avoid page-break-inside-avoid transition-colors hover:bg-amber-50/25 border-b border-slate-100/90 ${
+                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
                     }`}
                   >
                     {/* Index */}
-                    <td className="py-2 px-1.5 print:py-1 print:px-0.5 text-center font-mono font-semibold text-slate-400 text-[10px] print:text-[8px] align-middle">
+                    <td className="py-4 px-2 print:py-2 print:px-0.5 text-center font-mono font-bold text-slate-400 text-xs print:text-[8px] align-middle">
                       {t.index}
                     </td>
 
                     {/* Date */}
-                    <td className="py-2 px-2 print:py-1 print:px-1 font-medium text-slate-600 text-[10px] print:text-[8px] whitespace-nowrap text-center align-middle font-mono">
+                    <td className="py-4 px-3 print:py-2 print:px-1 font-semibold text-slate-700 text-xs print:text-[8px] whitespace-nowrap text-center align-middle font-mono">
                       {t.date}
                     </td>
 
-                    {/* Note / Statement Description (Full, Breathable, Natural Wrap) */}
-                    <td className="py-2 px-2.5 print:py-1 print:px-1.5 text-slate-800 text-[11px] print:text-[8.5px] align-middle">
-                      <div className="font-medium leading-relaxed break-words">
+                    {/* Note / Statement Description (Generous, Breathable, Natural Wrap) */}
+                    <td className="py-4 px-3.5 print:py-2 print:px-1.5 text-slate-900 text-xs print:text-[8.5px] align-middle">
+                      <div className="font-semibold leading-relaxed break-words text-slate-900">
                         {t.note || <span className="text-slate-400 italic font-normal">قيد محاسبي مسجل ({t.categoryName})</span>}
                       </div>
                       {(t.conversionNote || (t.foreignAmount && t.exchangeRate)) && (
-                        <div className="text-[8.5px] print:text-[7px] font-bold text-amber-900 bg-amber-50/90 px-1.5 py-0.5 rounded border border-amber-300 mt-1 inline-flex items-center gap-1 max-w-full">
+                        <div className="text-[9.5px] print:text-[7px] font-bold text-amber-900 bg-amber-50/90 px-2 py-0.5 rounded-md border border-amber-300 mt-1.5 inline-flex items-center gap-1 max-w-full">
                           <span className="shrink-0 text-amber-600">💱</span>
                           <span className="break-words">{t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}</span>
                         </div>
@@ -93,35 +93,35 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                     </td>
 
                     {/* Category */}
-                    <td className="py-2 px-2 print:py-1 print:px-1.5 align-middle">
-                      <div className="flex items-center gap-1.5 min-w-0">
+                    <td className="py-4 px-3 print:py-2 print:px-1.5 align-middle">
+                      <div className="flex items-center gap-2 min-w-0">
                         <div
-                          className="w-2 h-2 rounded-full shrink-0"
+                          className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
                           style={{ backgroundColor: t.categoryColor }}
                         />
-                        <span className="font-semibold text-slate-700 truncate text-[10.5px] print:text-[8px]">{t.categoryName}</span>
+                        <span className="font-semibold text-slate-800 truncate text-xs print:text-[8px]">{t.categoryName}</span>
                       </div>
                     </td>
 
                     {/* Wallet */}
-                    <td className="py-2 px-2 print:py-1 print:px-1.5 font-medium text-slate-600 truncate text-[10.5px] print:text-[8px] align-middle">
+                    <td className="py-4 px-3 print:py-2 print:px-1.5 font-medium text-slate-700 truncate text-xs print:text-[8px] align-middle">
                       {t.walletName}
                     </td>
 
                     {/* Currency Badge */}
-                    <td className="py-2 px-1.5 print:py-1 print:px-0.5 text-center align-middle">
-                      <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono font-bold text-[9px] print:text-[7.5px]">
+                    <td className="py-4 px-2 print:py-2 print:px-0.5 text-center align-middle">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-800 font-mono font-bold text-[10px] print:text-[7.5px]">
                         {t.currencyCode}
                       </span>
                     </td>
 
                     {/* Debit Column (مدين / منصرف / مسحوبات) */}
-                    <td className="py-2 px-2 print:py-1 print:px-1 text-left font-mono font-bold tabular-nums text-[10.5px] print:text-[8px] align-middle text-rose-700 dir-ltr whitespace-nowrap">
+                    <td className="py-4 px-3 print:py-2 print:px-1 text-left font-mono font-bold tabular-nums text-xs print:text-[8px] align-middle text-rose-700 dir-ltr whitespace-nowrap">
                       {isExpense ? (
                         <div>
                           -{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                           {t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined && (
-                            <div className="text-[7.5px] print:text-[6.5px] font-normal text-amber-800 font-sans dir-rtl text-right">
+                            <div className="text-[8px] print:text-[6.5px] font-normal text-amber-800 font-sans dir-rtl text-right mt-0.5">
                               المخصوم: {t.walletDeductionAmount.toLocaleString(undefined, { maximumFractionDigits: 1 })} {t.walletCurrencyCode}
                             </div>
                           )}
@@ -132,7 +132,7 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                     </td>
 
                     {/* Credit Column (دائن / مقبوض / إيداعات) */}
-                    <td className="py-2 px-2 print:py-1 print:px-1 text-left font-mono font-bold tabular-nums text-[10.5px] print:text-[8px] align-middle text-emerald-700 dir-ltr whitespace-nowrap">
+                    <td className="py-4 px-3 print:py-2 print:px-1 text-left font-mono font-bold tabular-nums text-xs print:text-[8px] align-middle text-emerald-700 dir-ltr whitespace-nowrap">
                       {isIncome ? (
                         <div>
                           +{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -143,7 +143,7 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                     </td>
 
                     {/* Running Balance Column (الرصيد التراكمي) */}
-                    <td className="py-2 px-2 print:py-1 print:px-1 text-left font-mono font-black tabular-nums text-[11px] print:text-[8.5px] align-middle text-slate-900 bg-amber-50/40 print:bg-transparent dir-ltr whitespace-nowrap">
+                    <td className="py-4 px-3 print:py-2 print:px-1 text-left font-mono font-black tabular-nums text-xs print:text-[8.5px] align-middle text-slate-950 bg-amber-50/50 print:bg-transparent dir-ltr whitespace-nowrap">
                       {runBal !== undefined ? (
                         <span>{Math.round(runBal).toLocaleString()}</span>
                       ) : (
