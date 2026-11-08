@@ -17,10 +17,14 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2.0</string>
+	<string>1.3.0</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- Unlock 120Hz ProMotion High Refresh Rate on iPhone Pro Models -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 
 	<!-- Biometric Security (Face ID & Touch ID) -->
@@ -33,7 +37,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>يسمح باختيار صور الفواتير والمستندات المالية من مكتبة الصور لإرفاقها بالعمليات.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>يسمح بحفظ التقارير المالية وكشوف الحسابات المصدرة إلى مكتبة الصور.</string>
+	<string>يسمح بحفظ صور الإيصالات والنسخ الاحتياطية والمستندات المالية إلى مكتبة الصور.</string>
 
 	<!-- Visual Styling & Safe Area -->
 	<key>UILaunchStoryboardName</key>

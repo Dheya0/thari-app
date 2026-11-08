@@ -1,6 +1,9 @@
 # ==============================================================================
-# ملف تكوين البناء والنشر الآلي المعتمد لتطبيق ثري — THARI
-# يدعم بناء الحزم الأصلية حصراً لمنصتي Android و iOS
+# ملف تكوين البناء والنشر الآلي المعتمد لتطبيق ثري — THARI (الإصدار 1.3.0)
+# يدعم المسارات الثلاثة المعتمدة:
+# 1. android-workflow       (Google Play AAB & Universal APK)
+# 2. ios-workflow           (App Store / TestFlight Signed IPA)
+# 3. ios-unsigned-workflow  (Unsigned IPA for Sideloadly / AltStore)
 # ==============================================================================
 
 workflows:
@@ -16,9 +19,9 @@ workflows:
       java: 21
       groups:
         - android
-        
       vars:
         PACKAGE_NAME: "com.thariwealth.smartsuite"
+        APP_VERSION: "1.3.0"
     triggering:
       events:
         - push
@@ -59,16 +62,24 @@ workflows:
           npm run build
           test -f dist/index.html
 
-      - name: Capacitor Android platform preparation and synchronization
+      - name: Capacitor Android platform preparation, native performance & synchronization
         script: |
           set -e
           npx cap sync android
 
-          # تطبيق ملف الصلاحيات والإعدادات المعتمد ومسارات الملفات
+          # تطبيق ملفات الصلاحيات والإعدادات وتسريع اللمس والـ WebView المعتمد
           mkdir -p android/app/src/main/res/xml
           mkdir -p android/app/src/main/res/layout
           mkdir -p android/app/src/main/java/com/thariwealth/smartsuite
 
+          if [ -f "release/android/MainActivity.java" ]; then
+            echo "Applying hardware-accelerated MainActivity.java..."
+            cp -f release/android/MainActivity.java android/app/src/main/java/com/thariwealth/smartsuite/MainActivity.java
+          fi
+          if [ -f "release/android/gradle.properties" ]; then
+            echo "Applying optimized gradle.properties..."
+            cp -f release/android/gradle.properties android/gradle.properties
+          fi
           if [ -f "release/android/file_paths.xml" ]; then
             echo "Applying file_paths.xml..."
             cp -f release/android/file_paths.xml android/app/src/main/res/xml/file_paths.xml
@@ -160,6 +171,7 @@ workflows:
         - ios_signing
       vars:
         BUNDLE_ID: "com.thariwealth.smartsuite"
+        APP_VERSION: "1.3.0"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     triggering:
@@ -203,7 +215,7 @@ workflows:
           npm run build
           test -f dist/index.html
 
-      - name: Capacitor iOS platform preparation and CocoaPods sync
+      - name: Capacitor iOS platform preparation, 120Hz ProMotion & CocoaPods sync
         script: |
           set -e
           if [ ! -f "ios/App/Podfile" ]; then
@@ -222,10 +234,16 @@ workflows:
 
           npx cap sync ios
 
-          # تطبيق ملف Info.plist المعتمد (المصادقة البيومترية ودعم اللغة العربية)
+          # تطبيق ملف Info.plist المعتمد (دعم 120Hz ProMotion والمصادقة البيومترية واللغة العربية)
           if [ -f "release/ios/Info.plist" ]; then
-            echo "Applying optimized Info.plist..."
+            echo "Applying optimized Info.plist (120Hz ProMotion enabled)..."
             cp -f release/ios/Info.plist ios/App/App/Info.plist
+          fi
+
+          # تطبيق ملف AppDelegate.swift المعتمد (خلفية داكنة ومنع الوميض الأبيض أثناء السحب)
+          if [ -f "release/ios/AppDelegate.swift" ]; then
+            echo "Applying optimized AppDelegate.swift..."
+            cp -f release/ios/AppDelegate.swift ios/App/App/AppDelegate.swift
           fi
 
       - name: Set up code signing profiles
@@ -268,7 +286,7 @@ workflows:
         script: |
           set -e
           cd ios/App
-          agvtool new-version -all $(($BUILD_NUMBER + 10200)) || true
+          agvtool new-version -all $(($BUILD_NUMBER + 13000)) || true
           cd ../..
 
           if [ -n "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -n "$CERTIFICATE_PRIVATE_KEY" ]; then
@@ -304,11 +322,20 @@ workflows:
       node: 22
       xcode: latest
       cocoapods: default
+      vars:
+        BUNDLE_ID: "com.thariwealth.smartsuite"
+        APP_VERSION: "1.3.0"
     scripts:
       - name: Install Node dependencies
         script: |
           set -e
           npm install
+
+      - name: Code quality linting, regression tests, and TypeScript validation
+        script: |
+          set -e
+          npm run lint
+          npm test
 
       - name: Generate Assets and Build Web Assets for Capacitor
         script: |
@@ -317,7 +344,7 @@ workflows:
           npm run build
           test -f dist/index.html
 
-      - name: Capacitor iOS platform preparation and CocoaPods sync
+      - name: Capacitor iOS platform preparation, 120Hz ProMotion & CocoaPods sync
         script: |
           set -e
           if [ ! -f "ios/App/Podfile" ]; then
@@ -337,13 +364,21 @@ workflows:
           npx cap sync ios
 
           if [ -f "release/ios/Info.plist" ]; then
+            echo "Applying optimized Info.plist (120Hz ProMotion enabled)..."
             cp -f release/ios/Info.plist ios/App/App/Info.plist
+          fi
+
+          if [ -f "release/ios/AppDelegate.swift" ]; then
+            echo "Applying optimized AppDelegate.swift..."
+            cp -f release/ios/AppDelegate.swift ios/App/App/AppDelegate.swift
           fi
 
       - name: Build iOS Application Package (Ad-Hoc / Sideloading)
         script: |
           set -e
           cd ios/App
+          NEXT_BUILD_VER=$((${BUILD_NUMBER:-1} + 130000))
+          agvtool new-version -all "$NEXT_BUILD_VER" || true
           pod install
 
           xcodebuild build \
@@ -352,6 +387,9 @@ workflows:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$CM_BUILD_DIR/build" \
+            PRODUCT_BUNDLE_IDENTIFIER="com.thariwealth.smartsuite" \
+            MARKETING_VERSION="1.3.0" \
+            CURRENT_PROJECT_VERSION="$NEXT_BUILD_VER" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGNING_REQUIRED=NO \

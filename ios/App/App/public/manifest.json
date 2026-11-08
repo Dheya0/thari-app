@@ -1,0 +1,43 @@
+{
+  "name": "ثري — THARI",
+  "short_name": "ثري",
+  "description": "نظامك المالي الهادئ للثروة والمحافظ — الفخامة الهادئة لإدارة الأصول والمصروفات.",
+  "start_url": "/",
+  "scope": "/",
+  "id": "thari-wealth-app",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#0A0D10",
+  "theme_color": "#0A0D10",
+  "icons": [
+    {
+      "src": "/icon-48.png",
+      "type": "image/png",
+      "sizes": "48x48",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "orientation": "portrait",
+  "categories": [
+    "finance",
+    "productivity",
+    "business"
+  ],
+  "prefer_related_applications": false
+}

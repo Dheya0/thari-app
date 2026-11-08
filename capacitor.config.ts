@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appId: 'com.thariwealth.smartsuite',
   appName: 'ثري — THARI',
   webDir: 'dist',
+  backgroundColor: '#0A0D10',
   server: {
     androidScheme: 'https',
     cleartext: false
@@ -34,6 +35,7 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
+    backgroundColor: '#0A0D10',
     contentInset: 'always',
     preferredContentMode: 'mobile',
     scheme: 'thariapp',

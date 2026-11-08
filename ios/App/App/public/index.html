@@ -1,0 +1,569 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0A0D10">
+    <!-- PWA & Mobile Web Capabilities -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ثري">
+    
+    <!-- Google Fonts Preconnect, DNS-Prefetch & Non-Blocking Async Font Loading with font-display: swap -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Readex+Pro:wght@400;500;600;700&family=Tajawal:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=Readex+Pro:wght@400;500;600;700&family=Tajawal:wght@500;700&display=swap">
+    </noscript>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Favicon & iOS Touch Icons (PNG Required for iOS Safari Springboard) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png">
+    <link rel="apple-touch-startup-image" href="/icon-512.png">
+    <meta name="apple-mobile-web-app-title" content="ثري">
+    <meta name="application-name" content="ثري">
+    <meta name="description" content="نظام مالي هادئ وأنيق لإدارة الثروة والمحافظ المتعددة، تتبع التدفقات النقدية، تسوية الديون، وإصدار التقارير المحاسبية بدقة واحترافية.">
+    <meta property="og:title" content="Thari">
+    <meta property="og:description" content="نظام مالي هادئ وأنيق لإدارة الثروة والمحافظ المتعددة، تتبع التدفقات النقدية، تسوية الديون، وإصدار التقارير المحاسبية بدقة واحترافية.">
+    
+    <title>Thari</title>
+    
+    <style nonce="%CSP_NONCE%">
+        :root { 
+            --sat: env(safe-area-inset-top, 0px); 
+            --sab: env(safe-area-inset-bottom, 0px); 
+            --sal: env(safe-area-inset-left, 0px); 
+            --sar: env(safe-area-inset-right, 0px); 
+            --app-height: 100vh;
+        }
+        @supports (height: 100dvh) {
+            :root {
+                --app-height: 100dvh;
+            }
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            min-height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #0A0D10;
+            overflow: hidden;
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body { 
+            font-family: 'Readex Pro', 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background-color: #0A0D10; 
+            color: #F4F1EA; 
+            /* Disable selection and tap highlights for app-like feel */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            overscroll-behavior: none;
+        }
+
+        input, textarea, select, [contenteditable="true"] {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -webkit-touch-callout: default !important;
+            touch-action: manipulation;
+        }
+
+        button, a, [role="button"], label, summary {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .font-numeric {
+            font-family: 'Plus Jakarta Sans', 'Readex Pro', -apple-system, sans-serif;
+            font-feature-settings: "tnum" 1, "cv01" 1, "cv02" 1;
+            font-variant-numeric: tabular-nums;
+        }
+        
+        #root { 
+            width: 100%; 
+            height: 100%;
+            min-height: 100%;
+            display: flex; 
+            flex-direction: column;
+            justify-content: flex-start; 
+            align-items: stretch;
+            position: relative;
+            z-index: 10;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+        @media (min-width: 768px) {
+            #root {
+                align-items: center;
+                background: #0A0D10;
+            }
+        }
+
+        /* Subtle quiet backdrop - Carbon + Champagne Radial Glow (Hardware Accelerated & Contained) */
+        .aurora-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            background: #0A0D10;
+            background-image: radial-gradient(circle at 50% -20%, rgba(217, 185, 120, 0.04) 0%, transparent 60%);
+            contain: strict;
+            transform: translateZ(0);
+            pointer-events: none;
+        }
+        .aurora-blob {
+            position: absolute;
+            width: 480px;
+            height: 480px;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.03;
+            pointer-events: none;
+            transform: translateZ(0);
+        }
+        .blob-1 { background: #D9B978; top: -200px; right: -100px; }
+        .blob-2 { background: #759BC8; bottom: -200px; left: -100px; }
+        
+        .glass-effect { 
+            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px); 
+            background-color: rgba(10, 13, 16, 0.88); 
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transform: translateZ(0);
+        }
+        
+        .bottom-nav-safe {
+            padding-bottom: calc(var(--sab) + 1.5rem) !important;
+        }
+
+        /* Custom Scrollbar for smooth scrolling within modals and containers */
+        .custom-scrollbar {
+            -ms-overflow-style: auto !important;
+            scrollbar-width: thin !important;
+            scrollbar-color: rgba(217, 185, 120, 0.4) rgba(17, 22, 28, 0.7) !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            display: block !important;
+            width: 6px !important;
+            height: 6px !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(17, 22, 28, 0.7) !important;
+            border-radius: 8px !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(217, 185, 120, 0.4) !important;
+            border-radius: 8px !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(217, 185, 120, 0.75) !important;
+        }
+
+        ::-webkit-scrollbar { display: none; }
+        
+        /* Hide scrollbars for IE, Edge and Firefox when no-scrollbar class is used */
+        .no-scrollbar {
+            -ms-overflow-style: none !important;  /* IE and Edge */
+            scrollbar-width: none !important;  /* Firefox */
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none !important;
+        }
+
+        .shimmer {
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 4s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-luxury-pop {
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        /* Marquee Animation for RTL */
+        @keyframes scroll-rtl {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(50%); }
+        }
+        .animate-marquee-rtl {
+            animation: scroll-rtl 30s linear infinite;
+        }
+        .pause:hover {
+            animation-play-state: paused;
+        }
+        .mask-gradient-x {
+            mask-image: linear-gradient(to left, transparent, black 15%, black 85%, transparent);
+            -webkit-mask-image: linear-gradient(to left, transparent, black 15%, black 85%, transparent);
+        }
+        
+        /* ==========================================================================
+           Official Institutional Financial Document & Invoice Print System
+           ========================================================================== */
+        @media print {
+            /* Force exact background and vector color fidelity across all browsers */
+            *, *::before, *::after {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color-adjust: exact !important;
+                text-shadow: none !important;
+                box-shadow: none !important;
+            }
+
+            @page {
+                size: A4 portrait;
+                margin: 8mm 8mm 10mm 8mm;
+            }
+
+            @page :first {
+                margin-top: 6mm;
+            }
+
+            html, body {
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                color: #090d16 !important;
+                font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+                font-feature-settings: "tnum" 1, "cv01" 1, "cv02" 1 !important;
+                font-variant-numeric: tabular-nums !important;
+                height: auto !important;
+                min-height: auto !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                font-size: 10pt !important;
+                line-height: 1.35 !important;
+                -webkit-font-smoothing: antialiased !important;
+            }
+
+            /* Strictly suppress all non-printable screen UI */
+            .aurora-bg, 
+            header, 
+            nav, 
+            aside, 
+            footer:not(#printable-report footer):not(#financial-report-print-container footer),
+            .glass-effect, 
+            .no-print, 
+            button, 
+            select, 
+            input, 
+            textarea,
+            .fixed:not(#printable-report):not(#financial-report-print-container),
+            [role="dialog"]:not(#printable-report):not(#financial-report-print-container),
+            .modal,
+            .bottom-nav-safe,
+            .animate-pulse,
+            .animate-marquee-rtl { 
+                display: none !important; 
+                visibility: hidden !important;
+                opacity: 0 !important;
+                height: 0 !important;
+                width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #root {
+                display: block !important;
+                height: auto !important;
+                min-height: auto !important;
+                position: static !important;
+                overflow: visible !important;
+                background: #ffffff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+
+            .print\:hidden {
+                display: none !important;
+            }
+
+            .print\:block {
+                display: block !important;
+            }
+
+            .print\:flex {
+                display: flex !important;
+            }
+
+            /* Luxury Invoice & Institutional Statement Document Frame */
+            #printable-report,
+            #financial-report-print-container,
+            #financial-report-print-area { 
+                display: block !important; 
+                position: static !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                background: #ffffff !important;
+                color: #090d16 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            #printable-report > div,
+            #financial-report-print-container > div,
+            #financial-report-print-area > div {
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 auto !important;
+                border: none !important;
+                background: #ffffff !important;
+            }
+
+            /* Institutional Typography & Crisp Financial Data */
+            #printable-report h1, #financial-report-print-area h1,
+            #printable-report h2, #financial-report-print-area h2,
+            #printable-report h3, #financial-report-print-area h3,
+            #printable-report h4, #financial-report-print-area h4 {
+                color: #090d16 !important;
+                font-weight: 800 !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            #printable-report p, #financial-report-print-area p,
+            #printable-report span, #financial-report-print-area span,
+            #printable-report td, #financial-report-print-area td,
+            #printable-report th, #financial-report-print-area th {
+                font-feature-settings: "tnum" 1 !important;
+                font-variant-numeric: tabular-nums !important;
+            }
+
+            /* Table Formatting & Page Breaks for Multi-Page Audit Reports */
+            #printable-report table,
+            #financial-report-print-area table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                table-layout: fixed !important;
+                page-break-inside: auto !important;
+            }
+
+            #printable-report thead,
+            #financial-report-print-area thead {
+                display: table-header-group !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            #printable-report tfoot,
+            #financial-report-print-area tfoot {
+                display: table-footer-group !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            #printable-report tr,
+            #financial-report-print-area tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            #printable-report th,
+            #financial-report-print-area th {
+                background-color: #0f172a !important;
+                color: #ffffff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                padding: 4pt 4.5pt !important;
+                font-size: 8pt !important;
+                font-weight: 800 !important;
+                line-height: 1.25 !important;
+            }
+
+            #printable-report td,
+            #financial-report-print-area td {
+                padding: 3.5pt 4pt !important;
+                font-size: 8pt !important;
+                line-height: 1.25 !important;
+                vertical-align: middle !important;
+            }
+
+            /* Prevent text squashing or premature truncation in print */
+            .print\:truncate-none,
+            #financial-report-print-area .truncate {
+                text-overflow: clip !important;
+                white-space: normal !important;
+                word-break: break-word !important;
+                overflow-wrap: break-word !important;
+            }
+
+            /* Prevent awkward page cutoffs */
+            .break-avoid,
+            .page-break-avoid,
+            .break-inside-avoid,
+            .page-break-inside-avoid {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            /* Enhanced Vector Clarity for Crest and Barcodes */
+            #printable-report svg,
+            #financial-report-print-area svg {
+                max-width: 100% !important;
+                height: auto !important;
+                shape-rendering: geometricPrecision !important;
+            }
+        }
+
+        /* High-PPI Mobile Screen Font Size Adjustments / Compensations */
+        @media (max-width: 767px) {
+            .text-\[9px\], .text-\[8px\], .text-\[10px\], .text-\[11px\] {
+                font-size: 10px !important;
+                letter-spacing: 0.01em !important;
+                line-height: 1.35 !important;
+            }
+        }
+
+        /* Chrome, Safari, Edge, Opera: Hide number field spinners */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        /* Firefox: Hide number field spinners */
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Tajawal secondary headings font-weight optimization to reduce visual crowding */
+        h2, h3, h4, h5, h6, 
+        .secondary-heading, 
+        [class*="text-lg"].font-black, 
+        [class*="text-md"].font-black, 
+        [class*="text-base"].font-black,
+        [class*="text-sm"].font-black {
+            font-weight: 700 !important; /* Elegant bold (700) instead of heavy black (900) to keep Arabic letters clear and distinct */
+        }
+        
+        h3.font-extrabold, h4.font-extrabold, h5.font-extrabold,
+        [class*="text-lg"].font-extrabold, [class*="text-md"].font-extrabold, [class*="text-base"].font-extrabold {
+            font-weight: 500 !important; /* Slightly lighter weight for subtitles to reduce visual crowding */
+        }
+
+        /* Prevent mobile input auto-zoom camera snap & vibration on iOS Safari and mobile browsers */
+        @media screen and (max-width: 768px) {
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+        }
+
+        /* Stable form modals: lock background bounce on touch devices */
+        .overscroll-contain {
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
+    <script nonce="%CSP_NONCE%">
+        var rAF = null;
+        function updateViewportHeight() {
+            if (rAF) cancelAnimationFrame(rAF);
+            rAF = requestAnimationFrame(function () {
+                var vh = window.innerHeight;
+                if (vh && vh > 150) {
+                    document.documentElement.style.setProperty('--vh', vh + 'px');
+                    var keyboardHeight = window.visualViewport ? Math.max(0, window.innerHeight - window.visualViewport.height) : 0;
+                    document.documentElement.style.setProperty('--keyboard-inset', keyboardHeight + 'px');
+                    document.documentElement.style.setProperty('--keyboard-active', keyboardHeight > 120 ? '1' : '0');
+                }
+            });
+        }
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateViewportHeight);
+        } else {
+            window.addEventListener('resize', updateViewportHeight);
+        }
+        window.addEventListener('DOMContentLoaded', updateViewportHeight);
+        window.addEventListener('load', updateViewportHeight);
+    </script>
+  <script type="module" crossorigin src="/assets/index-DZdI-oX8.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-motion-hLvYwcbi.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-charts-DXYoUBfR.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-Bqr1YwDM.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-icons-1dG6pszI.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-exports-BqPLD00D.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-B-Owt55y.css">
+</head>
+<body>
+    <div class="aurora-bg">
+        <div class="aurora-blob blob-1"></div>
+        <div class="aurora-blob blob-2"></div>
+    </div>
+    <div id="root">
+        <!-- Instant Critical App Shell for 0ms FCP / LCP with Thari Luxury Identity -->
+        <div style="min-height:100vh;background-color:#0A0D10;color:#F4F1EA;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5rem;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:1.25rem;">
+                <div style="width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 8px 30px rgba(217,185,120,0.25));">
+                    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+                        <defs>
+                            <linearGradient id="splash-logo-matte" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#16191E" />
+                                <stop offset="60%" stop-color="#0D0F12" />
+                                <stop offset="100%" stop-color="#07080A" />
+                            </linearGradient>
+                            <linearGradient id="splash-logo-satin" x1="20%" y1="15%" x2="80%" y2="85%">
+                                <stop offset="0%" stop-color="#F7EEDF" />
+                                <stop offset="35%" stop-color="#E5D6BD" />
+                                <stop offset="70%" stop-color="#CBB794" />
+                                <stop offset="100%" stop-color="#A89470" />
+                            </linearGradient>
+                            <linearGradient id="splash-logo-pearl" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#FAF3E8" />
+                                <stop offset="100%" stop-color="#D6C4A6" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="3.5" y="3.5" width="93" height="93" rx="23" fill="url(#splash-logo-matte)" stroke="#E5D6BD" stroke-width="0.8" stroke-opacity="0.28" />
+                        <rect x="5" y="5" width="90" height="90" rx="21.5" stroke="#E5D6BD" stroke-width="0.4" stroke-opacity="0.08" />
+                        <circle cx="50" cy="27.5" r="3.8" fill="url(#splash-logo-pearl)" />
+                        <circle cx="38.5" cy="37.5" r="3.8" fill="url(#splash-logo-pearl)" />
+                        <circle cx="61.5" cy="37.5" r="3.8" fill="url(#splash-logo-pearl)" />
+                        <rect x="48.5" y="37" width="3" height="29" rx="1.5" fill="url(#splash-logo-satin)" opacity="0.9" />
+                        <path d="M26 48 C26 62.5, 37.2 74.2, 50 74.2 C62.8 74.2, 74 62.5, 74 48 C74 46.5, 72.5 45.8, 71.5 47 C68.2 50.8, 60.5 54, 50 54 C39.5 54, 31.8 50.8, 28.5 47 C27.5 45.8, 26 46.5, 26 48 Z" fill="url(#splash-logo-satin)" opacity="0.18" />
+                        <path d="M72 47 C72.5 59, 63.5 71, 50 71 C36.5 71, 27.5 59, 28 47 C28.2 45, 30.8 44.5, 32 46.2 C35.2 50.8, 41.8 55, 50 55 C58.2 55, 64.8 50.8, 68 46.2 C69.2 44.5, 71.8 45, 72 47 Z" fill="url(#splash-logo-satin)" />
+                        <circle cx="50" cy="51" r="16" stroke="url(#splash-logo-satin)" stroke-width="0.5" stroke-dasharray="1.2 1.8" opacity="0.35" />
+                        <rect x="42" y="69" width="16" height="1" rx="0.5" fill="url(#splash-logo-satin)" opacity="0.6" />
+                    </svg>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.75rem;font-weight:700;color:#F4F1EA;margin:0 0 0.15rem 0;letter-spacing:-0.02em;">ثَـري</div>
+                    <div style="font-size:0.65rem;font-weight:600;color:#D9B978;letter-spacing:0.22em;text-transform:uppercase;margin-bottom:0.4rem;">THARI</div>
+                    <p style="font-size:0.8rem;color:#94a3b8;margin:0;opacity:0.85;">إدارة الثروة والمحافظ بثبات وهدوء</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
