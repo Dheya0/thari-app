@@ -8,7 +8,7 @@
 | Property | Specification Value |
 | :--- | :--- |
 | **Product Name** | ثـــري — الإدارة المالية الشخصية والذكاء الدفتري (THARI Financial Suite) |
-| **Application ID** | `com.thari.finance.app` |
+| **Application ID** | `com.thariwealth.smartsuite` |
 | **Semantic Version** | `1.2.0` |
 | **Release Candidate Tag** | `v1.2.0-rc1` (Git Release Tag) |
 | **Build Code / Version Code** | `10200` |

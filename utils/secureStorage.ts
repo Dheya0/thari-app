@@ -244,13 +244,22 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   return derived;
 }
 
+let sessionEncryptionSalt: Uint8Array | null = null;
+
+function getSessionSalt(cryptoImpl: Crypto): Uint8Array {
+  if (!sessionEncryptionSalt) {
+    sessionEncryptionSalt = cryptoImpl.getRandomValues(new Uint8Array(16));
+  }
+  return sessionEncryptionSalt;
+}
+
 async function encryptWithAesGcm(dataString: string): Promise<string> {
   const cryptoImpl = getCrypto();
   if (!cryptoImpl) {
     throw new Error('Secure encryption (WebCrypto API) unavailable. Cannot save state securely.');
   }
 
-  const salt = cryptoImpl.getRandomValues(new Uint8Array(16));
+  const salt = getSessionSalt(cryptoImpl);
   const iv = cryptoImpl.getRandomValues(new Uint8Array(12));
   const secretKeyString = await getMasterDeviceKey();
   const key = await deriveKey(secretKeyString, salt);
@@ -392,14 +401,24 @@ let saveInFlight: Promise<void> | null = null;
 let pendingSaveState: any | null = null;
 let debounceTimer: any = null;
 
+function runWhenIdle(callback: () => void) {
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(callback, { timeout: 1200 });
+  } else {
+    setTimeout(callback, 32);
+  }
+}
+
 export function queueSecureStateSave(primaryKey: string, stateObj: any, onComplete?: () => void) {
   pendingSaveState = stateObj;
 
   if (debounceTimer) clearTimeout(debounceTimer);
 
   debounceTimer = setTimeout(() => {
-    void executeSavePipeline(primaryKey, onComplete);
-  }, 400);
+    runWhenIdle(() => {
+      void executeSavePipeline(primaryKey, onComplete);
+    });
+  }, 450);
 }
 
 export async function flushSecureStateSave(primaryKey: string): Promise<void> {

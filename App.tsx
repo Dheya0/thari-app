@@ -2225,12 +2225,12 @@ const App: React.FC = () => {
                     setShowSmartAlertsDrawer(true);
                   }}
                   aria-label="مركز التنبيهات الذكية الاستباقية"
-                  className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-300 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center w-[30px] h-[30px] sm:w-auto sm:h-auto"
+                  className="relative p-2 rounded-xl border border-white/10 text-slate-300 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center min-w-[38px] min-h-[38px]"
                   title="مركز التنبيهات الذكية الاستباقية"
                 >
-                  <Bell size={14} className="sm:w-4 sm:h-4 text-[#D9B978]" />
+                  <Bell size={15} className="sm:w-4 sm:h-4 text-[#D9B978]" />
                   {activeSmartAlerts.length > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-[#0A0D10] tabular-nums animate-pulse">
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-[#0A0D10] tabular-nums">
                       {activeSmartAlerts.length}
                     </span>
                   )}
@@ -2246,7 +2246,7 @@ const App: React.FC = () => {
                     showToast(nextLang === 'en' ? 'Switched to English' : 'تم التحويل إلى اللغة العربية', 'success');
                   }}
                   aria-label={state.language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
-                  className="flex items-center justify-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978] text-white transition-all text-xs shadow-xs active:scale-95 group shrink-0 cursor-pointer ring-1 ring-white/5 min-w-[32px] sm:min-w-0"
+                  className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#141B24]/90 hover:bg-[#1C2633] border border-white/10 hover:border-[#D9B978] text-white transition-all text-xs shadow-xs active:scale-95 group shrink-0 cursor-pointer ring-1 ring-white/5 min-w-[38px] min-h-[38px]"
                   title={state.language === 'en' ? 'التحويل إلى العربية' : 'Switch to English'}
                 >
                   <Globe size={12} className="text-[#D9B978] hidden sm:inline" />
@@ -2258,12 +2258,15 @@ const App: React.FC = () => {
                 {/* Tools Hub Button */}
                 <button
                   type="button"
-                  onClick={() => setShowToolsHub(true)}
+                  onClick={() => {
+                    NativeHaptics.selection().catch(() => {});
+                    setShowToolsHub(true);
+                  }}
                   aria-label="مركز الأدوات والتقارير"
-                  className="relative p-1.5 sm:p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center w-[30px] h-[30px] sm:w-auto sm:h-auto"
+                  className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center min-w-[38px] min-h-[38px]"
                   title="مركز الأدوات والتقارير"
                 >
-                  <Sparkles size={14} className="sm:w-4 sm:h-4 text-[#D9B978]/90" />
+                  <Sparkles size={15} className="sm:w-4 sm:h-4 text-[#D9B978]/90" />
                   {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
                   )}
@@ -2322,15 +2325,7 @@ const App: React.FC = () => {
                 </div>
               </motion.div>
             )}
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full will-change-transform"
-              >
+            <div className="w-full">
                 <React.Suspense fallback={
                   <div className="min-h-[350px] flex flex-col items-center justify-center p-8 gap-3 text-slate-400 font-bold text-xs animate-pulse">
                     <div className="w-10 h-10 rounded-2xl bg-[#171D24] border border-white/10 flex items-center justify-center text-[#D9B978]">
@@ -2380,6 +2375,8 @@ const App: React.FC = () => {
                     isTravelMode={state.isTravelMode}
                     showSeparateCurrencies={state.showSeparateCurrencies}
                     onToggleSeparateCurrencies={(val) => setState(p => ({ ...p, showSeparateCurrencies: val }))}
+                    onOpenGoals={() => setActiveTab('goals')}
+                    onOpenBudgets={() => setActiveTab('budgets')}
                   />
                 )}
 
@@ -2702,8 +2699,7 @@ const App: React.FC = () => {
                     />
                 )}
                 </React.Suspense>
-              </motion.div>
-            </AnimatePresence>
+            </div>
           </div>
         </main>
 
@@ -2736,36 +2732,6 @@ const App: React.FC = () => {
                 <NavButton icon={<SettingsIcon />} label={t.settings || (activeLanguage === 'en' ? 'Settings' : 'الإعدادات')} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
             </nav>
         </div>
-
-        {/* Floating Quick Action Buttons (< 768px - md:hidden) */}
-        {activeTab === 'dashboard' && (
-          <div className={`fixed left-3 sm:left-4 bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] sm:bottom-32 z-40 flex flex-col gap-2.5 pointer-events-none no-print transition-all duration-300 md:hidden ${
-            isAnyModalActive || isKeyboardVisible
-              ? 'opacity-0 translate-y-24 pointer-events-none invisible' 
-              : 'opacity-100 translate-y-0'
-          }`}>
-            <motion.button 
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setActiveTab('goals')} 
-              className="pointer-events-auto w-10 h-10 sm:w-12 sm:h-12 bg-[#11161C]/95 backdrop-blur-3xl border border-white/10 hover:border-[#D9B978]/50 rounded-full flex flex-col items-center justify-center text-[#D9B978] shadow-[0_10px_25px_rgba(0,0,0,0.5)] group relative"
-              title="الأهداف المالية"
-            >
-              <Coins size={18} className="group-hover:scale-110 transition-transform" />
-              <span className="absolute right-12 sm:right-14 bg-[#11161C]/95 backdrop-blur-xl border border-white/10 text-white font-bold text-[10px] px-2.5 py-1 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md hidden group-hover:block">الأهداف</span>
-            </motion.button>
-            <motion.button 
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setActiveTab('budgets')} 
-              className="pointer-events-auto w-10 h-10 sm:w-12 sm:h-12 bg-[#11161C]/95 backdrop-blur-3xl border border-white/10 hover:border-[#759BC8]/50 rounded-full flex flex-col items-center justify-center text-[#759BC8] shadow-[0_10px_25px_rgba(0,0,0,0.5)] group relative"
-              title="إدارة الميزانية"
-            >
-              <LayoutDashboard size={18} className="group-hover:scale-110 transition-transform" />
-              <span className="absolute right-12 sm:right-14 bg-[#11161C]/95 backdrop-blur-xl border border-white/10 text-white font-bold text-[10px] px-2.5 py-1 rounded-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-md hidden group-hover:block">الميزانية</span>
-            </motion.button>
-          </div>
-        )}
 
         <React.Suspense fallback={null}>
         <AnimatePresence>
@@ -2996,27 +2962,26 @@ const App: React.FC = () => {
   );
 };
 
-const NavButton = ({ icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
-  <motion.button 
-    whileTap={{ scale: 0.92 }}
+const NavButton = React.memo(({ icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
+  <button 
+    type="button"
     onClick={() => {
       NativeHaptics.selection().catch(() => {});
       onClick();
     }} 
     aria-label={label}
-    className={`flex flex-col items-center justify-center gap-0.5 xs:gap-1 transition-all flex-1 min-w-[38px] xs:min-w-[46px] group ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
+    className={`flex flex-col items-center justify-center gap-0.5 xs:gap-1 transition-transform duration-100 active:scale-90 flex-1 min-w-[38px] xs:min-w-[46px] group cursor-pointer select-none ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
   >
-    <div className={`p-1.5 xs:p-2 rounded-2xl transition-all duration-300 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/20 to-[#D9B978]/5 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.25)] border border-[#D9B978]/30' : 'group-hover:bg-white/5'}`}>
+    <div className={`p-1.5 xs:p-2 rounded-2xl transition-colors duration-150 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/20 to-[#D9B978]/5 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.25)] border border-[#D9B978]/30' : 'group-hover:bg-white/5'}`}>
         {React.cloneElement(icon, { size: 19, strokeWidth: active ? 2.4 : 1.8 })}
         {active && (
-          <motion.div 
-            layoutId="activeTabGlow" 
+          <div 
             className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3.5 h-1 bg-[#D9B978] rounded-full shadow-[0_0_10px_#D9B978]" 
           />
         )}
     </div>
-    <span className={`text-[8.5px] xs:text-[9.5px] font-black tracking-tight transition-all duration-300 truncate max-w-[56px] text-center ${active ? 'opacity-100 text-[#D9B978]' : 'opacity-70 text-slate-400'}`}>{label}</span>
-  </motion.button>
-);
+    <span className={`text-[8.5px] xs:text-[9.5px] font-black tracking-tight transition-colors duration-150 truncate max-w-[56px] text-center ${active ? 'opacity-100 text-[#D9B978]' : 'opacity-70 text-slate-400'}`}>{label}</span>
+  </button>
+));
 
 export default App;

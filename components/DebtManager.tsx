@@ -642,17 +642,17 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                       <span className="font-black text-white text-xs truncate max-w-[120px] sm:max-w-[150px]">
                         {debt.personName}
                       </span>
-                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${
+                      <span className={`text-[10px] font-bold ${
                         isOverdue 
-                          ? 'bg-rose-500/20 text-rose-300 animate-pulse' 
+                          ? 'text-rose-400' 
                           : isDueToday 
-                          ? 'bg-amber-500/20 text-amber-300' 
-                          : 'bg-[#759BC8]/20 text-[#759BC8]'
+                          ? 'text-amber-400' 
+                          : 'text-[#759BC8]'
                       }`}>
-                        {isOverdue 
+                        · {isOverdue 
                           ? (isRtl ? `متأخر ${Math.abs(diffDays)} يوم` : `${Math.abs(diffDays)}d overdue`)
                           : isDueToday 
-                          ? (isRtl ? 'يستحق اليوم!' : 'Due Today!') 
+                          ? (isRtl ? 'يستحق اليوم' : 'Due Today') 
                           : (isRtl ? `متبقي ${diffDays} أيام` : `In ${diffDays}d`)}
                       </span>
                     </div>
@@ -849,33 +849,36 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
                         {debt.type === 'to_me' ? <UserPlus size={20} /> : <UserMinus size={20} />}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-black text-white text-sm sm:text-base leading-tight">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-bold text-white text-sm sm:text-base leading-tight">
                             {debt.personName}
                           </h4>
                           {debt.personTag && (
-                            <span className="text-[9px] font-bold text-slate-400 bg-[#0A0D10] px-2 py-0.5 rounded-md border border-white/5">
-                              {debt.personTag === 'customer' ? (isRtl ? 'عميل' : 'Customer') : debt.personTag === 'supplier' ? (isRtl ? 'مورد' : 'Supplier') : debt.personTag === 'friend' ? (isRtl ? 'صديق' : 'Friend') : debt.personTag === 'family' ? (isRtl ? 'عائلة' : 'Family') : (isRtl ? 'فرد' : 'Individual')}
-                            </span>
+                            <>
+                              <span aria-hidden="true" className="text-slate-600 text-xs">·</span>
+                              <span className="text-[11px] font-medium text-slate-400">
+                                {debt.personTag === 'customer' ? (isRtl ? 'عميل' : 'Customer') : debt.personTag === 'supplier' ? (isRtl ? 'مورد' : 'Supplier') : debt.personTag === 'friend' ? (isRtl ? 'صديق' : 'Friend') : debt.personTag === 'family' ? (isRtl ? 'عائلة' : 'Family') : (isRtl ? 'فرد' : 'Individual')}
+                              </span>
+                            </>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                        <div className="flex items-center gap-1.5 mt-1 text-[11px]">
+                          <span className={`font-semibold ${
                             debt.type === 'to_me' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              ? 'text-emerald-400' 
+                              : 'text-rose-400'
                           }`}>
                             {debt.type === 'to_me' ? t.debtIOWin : t.debtOwesYou}
                           </span>
-                          
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                          <span aria-hidden="true" className="text-slate-600">·</span>
+                          <span className={`font-semibold ${
                             calc.status === 'settled' 
-                              ? 'bg-emerald-500/20 text-emerald-300' 
+                              ? 'text-emerald-300' 
                               : calc.status === 'overdue' 
-                              ? 'bg-rose-500/20 text-rose-300 animate-pulse' 
+                              ? 'text-rose-400' 
                               : calc.status === 'partial' 
-                              ? 'bg-[#D9B978]/20 text-[#D9B978]' 
-                              : 'bg-[#759BC8]/20 text-[#759BC8]'
+                              ? 'text-[#D9B978]' 
+                              : 'text-[#759BC8]'
                           }`}>
                             {calc.statusLabel}
                           </span>
@@ -1593,4 +1596,4 @@ export const DebtManager: React.FC<DebtManagerProps> = ({
   );
 };
 
-export default DebtManager;
+export default React.memo(DebtManager);

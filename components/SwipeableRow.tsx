@@ -18,7 +18,14 @@ interface SwipeableRowProps {
 
 const SWIPE_OPEN_EVENT = 'thari:swipe-row-opened';
 
-export const SwipeableRow: React.FC<SwipeableRowProps> = ({
+const SPRING_CONFIG = {
+  type: 'spring' as const,
+  stiffness: 520,
+  damping: 38,
+  mass: 0.5
+};
+
+const SwipeableRowComponent: React.FC<SwipeableRowProps> = ({
   id,
   onEdit,
   onDelete,
@@ -30,24 +37,24 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   disabled = false,
 }) => {
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
+  const swipeOffsetRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const dragDistanceRef = useRef(0);
   const dragEndTimeRef = useRef(0);
+  const animControlsRef = useRef<any>(null);
 
   // High performance motion value for smooth 60-120fps physics animations
   const x = useMotionValue(0);
 
-  // Synchronize motion value when swipeOffset state changes
-  useEffect(() => {
-    const controls = animate(x, swipeOffset, {
-      type: 'spring',
-      stiffness: 480,
-      damping: 32,
-      mass: 0.6
-    });
-    return () => controls.stop();
-  }, [swipeOffset, x]);
+  const snapToOffset = React.useCallback((nextOffset: number) => {
+    swipeOffsetRef.current = nextOffset;
+    setSwipeOffset(nextOffset);
+    if (animControlsRef.current) {
+      animControlsRef.current.stop();
+    }
+    animControlsRef.current = animate(x, nextOffset, SPRING_CONFIG);
+  }, [x]);
 
   // Real-time physics reactive transformations for Edit button (swiping left: x < 0)
   const editScale = useTransform(x, [0, -25, -88, -120], [0.55, 0.85, 1, 1.15]);
@@ -63,6 +70,10 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
 
   // If component re-mounts or ID changes (e.g. recycled during virtualization), reset swipe
   useEffect(() => {
+    if (animControlsRef.current) {
+      animControlsRef.current.stop();
+    }
+    swipeOffsetRef.current = 0;
     setSwipeOffset(0);
     x.set(0);
   }, [id, x]);
@@ -71,31 +82,34 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
   useEffect(() => {
     const handleOtherRowOpen = (e: Event) => {
       const customEvent = e as CustomEvent<{ id: string }>;
-      if (customEvent.detail?.id !== id) {
-        setSwipeOffset(0);
+      if (customEvent.detail?.id !== id && swipeOffsetRef.current !== 0) {
+        snapToOffset(0);
       }
     };
     window.addEventListener(SWIPE_OPEN_EVENT, handleOtherRowOpen);
     return () => {
       window.removeEventListener(SWIPE_OPEN_EVENT, handleOtherRowOpen);
     };
-  }, [id]);
+  }, [id, snapToOffset]);
 
   // Auto-close when tapping anywhere outside the active row
   useEffect(() => {
     if (swipeOffset === 0) return;
     const handleGlobalPointer = (e: PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setSwipeOffset(0);
+        snapToOffset(0);
       }
     };
     window.addEventListener('pointerdown', handleGlobalPointer, { passive: true });
     return () => {
       window.removeEventListener('pointerdown', handleGlobalPointer);
     };
-  }, [swipeOffset]);
+  }, [swipeOffset, snapToOffset]);
 
   const handleDragStart = () => {
+    if (animControlsRef.current) {
+      animControlsRef.current.stop();
+    }
     isDraggingRef.current = true;
     dragDistanceRef.current = 0;
   };
@@ -108,34 +122,35 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
     dragEndTimeRef.current = Date.now();
     setTimeout(() => {
       isDraggingRef.current = false;
-    }, 280);
+    }, 220);
 
     const currentX = x.get();
     const velocity = info.velocity.x;
+    const prevOffset = swipeOffsetRef.current;
 
     let targetOffset = 0;
 
-    if (swipeOffset !== 0) {
+    if (prevOffset !== 0) {
       // If currently open on Edit (offset < 0) and dragged rightwards, snap closed
-      if (swipeOffset < 0 && (currentX > -30 || velocity > 160)) {
+      if (prevOffset < 0 && (currentX > -35 || velocity > 140)) {
         targetOffset = 0;
       }
       // If currently open on Delete (offset > 0) and dragged leftwards, snap closed
-      else if (swipeOffset > 0 && (currentX < 30 || velocity < -160)) {
+      else if (prevOffset > 0 && (currentX < 35 || velocity < -140)) {
         targetOffset = 0;
       }
       // Maintain open if within threshold
       else {
-        targetOffset = swipeOffset;
+        targetOffset = prevOffset;
       }
     } else {
       // Determine snap state from closed initial position
       // Swipe left (reveals Edit on the right) with magnetic threshold & velocity check
-      if (currentX < -36 || velocity < -220) {
+      if (currentX < -32 || velocity < -190) {
         targetOffset = -88;
       } 
       // Swipe right (reveals Delete on the left) with magnetic threshold & velocity check
-      else if (currentX > 36 || velocity > 220) {
+      else if (currentX > 32 || velocity > 190) {
         targetOffset = 88;
       } 
       else {
@@ -143,36 +158,24 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       }
     }
 
-    setSwipeOffset(targetOffset);
-    animate(x, targetOffset, {
-      type: 'spring',
-      stiffness: 480,
-      damping: 32,
-      mass: 0.6
-    });
+    snapToOffset(targetOffset);
 
     if (targetOffset !== 0) {
       window.dispatchEvent(new CustomEvent(SWIPE_OPEN_EVENT, { detail: { id } }));
       NativeHaptics.impact('LIGHT').catch(() => {});
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate([15]); } catch {}
+        try { navigator.vibrate([12]); } catch {}
       }
     }
   };
 
   const handleRowClick = () => {
-    if (Date.now() - dragEndTimeRef.current < 280 || dragDistanceRef.current > 10) {
+    if (Date.now() - dragEndTimeRef.current < 220 || dragDistanceRef.current > 10) {
       return;
     }
 
-    if (swipeOffset !== 0) {
-      setSwipeOffset(0);
-      animate(x, 0, {
-        type: 'spring',
-        stiffness: 480,
-        damping: 32,
-        mass: 0.6
-      });
+    if (swipeOffsetRef.current !== 0) {
+      snapToOffset(0);
     } else if (onClick) {
       onClick();
     }
@@ -180,26 +183,14 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
 
   const handleEditClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setSwipeOffset(0);
-    animate(x, 0, {
-      type: 'spring',
-      stiffness: 480,
-      damping: 32,
-      mass: 0.6
-    });
+    snapToOffset(0);
     NativeHaptics.selection().catch(() => {});
     if (onEdit) onEdit();
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setSwipeOffset(0);
-    animate(x, 0, {
-      type: 'spring',
-      stiffness: 480,
-      damping: 32,
-      mass: 0.6
-    });
+    snapToOffset(0);
     NativeHaptics.notification('WARNING').catch(() => {});
     if (onDelete) onDelete();
   };
@@ -209,7 +200,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
       ref={containerRef}
       id={`swipe-container-${id}`} 
       className={`relative overflow-hidden select-none rounded-2xl sm:rounded-3xl bg-[#0A0D10] h-full ${className}`}
-      style={{ touchAction: 'pan-y' }}
+      style={{ touchAction: 'pan-y', contain: 'layout paint' }}
     >
       {/* Right Action Layer (Edit) - Revealed when swiping left */}
       <motion.div 
@@ -221,7 +212,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
           <button
             type="button"
             onClick={handleEditClick}
-            className="flex flex-col items-center justify-center gap-1.5 w-full h-full text-amber-300 hover:bg-amber-500/15 active:scale-90 transition-all cursor-pointer select-none group"
+            className="flex flex-col items-center justify-center gap-1.5 w-full h-full text-amber-300 hover:bg-amber-500/15 active:scale-90 transition-transform cursor-pointer select-none group"
             title={editLabel}
           >
             <motion.div 
@@ -250,7 +241,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
           <button
             type="button"
             onClick={handleDeleteClick}
-            className="flex flex-col items-center justify-center gap-1.5 w-full h-full text-rose-400 hover:bg-rose-500/15 active:scale-90 transition-all cursor-pointer select-none group"
+            className="flex flex-col items-center justify-center gap-1.5 w-full h-full text-rose-400 hover:bg-rose-500/15 active:scale-90 transition-transform cursor-pointer select-none group"
             title={deleteLabel}
           >
             <motion.div 
@@ -274,7 +265,7 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
         drag={disabled ? false : 'x'}
         dragDirectionLock={true}
         dragConstraints={{ left: -88, right: 88 }}
-        dragElastic={0.25}
+        dragElastic={0.18}
         dragMomentum={false}
         onDragStart={handleDragStart}
         onDrag={handleDrag}
@@ -288,3 +279,5 @@ export const SwipeableRow: React.FC<SwipeableRowProps> = ({
     </div>
   );
 };
+
+export const SwipeableRow = React.memo(SwipeableRowComponent);

@@ -282,7 +282,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
               <div className="space-y-1 min-w-0 flex-1 text-right">
                 {/* Title & Note */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-black text-xs sm:text-sm text-[#F4F1EA] tracking-tight truncate max-w-[150px] sm:max-w-[220px]">
+                  <span className="font-bold text-xs sm:text-sm text-[#F4F1EA] tracking-tight truncate max-w-[165px] sm:max-w-[240px]">
                     {isTransfer
                       ? `تحويل: ${wallet?.name || 'محفظة'} ➔ ${destWallet?.name || 'محفظة'}`
                       : isAdjustment
@@ -290,8 +290,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
                       : category?.name || 'غير مصنف'}
                   </span>
                   {tx.note && (
-                    <span className="text-[10px] text-slate-400 font-medium truncate max-w-[120px] sm:max-w-[180px]">
-                      ({tx.note})
+                    <span className="text-[11px] text-slate-400 font-normal truncate max-w-[135px] sm:max-w-[200px]">
+                      — {tx.note}
                     </span>
                   )}
                   {tx.receipt && (
@@ -304,54 +304,43 @@ const TransactionList: React.FC<TransactionListProps> = ({
                           setViewingReceipt(url || null);
                         }
                       }}
-                      className="text-[#D9B978] hover:text-[#D9B978]/80 p-0.5"
+                      className="text-[#D9B978] hover:text-[#D9B978]/80 p-1 min-w-[28px] min-h-[28px] inline-flex items-center justify-center"
                       title="عرض الفاتورة المرفقة"
                     >
-                      <Paperclip size={12} />
+                      <Paperclip size={13} />
                     </button>
                   )}
                 </div>
 
-                {/* Badges Bar */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Wallet Badge */}
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-[#0A0D10] rounded-lg border border-white/5">
-                    <div
+                {/* Clean Unboxed Metadata Line with Typographic Separators */}
+                <div className="flex items-center gap-1.5 text-[10.5px] sm:text-[11px] text-slate-400 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-slate-300 truncate max-w-[115px]">
+                    <span
                       className="w-1.5 h-1.5 rounded-full shrink-0"
                       style={{ backgroundColor: wallet?.color || '#8EB9A7' }}
                     />
-                    <span className="text-[9px] font-bold text-slate-400 truncate max-w-[90px]">
-                      {wallet?.name || 'المحفظة العامة'}
-                    </span>
-                  </div>
+                    <span className="truncate">{wallet?.name || 'المحفظة العامة'}</span>
+                  </span>
 
-                  {/* Specific Currency Badge */}
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-[#D9B978]/10 rounded-lg border border-[#D9B978]/25 text-[#D9B978]">
-                    <Coins size={10} className="shrink-0" />
-                    <span className="text-[9px] font-black tracking-wide truncate max-w-[100px]" title={txCurrencyName}>
-                      {txCurrencyCode}
-                    </span>
-                  </div>
+                  <span aria-hidden="true" className="text-slate-600">·</span>
 
-                  {/* Date Badge */}
-                  <span className="hidden sm:inline-block text-[9px] font-bold text-slate-500 bg-white/5 px-1.5 py-0.5 rounded-md">
+                  <span className="font-mono font-semibold text-[#D9B978]/90" title={txCurrencyName}>
+                    {txCurrencyCode}
+                  </span>
+
+                  <span aria-hidden="true" className="text-slate-600">·</span>
+
+                  <span className="font-numeric text-slate-400">
                     {tx.date}
                   </span>
 
-                  {/* Attachment indicator */}
                   {tx.receipt && (
-                    <span className="text-[9px] font-bold text-[#D9B978] bg-[#D9B978]/10 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                      <Paperclip size={9} /> مرفق
-                    </span>
-                  )}
-
-                  {/* Fraud/Security Verified Badge */}
-                  {tx.securityHash && (
-                    <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
-                      <span className="text-[9px] font-black text-emerald-400 tracking-tight">
-                        🔒 موثق
+                    <>
+                      <span aria-hidden="true" className="text-slate-600">·</span>
+                      <span className="text-[#D9B978] inline-flex items-center gap-0.5 font-medium">
+                        <Paperclip size={10} /> مرفق
                       </span>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -359,9 +348,9 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
             {/* Right / Financial Info */}
             <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-              <div className="text-left flex flex-col items-end">
+              <div className="text-left flex flex-col items-end font-numeric tabular-nums">
                 <p
-                  className={`font-black text-sm sm:text-base tracking-tight dir-ltr ${
+                  className={`font-bold text-sm sm:text-base tracking-tight dir-ltr ${
                     isTransfer
                       ? 'text-[#759BC8]'
                       : isIncome
@@ -371,27 +360,20 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 >
                   {isTransfer ? '↔ ' : isIncome ? '+' : '-'}
                   {Math.abs(tx.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  <span className="text-[11px] font-bold text-slate-300 ml-1">{txSymbol}</span>
+                  <span className="text-[11px] font-normal text-slate-300 ms-1">{txSymbol}</span>
                 </p>
 
                 {isDiffFromWallet && amountInWallet !== null && (
-                  <span className="text-[9px] font-bold text-[#D9B978]/90 dir-ltr text-right flex items-center gap-1 mt-0.5">
+                  <span className="text-[10px] font-medium text-[#D9B978]/90 dir-ltr text-right flex items-center gap-1 mt-0.5">
                     <span>المخصوم: {amountInWallet.toLocaleString('en-US', { maximumFractionDigits: 1 })} {walletSymbol}</span>
-                    {exchangeRateToWallet && (
-                      <span className="text-slate-500 font-normal">
-                        (1 {txSymbol} = {exchangeRateToWallet.toLocaleString('en-US', { maximumFractionDigits: 2 })} {walletSymbol})
-                      </span>
-                    )}
                   </span>
                 )}
 
                 {isDiffCurrency && convertedAmount !== null && (
-                  <span className="text-[9px] font-bold text-slate-400 dir-ltr">
-                    المعادل: ≈ {Math.round(convertedAmount).toLocaleString()} {resolvedBaseSymbol}
+                  <span className="text-[10px] font-normal text-slate-400 dir-ltr">
+                    ≈ {Math.round(convertedAmount).toLocaleString()} {resolvedBaseSymbol}
                   </span>
                 )}
-
-                <span className="text-[8.5px] text-slate-500 font-mono sm:hidden">{tx.date}</span>
               </div>
 
               {/* Subtle Swipe Edge Affordance */}
@@ -411,16 +393,12 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
   if (transactions.length === 0) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center py-12 sm:py-16"
-      >
-        <div className="bg-[#11161C] w-16 h-16 sm:w-20 sm:h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-4 shadow-inner border border-white/5">
-          <WalletIcon className="text-slate-600" size={32} />
+      <div className="text-center py-12 sm:py-16">
+        <div className="bg-[#11161C] w-16 h-16 sm:w-20 sm:h-20 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-white/5">
+          <WalletIcon className="text-slate-500" size={30} />
         </div>
-        <p className="text-slate-400 text-xs sm:text-sm font-bold">لا توجد أي معاملات مسجلة بعد</p>
-      </motion.div>
+        <p className="text-slate-400 text-xs sm:text-sm font-medium">لا توجد أي معاملات مسجلة بعد</p>
+      </div>
     );
   }
 
@@ -437,12 +415,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="البحث في الوصف، التصنيف، المحفظة، أو التاريخ..."
-              className="w-full bg-[#0A0D10] border border-white/10 rounded-2xl py-2.5 pr-10 pl-9 text-xs font-bold text-[#F4F1EA] placeholder:text-slate-500 focus:border-[#D9B978]/50 outline-none transition-colors text-right"
+              className="w-full bg-[#0A0D10] border border-white/10 rounded-2xl py-2.5 pr-10 pl-9 text-xs font-medium text-[#F4F1EA] placeholder:text-slate-500 focus:border-[#D9B978]/50 outline-none transition-colors text-right min-h-[44px]"
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute left-3 text-slate-400 hover:text-white p-1"
+                className="absolute left-2 text-slate-400 hover:text-white p-2 min-w-[36px] min-h-[36px] flex items-center justify-center"
               >
                 <X size={14} />
               </button>
@@ -450,32 +429,32 @@ const TransactionList: React.FC<TransactionListProps> = ({
           </div>
 
           {/* Type Filter Buttons */}
-          <div className="grid grid-cols-4 bg-[#0A0D10] p-1 rounded-2xl border border-white/5 shadow-inner gap-1">
+          <div className="grid grid-cols-4 bg-[#0A0D10] p-1 rounded-2xl border border-white/5 gap-1">
             {[
               { id: 'all', label: 'الكل' },
               { id: 'expense', label: 'المصاريف' },
               { id: 'income', label: 'الواردات' },
               { id: 'transfer', label: 'التحويلات' },
             ].map((item) => (
-              <motion.button
-                whileTap={{ scale: 0.96 }}
+              <button
+                type="button"
                 key={item.id}
                 onClick={() => setTypeFilter(item.id as any)}
-                className={`py-2 rounded-xl text-[11px] font-black tracking-wide transition-all ${
+                className={`py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all active:scale-95 min-h-[40px] ${
                   typeFilter === item.id
-                    ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-bold'
+                    ? 'bg-[#D9B978] text-[#0A0D10] shadow-sm'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {item.label}
-              </motion.button>
+              </button>
             ))}
           </div>
 
           {/* Quick Wallet & Currency Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
             {/* Wallet Selector */}
-            <div className="flex items-center gap-2 bg-[#0A0D10] px-3 py-2 rounded-xl border border-white/5">
+            <div className="flex items-center gap-2 bg-[#0A0D10] px-3 py-2 rounded-xl border border-white/5 min-h-[42px]">
               <WalletIcon size={14} className="text-[#D9B978] shrink-0" />
               <div className="flex-1 min-w-0">
                 <select
@@ -485,7 +464,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                     setWalletFilter(val);
                     onWalletFilterChange?.(val === 'all' ? null : val);
                   }}
-                  className="w-full bg-transparent text-[#F4F1EA] text-xs font-bold outline-none cursor-pointer truncate text-right"
+                  className="w-full bg-transparent text-[#F4F1EA] text-xs font-medium outline-none cursor-pointer truncate text-right"
                 >
                   <option value="all" className="bg-[#11161C] text-white">
                     كافة المحافظ ({wallets.length})
@@ -500,13 +479,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
             </div>
 
             {/* Currency Selector */}
-            <div className="flex items-center gap-2 bg-[#0A0D10] px-3 py-2 rounded-xl border border-white/5">
+            <div className="flex items-center gap-2 bg-[#0A0D10] px-3 py-2 rounded-xl border border-white/5 min-h-[42px]">
               <Coins size={14} className="text-[#D9B978] shrink-0" />
               <div className="flex-1 min-w-0">
                 <select
                   value={currencyFilter}
                   onChange={(e) => setCurrencyFilter(e.target.value)}
-                  className="w-full bg-transparent text-[#F4F1EA] text-xs font-bold outline-none cursor-pointer truncate text-right"
+                  className="w-full bg-transparent text-[#F4F1EA] text-xs font-medium outline-none cursor-pointer truncate text-right"
                 >
                   <option value="all" className="bg-[#11161C] text-white">
                     كافة العملات المسجلة
@@ -527,19 +506,20 @@ const TransactionList: React.FC<TransactionListProps> = ({
           </div>
 
           {/* Active filter count status */}
-          <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-1 font-bold">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1 font-medium">
             <span>
-              عدد العمليات المطابقة: <strong className="text-[#D9B978] font-black">{sortedTransactions.length}</strong>
+              العمليات المطابقة: <strong className="text-[#D9B978] font-bold font-numeric">{sortedTransactions.length}</strong>
             </span>
             {(typeFilter !== 'all' || walletFilter !== 'all' || currencyFilter !== 'all' || searchQuery) && (
               <button
+                type="button"
                 onClick={() => {
                   setTypeFilter('all');
                   setWalletFilter('all');
                   setCurrencyFilter('all');
                   setSearchQuery('');
                 }}
-                className="text-[#D9B978] hover:underline font-black cursor-pointer"
+                className="text-[#D9B978] hover:underline font-bold cursor-pointer py-1 px-2"
               >
                 إعادة ضبط الفلاتر
               </button>
@@ -548,32 +528,17 @@ const TransactionList: React.FC<TransactionListProps> = ({
         </div>
       )}
 
-      {/* Physics-Based Swipe Interactive Guide */}
+      {/* Clean Minimalist Swipe Hint */}
       {totalCount > 0 && (
-        <div className="flex items-center justify-between px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-[#11161C]/80 border border-white/5 rounded-2xl text-[10px] sm:text-[11px] text-slate-400 select-none shadow-xs">
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-            <span className="flex items-center gap-1 font-black text-[#F4F1EA]">
-              <Sparkles size={12} className="text-[#D9B978] shrink-0" />
-              <span className="hidden xs:inline">{language === 'en' ? 'Physics Swipe:' : 'سحب فيزيائي مرن:'}</span>
-              <span className="xs:hidden">{language === 'en' ? 'Swipe:' : 'السحب:'}</span>
-            </span>
-            <div className="flex items-center gap-1 sm:gap-1.5 text-[9.5px] sm:text-[10.5px]">
-              <span className="text-slate-400">{language === 'en' ? 'Right to' : 'لليمين'}</span>
-              <span className="text-rose-400 font-bold bg-rose-500/15 px-1.5 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
-                <Trash2 size={11} />
-                {language === 'en' ? 'Delete' : 'حذف'}
-              </span>
-              <span className="text-slate-500">•</span>
-              <span className="text-slate-400">{language === 'en' ? 'Left to' : 'لليسار'}</span>
-              <span className="text-[#D9B978] font-bold bg-[#D9B978]/15 px-1.5 py-0.5 rounded-md border border-[#D9B978]/30 flex items-center gap-1">
-                <Edit2 size={11} />
-                {language === 'en' ? 'Edit' : 'تعديل'}
-              </span>
-            </div>
+        <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-slate-400 select-none">
+          <div className="flex items-center gap-2">
+            <span>{language === 'en' ? 'Swipe row:' : 'اسحب الصف:'}</span>
+            <span className="text-rose-400/90 font-medium">{language === 'en' ? 'Right to delete' : 'لليمين للحذف'}</span>
+            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span className="text-[#D9B978] font-medium">{language === 'en' ? 'Left to edit' : 'لليسار للتعديل'}</span>
           </div>
-          <span className="text-[10px] text-slate-400 hidden sm:inline-flex items-center gap-1 font-bold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
-            {language === 'en' ? 'Magnetic snap' : 'إيقاف مغناطيسي'}
+          <span className="text-[11px] text-slate-500 font-numeric">
+            {totalCount} {language === 'en' ? 'entries' : 'عملية'}
           </span>
         </div>
       )}
@@ -634,4 +599,4 @@ const TransactionList: React.FC<TransactionListProps> = ({
   );
 };
 
-export default TransactionList;
+export default React.memo(TransactionList);

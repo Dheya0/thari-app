@@ -1,4 +1,4 @@
-package com.thari.finance.app;
+package com.thariwealth.smartsuite;
 
 import com.getcapacitor.BridgeActivity;
 

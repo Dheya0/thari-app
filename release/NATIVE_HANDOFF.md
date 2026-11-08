@@ -64,15 +64,15 @@ npx cap open android
 ### C. Android Studio Verification Checklist
 1. **Sync Gradle:** Verify that Gradle 8.4+ finishes sync with 0 errors.
 2. **Build Configuration Check:**
-   - `applicationId`: `com.thari.finance.app`
+   - `applicationId`: `com.thariwealth.smartsuite`
    - `minSdkVersion`: `24`
    - `targetSdkVersion`: `34` (or `35`)
    - `versionCode`: `10200`
    - `versionName`: `1.2.0`
 3. **App Privacy Screen (`FLAG_SECURE`):**
-   In `android/app/src/main/java/com/thari/finance/app/MainActivity.java`, verify:
+   In `android/app/src/main/java/com/thariwealth/smartsuite/MainActivity.java`, verify:
    ```java
-   package com.thari.finance.app;
+   package com.thariwealth.smartsuite;
    import android.os.Bundle;
    import android.view.WindowManager;
    import com.getcapacitor.BridgeActivity;
@@ -118,7 +118,7 @@ npx cap open ios
 ```
 
 ### C. Xcode Verification Checklist
-1. **Bundle Identifier:** `com.thari.finance.app`
+1. **Bundle Identifier:** `com.thariwealth.smartsuite`
 2. **Version & Build:** Version `1.2.0`, Build `10200`
 3. **Permissions in `Info.plist`:**
    - `NSFaceIDUsageDescription`: `يتطلب تطبيق ثري إذن Face ID لتأمين وحماية سجلاتك المالية.`

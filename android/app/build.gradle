@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.thari.finance.app"
+    namespace = "com.thariwealth.smartsuite"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.thari.finance.app"
+        applicationId "com.thariwealth.smartsuite"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (System.getenv("CM_BUILD_NUMBER") != null && System.getenv("CM_BUILD_NUMBER").isInteger()) ? System.getenv("CM_BUILD_NUMBER").toInteger() + 120000 : 120001

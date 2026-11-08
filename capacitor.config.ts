@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 import { KeyboardResize, KeyboardStyle } from '@capacitor/keyboard';
 
 const config: CapacitorConfig = {
-  appId: 'com.thari.finance.app',
+  appId: 'com.thariwealth.smartsuite',
   appName: 'ثري — THARI',
   webDir: 'dist',
   server: {

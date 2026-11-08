@@ -535,7 +535,7 @@ export default function Settings({
     showToast(t.rateSuccessToast);
     const storeUrl = isIOSPlatform 
       ? 'https://apps.apple.com/app/id64762459927?action=write-review'
-      : 'https://play.google.com/store/apps/details?id=com.thari.finance.app';
+      : 'https://play.google.com/store/apps/details?id=com.thariwealth.smartsuite';
     const link = document.createElement('a');
     link.href = storeUrl;
     link.target = '_blank';

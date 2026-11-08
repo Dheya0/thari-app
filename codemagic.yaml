@@ -18,7 +18,7 @@ workflows:
         - android
         
       vars:
-        PACKAGE_NAME: "com.thari.finance.app"
+        PACKAGE_NAME: "com.thariwealth.smartsuite"
     triggering:
       events:
         - push
@@ -67,7 +67,7 @@ workflows:
           # تطبيق ملف الصلاحيات والإعدادات المعتمد ومسارات الملفات
           mkdir -p android/app/src/main/res/xml
           mkdir -p android/app/src/main/res/layout
-          mkdir -p android/app/src/main/java/com/thari/finance/app
+          mkdir -p android/app/src/main/java/com/thariwealth/smartsuite
 
           if [ -f "release/android/file_paths.xml" ]; then
             echo "Applying file_paths.xml..."
@@ -159,7 +159,7 @@ workflows:
         - app_store_credentials
         - ios_signing
       vars:
-        BUNDLE_ID: "com.thari.finance.app"
+        BUNDLE_ID: "com.thariwealth.smartsuite"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
     triggering:
@@ -236,7 +236,7 @@ workflows:
           else
             echo "Configuring automatic code signing fallback..."
             cd ios/App
-            plutil -replace CFBundleIdentifier -string "com.thari.finance.app" App/Info.plist || true
+            plutil -replace CFBundleIdentifier -string "com.thariwealth.smartsuite" App/Info.plist || true
             cd ../..
           fi
 

@@ -42,7 +42,9 @@ interface CashflowForecastProps {
   onOpenNewTransaction?: (type: 'income' | 'expense') => void;
 }
 
-export const CashflowForecast: React.FC<CashflowForecastProps> = ({
+import { NativeHaptics } from '../services/nativeServices';
+
+const CashflowForecastComponent: React.FC<CashflowForecastProps> = ({
   wallets,
   transactions,
   recurringRules,
@@ -178,36 +180,34 @@ export const CashflowForecast: React.FC<CashflowForecastProps> = ({
   return (
     <div className="space-y-6 pb-28 md:pb-8 max-w-6xl mx-auto">
       {/* 1. Header & Horizon Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#11161C] p-4 sm:p-5 rounded-2xl border border-white/10 shadow-lg">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978]">
-              <TrendingUp size={22} />
-            </div>
-            <div>
-              <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-                <span>التخطيط المالي وتوقع السيولة</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#D9B978]/20 text-[#D9B978] border border-[#D9B978]/30 font-bold">
-                  Cashflow Runway
-                </span>
-              </h2>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">
-                استشراف التدفق النقدي المستقبلي ومقياس الأمان المالي اليومي بدقة محاسبية
-              </p>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#11161C] p-4 sm:p-5 rounded-3xl border border-white/10 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] shrink-0">
+            <TrendingUp size={20} />
+          </div>
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+              التخطيط المالي وتوقع السيولة
+            </h2>
+            <p className="text-xs text-slate-400 font-normal mt-0.5">
+              استشراف التدفق النقدي المستقبلي ومقياس الأمان المالي اليومي بدقة محاسبية
+            </p>
           </div>
         </div>
 
         {/* Duration Segmented Switcher */}
-        <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-xl border border-white/10 self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 p-1 bg-[#0A0D10] rounded-2xl border border-white/10 self-start sm:self-auto">
           {[30, 60, 90].map((d) => (
             <button
               key={d}
               type="button"
-              onClick={() => setHorizonDays(d as 30 | 60 | 90)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                setHorizonDays(d as 30 | 60 | 90);
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 min-h-[38px] ${
                 horizonDays === d
-                  ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
+                  ? 'bg-[#D9B978] text-slate-950 shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -258,18 +258,18 @@ export const CashflowForecast: React.FC<CashflowForecastProps> = ({
 
         <button
           type="button"
-          onClick={() => setShowWhatIf(!showWhatIf)}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+          onClick={() => {
+            NativeHaptics.selection().catch(() => {});
+            setShowWhatIf(!showWhatIf);
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border active:scale-95 min-h-[38px] ${
             showWhatIf || whatIfExpense > 0 || includeReceivables
-              ? 'bg-[#D9B978] text-slate-950 border-[#D9B978] shadow-md font-black'
+              ? 'bg-[#D9B978] text-slate-950 border-[#D9B978] shadow-sm'
               : 'bg-white/5 text-slate-300 border-white/10 hover:border-white/20'
           }`}
         >
           <SlidersHorizontal size={14} />
           <span>محاكي السيناريوهات (What-if)</span>
-          {(whatIfExpense > 0 || includeReceivables) && (
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-          )}
         </button>
       </div>
 
@@ -363,63 +363,57 @@ export const CashflowForecast: React.FC<CashflowForecastProps> = ({
         )}
       </AnimatePresence>
 
-      {/* 4. Executive KPI Grid (Clean White/Gold Bank Atmosphere) */}
+      {/* 4. Executive KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Card 1: Safe Daily Spend */}
-        <div className="bg-[#11161C] border border-[#D9B978]/30 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-[#D9B978]" />
+        <div className="bg-[#11161C] border border-[#D9B978]/30 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-slate-400 block">
               الإنفاق اليومي الآمن
             </span>
-            <ShieldCheck size={16} className="text-[#D9B978]" />
+            <ShieldCheck size={15} className="text-[#D9B978]" />
           </div>
-          <p className="text-xl sm:text-2xl font-black text-white mt-1.5 font-mono tabular-nums">
+          <p className="text-xl sm:text-2xl font-bold text-white mt-2 font-numeric tabular-nums">
             {Math.round(metrics.safeToSpendDaily).toLocaleString()}{' '}
-            <span className="text-xs font-bold font-sans text-[#D9B978]">{metrics.currencySymbol}</span>
+            <span className="text-xs font-normal text-[#D9B978]">{metrics.currencySymbol}</span>
           </p>
-          <span className="text-[10px] text-slate-400 font-medium block mt-1">
+          <span className="text-[10.5px] text-slate-400 font-normal block mt-1">
             سقف الصرف اليومي الآمن دون الإخلال بالتزاماتك
           </span>
         </div>
 
         {/* Card 2: Safe To Spend Total */}
-        <div className="bg-[#11161C] border border-white/10 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
+        <div className="bg-[#11161C] border border-white/10 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-slate-400 block">
               فائض السيولة المتاح
             </span>
-            <span className="text-[10px] font-bold text-emerald-400 font-mono">
+            <span className="text-[10.5px] font-medium text-emerald-400 font-numeric">
               {horizonDays} يوم
             </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-1.5 font-mono tabular-nums">
+          <p className="text-xl sm:text-2xl font-bold text-emerald-400 mt-2 font-numeric tabular-nums">
             {Math.round(metrics.safeToSpendTotal).toLocaleString()}{' '}
-            <span className="text-xs font-bold font-sans text-slate-400">{metrics.currencySymbol}</span>
+            <span className="text-xs font-normal text-slate-400">{metrics.currencySymbol}</span>
           </p>
-          <span className="text-[10px] text-slate-400 font-medium block mt-1">
+          <span className="text-[10.5px] text-slate-400 font-normal block mt-1">
             بعد خصم الميزانيات والديون المستحقة
           </span>
         </div>
 
         {/* Card 3: Liquidity Runway */}
-        <div className="bg-[#11161C] border border-white/10 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-          <div className={`absolute top-0 right-0 left-0 h-1 ${
-            metrics.healthStatus === 'healthy' ? 'bg-emerald-500' :
-            metrics.healthStatus === 'warning' ? 'bg-amber-500' : 'bg-rose-500'
-          }`} />
+        <div className="bg-[#11161C] border border-white/10 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-slate-400 block">
               فترة أمان السيولة
             </span>
-            <Clock size={16} className={metrics.healthStatus === 'healthy' ? 'text-emerald-400' : 'text-amber-400'} />
+            <Clock size={15} className={metrics.healthStatus === 'healthy' ? 'text-emerald-400' : 'text-amber-400'} />
           </div>
-          <p className="text-xl sm:text-2xl font-black text-white mt-1.5 font-mono tabular-nums">
+          <p className="text-xl sm:text-2xl font-bold text-white mt-2 font-numeric tabular-nums">
             {metrics.runwayDays}{' '}
-            <span className="text-xs font-bold font-sans text-slate-400">يوماً</span>
+            <span className="text-xs font-normal text-slate-400">يوماً</span>
           </p>
-          <span className={`text-[10px] font-bold block mt-1 ${
+          <span className={`text-[10.5px] font-medium block mt-1 ${
             metrics.healthStatus === 'healthy' ? 'text-emerald-400' :
             metrics.healthStatus === 'warning' ? 'text-amber-400' : 'text-rose-400'
           }`}>
@@ -429,21 +423,20 @@ export const CashflowForecast: React.FC<CashflowForecastProps> = ({
         </div>
 
         {/* Card 4: Ending Projected Balance */}
-        <div className="bg-[#11161C] border border-white/10 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-[#759BC8]" />
+        <div className="bg-[#11161C] border border-white/10 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-slate-400 block">
               الرصيد المتوقع نهاية الفترة
             </span>
-            <span className={`text-[10px] font-bold font-mono ${netTrajectoryChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <span className={`text-[10.5px] font-bold font-numeric ${netTrajectoryChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {netTrajectoryChange >= 0 ? '+' : ''}{Math.round(netTrajectoryChange).toLocaleString()}
             </span>
           </div>
-          <p className="text-xl sm:text-2xl font-black text-white mt-1.5 font-mono tabular-nums">
+          <p className="text-xl sm:text-2xl font-bold text-white mt-2 font-numeric tabular-nums">
             {Math.round(endingBalance).toLocaleString()}{' '}
-            <span className="text-xs font-bold font-sans text-[#759BC8]">{metrics.currencySymbol}</span>
+            <span className="text-xs font-normal text-[#759BC8]">{metrics.currencySymbol}</span>
           </p>
-          <span className="text-[10px] text-slate-400 font-medium block mt-1">
+          <span className="text-[10.5px] text-slate-400 font-normal block mt-1">
             الرصيد المتوقع بعد {horizonDays} يوماً
           </span>
         </div>
@@ -630,3 +623,5 @@ export const CashflowForecast: React.FC<CashflowForecastProps> = ({
     </div>
   );
 };
+
+export const CashflowForecast = React.memo(CashflowForecastComponent);

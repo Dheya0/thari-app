@@ -20,7 +20,7 @@ struct Provider: TimelineProvider {
 
     private func loadCurrentBalance() -> SimpleEntry {
         // Read from shared App Group UserDefaults
-        let defaults = UserDefaults(suiteName: "group.com.thari.finance.app")
+        let defaults = UserDefaults(suiteName: "group.com.thariwealth.smartsuite")
         let jsonString = defaults?.string(forKey: "thari_shared_balance")
         
         var balanceStr = "0.00 ر.س"

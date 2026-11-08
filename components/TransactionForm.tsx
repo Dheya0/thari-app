@@ -1788,4 +1788,4 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
-export default TransactionForm;
+export default React.memo(TransactionForm);

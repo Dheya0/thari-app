@@ -27,6 +27,7 @@ import { getTranslation, getLocalizedCurrency } from '../utils/translations';
 import { SwipeableRow } from './SwipeableRow';
 import { formatFinancialNumber } from '../utils/formatters';
 import { safeAdd, safeSub } from '../utils/mathPrecision';
+import { NativeHaptics } from '../services/nativeServices';
 
 export { formatFinancialNumber };
 
@@ -59,6 +60,8 @@ interface ElegantDashboardProps {
   isTravelMode?: boolean;
   showSeparateCurrencies?: boolean;
   onToggleSeparateCurrencies?: (enabled: boolean) => void;
+  onOpenGoals?: () => void;
+  onOpenBudgets?: () => void;
 }
 
 export const getGreeting = (lang: 'ar' | 'en' = 'ar'): { text: string; sub: string } => {
@@ -104,7 +107,9 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   language = 'ar',
   isTravelMode = false,
   showSeparateCurrencies = false,
-  onToggleSeparateCurrencies
+  onToggleSeparateCurrencies,
+  onOpenGoals,
+  onOpenBudgets
 }) => {
   const lang = language || 'ar';
   const t = getTranslation(lang);
@@ -464,7 +469,7 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                             <span className="text-[10px] text-slate-400 font-mono">{code}</span>
                           </div>
                         </div>
-                        <span className="text-[10px] text-slate-300 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full font-medium">
+                        <span className="text-[11px] text-slate-400 font-medium">
                           {walletCount} {isEn ? 'wallets' : 'محافظ'}
                         </span>
                       </div>
@@ -643,39 +648,87 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       {/* ─────────────────────────────────────────────────────────────
           3. ACTION BAR: CLEAN DIRECT TRIGGERS (THUMB ZONE OPTIMIZED)
       ───────────────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-3 gap-2.5 sm:gap-4">
-        <button
-          type="button"
-          onClick={() => onOpenNewTransaction('expense')}
-          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#C98387]/15 border border-white/[0.06] hover:border-[#C98387]/30 text-white/90 hover:text-[#C98387] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
-        >
-          <div className="w-6 h-6 rounded-full bg-[#C98387]/15 flex items-center justify-center text-[#C98387] group-hover:scale-110 transition-transform">
-            <ArrowDownLeft size={14} strokeWidth={2.2} />
-          </div>
-          <span className="truncate">{t.expenses}</span>
-        </button>
+      <section className="space-y-2.5">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              onOpenNewTransaction('expense');
+            }}
+            className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#C98387]/15 border border-white/[0.06] hover:border-[#C98387]/30 text-white/90 hover:text-[#C98387] transition-all duration-150 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
+          >
+            <div className="w-6 h-6 rounded-full bg-[#C98387]/15 flex items-center justify-center text-[#C98387] group-hover:scale-110 transition-transform">
+              <ArrowDownLeft size={14} strokeWidth={2.2} />
+            </div>
+            <span className="truncate">{t.expenses}</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => onOpenNewTransaction('income')}
-          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#8EB9A7]/15 border border-white/[0.06] hover:border-[#8EB9A7]/30 text-white/90 hover:text-[#8EB9A7] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
-        >
-          <div className="w-6 h-6 rounded-full bg-[#8EB9A7]/15 flex items-center justify-center text-[#8EB9A7] group-hover:scale-110 transition-transform">
-            <ArrowUpRight size={14} strokeWidth={2.2} />
-          </div>
-          <span className="truncate">{t.income}</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              onOpenNewTransaction('income');
+            }}
+            className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#8EB9A7]/15 border border-white/[0.06] hover:border-[#8EB9A7]/30 text-white/90 hover:text-[#8EB9A7] transition-all duration-150 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
+          >
+            <div className="w-6 h-6 rounded-full bg-[#8EB9A7]/15 flex items-center justify-center text-[#8EB9A7] group-hover:scale-110 transition-transform">
+              <ArrowUpRight size={14} strokeWidth={2.2} />
+            </div>
+            <span className="truncate">{t.income}</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => onOpenNewTransaction('transfer')}
-          className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#759BC8]/15 border border-white/[0.06] hover:border-[#759BC8]/30 text-white/90 hover:text-[#759BC8] transition-all duration-200 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
-        >
-          <div className="w-6 h-6 rounded-full bg-[#759BC8]/15 flex items-center justify-center text-[#759BC8] group-hover:scale-110 transition-transform">
-            <ArrowLeftRight size={14} strokeWidth={2.2} />
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              onOpenNewTransaction('transfer');
+            }}
+            className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#759BC8]/15 border border-white/[0.06] hover:border-[#759BC8]/30 text-white/90 hover:text-[#759BC8] transition-all duration-150 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
+          >
+            <div className="w-6 h-6 rounded-full bg-[#759BC8]/15 flex items-center justify-center text-[#759BC8] group-hover:scale-110 transition-transform">
+              <ArrowLeftRight size={14} strokeWidth={2.2} />
+            </div>
+            <span className="truncate">{t.transfer}</span>
+          </button>
+        </div>
+
+        {(onOpenBudgets || onOpenGoals) && (
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:hidden">
+            {onOpenBudgets && (
+              <button
+                type="button"
+                onClick={() => {
+                  NativeHaptics.selection().catch(() => {});
+                  onOpenBudgets();
+                }}
+                className="flex items-center justify-between py-3 px-3.5 rounded-2xl bg-[#11161C] hover:bg-[#171D24] border border-white/[0.06] text-slate-300 hover:text-[#759BC8] transition-all duration-150 active:scale-[0.98] text-xs font-medium min-h-[46px] cursor-pointer"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <Layers size={14} className="text-[#759BC8] shrink-0" />
+                  <span className="truncate">{isEn ? 'Monthly Budgets' : 'إدارة الميزانية'}</span>
+                </span>
+                {isEn ? <ChevronRight size={14} className="text-slate-500 shrink-0" /> : <ChevronLeft size={14} className="text-slate-500 shrink-0" />}
+              </button>
+            )}
+            {onOpenGoals && (
+              <button
+                type="button"
+                onClick={() => {
+                  NativeHaptics.selection().catch(() => {});
+                  onOpenGoals();
+                }}
+                className="flex items-center justify-between py-3 px-3.5 rounded-2xl bg-[#11161C] hover:bg-[#171D24] border border-white/[0.06] text-slate-300 hover:text-[#D9B978] transition-all duration-150 active:scale-[0.98] text-xs font-medium min-h-[46px] cursor-pointer"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <Coins size={14} className="text-[#D9B978] shrink-0" />
+                  <span className="truncate">{isEn ? 'Savings Goals' : 'الأهداف المالية'}</span>
+                </span>
+                {isEn ? <ChevronRight size={14} className="text-slate-500 shrink-0" /> : <ChevronLeft size={14} className="text-slate-500 shrink-0" />}
+              </button>
+            )}
           </div>
-          <span className="truncate">{t.transfer}</span>
-        </button>
+        )}
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -924,4 +977,4 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   );
 };
 
-export default ElegantDashboard;
+export default React.memo(ElegantDashboard);

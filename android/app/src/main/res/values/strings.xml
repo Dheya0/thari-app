@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">ثري — THARI</string>
     <string name="title_activity_main">ثري — THARI</string>
-    <string name="package_name">com.thari.finance.app</string>
-    <string name="custom_url_scheme">com.thari.finance.app</string>
+    <string name="package_name">com.thariwealth.smartsuite</string>
+    <string name="custom_url_scheme">com.thariwealth.smartsuite</string>
 </resources>

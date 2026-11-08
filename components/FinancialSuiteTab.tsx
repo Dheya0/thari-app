@@ -26,7 +26,7 @@ interface FinancialSuiteTabProps {
   onOpenNewTransaction?: (type: 'income' | 'expense') => void;
 }
 
-export const FinancialSuiteTab: React.FC<FinancialSuiteTabProps> = ({
+export const FinancialSuiteTab: React.FC<FinancialSuiteTabProps> = React.memo(({
   initialSubTab = 'forecast',
   transactions,
   wallets,
@@ -113,54 +113,38 @@ export const FinancialSuiteTab: React.FC<FinancialSuiteTabProps> = ({
       </div>
 
       {/* Main Suite Content Render */}
-      <AnimatePresence mode="wait" initial={false}>
+      <div className="w-full">
         {subTab === 'forecast' ? (
-          <motion.div
-            key="forecast"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.18 }}
-          >
-            <CashflowForecast
-              wallets={wallets}
-              transactions={transactions}
-              recurringRules={recurringRules}
-              debts={debts}
-              budgets={budgets}
-              exchangeRates={exchangeRates}
-              baseCurrency={currency}
-              currencies={currencies}
-              language={language}
-              onOpenRecurringManager={onOpenRecurringManager}
-              onOpenNewTransaction={onOpenNewTransaction}
-            />
-          </motion.div>
+          <CashflowForecast
+            wallets={wallets}
+            transactions={transactions}
+            recurringRules={recurringRules}
+            debts={debts}
+            budgets={budgets}
+            exchangeRates={exchangeRates}
+            baseCurrency={currency}
+            currencies={currencies}
+            language={language}
+            onOpenRecurringManager={onOpenRecurringManager}
+            onOpenNewTransaction={onOpenNewTransaction}
+          />
         ) : (
-          <motion.div
-            key="reports"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.18 }}
-          >
-            <OfficialReportsTab
-              transactions={transactions}
-              categories={categories}
-              wallets={wallets}
-              currencies={currencies}
-              currentCurrency={currency}
-              userName={userName}
-              exchangeRates={exchangeRates}
-              budgets={budgets}
-              debts={debts}
-              goals={goals}
-              onPrint={onPrint}
-              onExportExcel={onExportExcel}
-            />
-          </motion.div>
+          <OfficialReportsTab
+            transactions={transactions}
+            categories={categories}
+            wallets={wallets}
+            currencies={currencies}
+            currentCurrency={currency}
+            userName={userName}
+            exchangeRates={exchangeRates}
+            budgets={budgets}
+            debts={debts}
+            goals={goals}
+            onPrint={onPrint}
+            onExportExcel={onExportExcel}
+          />
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
-};
+});
