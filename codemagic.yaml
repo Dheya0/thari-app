@@ -234,6 +234,12 @@ workflows:
 
           npx cap sync ios
 
+          # تطبيق ملف Podfile المعتمد لضمان معرّفات فريدة لكل Framework ومنع خطأ DuplicateIdentifier
+          if [ -f "release/ios/Podfile" ]; then
+            echo "Applying Podfile with unique framework bundle identifiers..."
+            cp -f release/ios/Podfile ios/App/Podfile
+          fi
+
           # تطبيق ملف Info.plist المعتمد (دعم 120Hz ProMotion والمصادقة البيومترية واللغة العربية)
           if [ -f "release/ios/Info.plist" ]; then
             echo "Applying optimized Info.plist (120Hz ProMotion enabled)..."
@@ -287,6 +293,7 @@ workflows:
           set -e
           cd ios/App
           agvtool new-version -all $(($BUILD_NUMBER + 13000)) || true
+          pod install
           cd ../..
 
           if [ -n "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -n "$CERTIFICATE_PRIVATE_KEY" ]; then
@@ -357,11 +364,19 @@ workflows:
             perl -0pi -e "s/platform :ios, '.*?'/platform :ios, '15.0'/" ios/App/Podfile
           fi
 
+          NEXT_BUILD_VER=$((${BUILD_NUMBER:-1} + 130000))
           if [ -f "ios/App/App.xcodeproj/project.pbxproj" ]; then
             perl -0pi -e "s/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g" ios/App/App.xcodeproj/project.pbxproj
+            perl -0pi -e "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = ${NEXT_BUILD_VER};/g" ios/App/App.xcodeproj/project.pbxproj
+            perl -0pi -e "s/MARKETING_VERSION = [0-9.]+;/MARKETING_VERSION = 1.3.0;/g" ios/App/App.xcodeproj/project.pbxproj
           fi
 
           npx cap sync ios
+
+          if [ -f "release/ios/Podfile" ]; then
+            echo "Applying Podfile with unique framework bundle identifiers..."
+            cp -f release/ios/Podfile ios/App/Podfile
+          fi
 
           if [ -f "release/ios/Info.plist" ]; then
             echo "Applying optimized Info.plist (120Hz ProMotion enabled)..."
@@ -377,19 +392,16 @@ workflows:
         script: |
           set -e
           cd ios/App
-          NEXT_BUILD_VER=$((${BUILD_NUMBER:-1} + 130000))
-          agvtool new-version -all "$NEXT_BUILD_VER" || true
           pod install
 
+          # تنبيه مهم: لا نمرر PRODUCT_BUNDLE_IDENTIFIER في سطر أوامر xcodebuild
+          # حتى لا يتم تعميمه على حزم Frameworks الفرعية (Cordova وغيرها) وحدوث خطأ DuplicateIdentifier
           xcodebuild build \
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath "$CM_BUILD_DIR/build" \
-            PRODUCT_BUNDLE_IDENTIFIER="com.thariwealth.smartsuite" \
-            MARKETING_VERSION="1.3.0" \
-            CURRENT_PROJECT_VERSION="$NEXT_BUILD_VER" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGN_STYLE="Manual" \
             CODE_SIGNING_REQUIRED=NO \
@@ -397,13 +409,27 @@ workflows:
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: Package to Unsigned IPA
+      - name: Package to Unsigned IPA (with Unique Framework Bundle ID Verification)
         script: |
           set -e
           cd "$CM_BUILD_DIR"
           rm -rf Payload Thari_unsigned_app.ipa
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+
+          # التأكد من أن التطبيق الرئيسي يحمل المعرّف الأساسي وأن كل Framework فرعي يحمل معرّفاً فريداً ومستقلاً
+          plutil -replace CFBundleIdentifier -string "com.thariwealth.smartsuite" "Payload/App.app/Info.plist"
+          if [ -d "Payload/App.app/Frameworks" ]; then
+            for fw in Payload/App.app/Frameworks/*.framework; do
+              if [ -f "$fw/Info.plist" ]; then
+                fw_name=$(basename "$fw" .framework | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')
+                unique_fw_id="org.cocoapods.${fw_name}"
+                plutil -replace CFBundleIdentifier -string "$unique_fw_id" "$fw/Info.plist"
+                echo "Verified unique CFBundleIdentifier for $(basename "$fw"): $unique_fw_id"
+              fi
+            done
+          fi
+
           zip -qr Thari_unsigned_app.ipa Payload
           echo "Unsigned IPA package created successfully at $CM_BUILD_DIR/Thari_unsigned_app.ipa"
           

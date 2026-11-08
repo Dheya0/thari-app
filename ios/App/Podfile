@@ -27,5 +27,12 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+  installer.pods_project.targets.each do |target|
+    safe_name = target.name.gsub(/[^a-zA-Z0-9]/, '').downcase
+    target.build_configurations.each do |config|
+      config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = "org.cocoapods.#{safe_name}"
+      config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+    end
+  end
 end
-
