@@ -100,11 +100,11 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       badge: null
     },
     {
-      id: 'reports' as TabType,
-      label: isEn ? 'Planning & Statements' : 'التخطيط وكشف الحساب',
-      shortLabel: isEn ? 'Suite' : 'التقارير',
-      icon: BookOpen,
-      badge: 'عائم'
+      id: 'forecast' as TabType,
+      label: isEn ? 'Cashflow & Planning' : 'التخطيط والسيولة',
+      shortLabel: isEn ? 'Planning' : 'التخطيط',
+      icon: TrendingUp,
+      badge: null
     },
     {
       id: 'budgets' as TabType,
@@ -362,7 +362,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
               type="button"
               onClick={onOpenToolsHub}
               className="relative p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 hover:text-[#D9B978] border border-white/5 transition-all cursor-pointer active:scale-95"
-              title={isEn ? 'Tools Hub & Reports' : 'مركز الأدوات والتقارير'}
+              title={isEn ? 'Tools & Important Options' : 'مركز الأدوات والخيارات المهمة'}
             >
               <Sparkles size={14} />
               {hasPendingAlerts && (

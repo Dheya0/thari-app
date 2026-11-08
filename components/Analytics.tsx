@@ -257,33 +257,45 @@ const Analytics: React.FC<AnalyticsProps> = ({
         </div>
       </div>
 
-      {/* Report Generator Controls Deck (دمج المحافظ وفصل العملات في التقارير) */}
+      {/* Analytics Scope Filter (دمج المحافظ أو فصل العملات في الرسوم البيانية) */}
       <div className="bg-[#11161C] p-4 sm:p-5 rounded-3xl border border-white/10 shadow-xl space-y-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <FileText size={16} className="text-[#D9B978]" />
-            <h3 className="text-sm font-black text-[#F4F1EA]">إعدادات ونطاق التقرير المالي وكشف الحساب</h3>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <Filter size={16} className="text-[#D9B978]" />
+              <h3 className="text-sm font-black text-[#F4F1EA]">نطاق عرض الرسوم والتحليلات</h3>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              اختر دمج كافة المحافظ معاً أو تصفية التحليلات حسب محفظة أو عملة محددة
+            </p>
           </div>
-          <p className="text-[10px] text-slate-400 font-bold">
-            اختر خيار دمج كافة المحافظ والعملات معاً، أو فصل كل محفظة وعملة بشكل مستقل في التقارير
-          </p>
+          <button 
+            type="button"
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 py-2.5 px-3.5 bg-[#171D24] border border-white/10 text-slate-200 rounded-xl text-xs font-bold transition-all active:scale-95 hover:border-[#8EB9A7]/50 cursor-pointer shrink-0"
+          >
+            <Download size={14} className="text-[#8EB9A7]" />
+            <span>تصدير CSV</span>
+          </button>
         </div>
 
         {/* Mode Selector Tabs */}
         <div className="grid grid-cols-3 gap-1.5 bg-[#0A0D10] p-1.5 rounded-2xl border border-white/5">
           <button
+            type="button"
             onClick={() => { setReportMode('merged'); onFilterChange(null); }}
-            className={`py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-2.5 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               reportMode === 'merged' 
                 ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-black' 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Merge size={13} />
+            <Merge size={14} />
             <span>دمج شامل</span>
           </button>
 
           <button
+            type="button"
             onClick={() => { 
               setReportMode('by-wallet'); 
               if (!selectedReportWallet && wallets[0]) {
@@ -291,40 +303,41 @@ const Analytics: React.FC<AnalyticsProps> = ({
                 onFilterChange(wallets[0].id);
               }
             }}
-            className={`py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-2.5 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               reportMode === 'by-wallet' 
                 ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-black' 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <WalletIcon size={13} />
-            <span>فصل المحافظ</span>
+            <WalletIcon size={14} />
+            <span>حسب المحفظة</span>
           </button>
 
           <button
+            type="button"
             onClick={() => { 
               setReportMode('by-currency'); 
               if (!selectedReportCurrency && uniqueCurrenciesInTx[0]) {
                 setSelectedReportCurrency(uniqueCurrenciesInTx[0]);
               }
             }}
-            className={`py-2 px-2 rounded-xl text-[11px] font-black flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-2.5 px-2 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               reportMode === 'by-currency' 
                 ? 'bg-[#D9B978] text-[#0A0D10] shadow-md font-black' 
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            <Coins size={13} />
-            <span>فصل العملات</span>
+            <Coins size={14} />
+            <span>حسب العملة</span>
           </button>
         </div>
 
         {/* Sub-selector based on active mode */}
         {reportMode === 'by-wallet' && (
-          <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/5 flex items-center gap-3">
+          <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/10 flex items-center gap-3">
             <WalletIcon size={16} className="text-[#D9B978] shrink-0" />
             <div className="flex-1 min-w-0">
-              <label className="text-[9px] font-black text-slate-400 block mb-0.5">اختر المحفظة المستهدفة في التقرير:</label>
+              <label className="text-[10px] font-black text-slate-400 block mb-0.5">اختر المحفظة المستهدفة:</label>
               <select
                 value={selectedReportWallet}
                 onChange={(e) => {
@@ -335,7 +348,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
               >
                 {wallets.map(w => (
                   <option key={w.id} value={w.id} className="bg-[#11161C] text-white">
-                    {w.name} (عملتها الأساسية: {w.currencyCode})
+                    {w.name} ({w.currencyCode})
                   </option>
                 ))}
               </select>
@@ -344,10 +357,10 @@ const Analytics: React.FC<AnalyticsProps> = ({
         )}
 
         {reportMode === 'by-currency' && (
-          <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/5 flex items-center gap-3">
+          <div className="bg-[#0A0D10] p-3 rounded-2xl border border-white/10 flex items-center gap-3">
             <Coins size={16} className="text-[#D9B978] shrink-0" />
             <div className="flex-1 min-w-0">
-              <label className="text-[9px] font-black text-slate-400 block mb-0.5">اختر العملة المراد استخراج تقريرها المستقل:</label>
+              <label className="text-[10px] font-black text-slate-400 block mb-0.5">اختر العملة المستهدفة:</label>
               <select
                 value={selectedReportCurrency}
                 onChange={(e) => setSelectedReportCurrency(e.target.value)}
@@ -365,30 +378,6 @@ const Analytics: React.FC<AnalyticsProps> = ({
             </div>
           </div>
         )}
-
-        {/* Action Buttons for Print & Export */}
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          <button 
-            onClick={() => handleTriggerPrint('summary')}
-            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-[#D9B978] text-[#0A0D10] font-black rounded-2xl text-xs uppercase transition-all active:scale-95 shadow-lg shadow-[#D9B978]/10 hover:bg-[#c9a764]"
-          >
-            <Printer size={16} /> <span>طباعة ملخص تنفيذي</span>
-          </button>
-          
-          <button 
-            onClick={() => handleTriggerPrint('detailed')}
-            className="flex items-center justify-center gap-2 py-3.5 px-4 bg-[#1A222C] text-[#F4F1EA] font-bold rounded-2xl text-xs uppercase transition-all active:scale-95 border border-white/10 hover:bg-[#232D3A]"
-          >
-            <FileText size={16} className="text-[#D9B978]" /> <span>كشف حساب تفصيلي</span>
-          </button>
-        </div>
-
-        <button 
-          onClick={handleExportCSV}
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#0A0D10] border border-white/10 text-slate-300 rounded-2xl text-xs font-bold uppercase transition-all active:scale-95 hover:text-white hover:border-[#8EB9A7]/40"
-        >
-          <Download size={15} className="text-[#8EB9A7]" /> <span>تصدير كشف حساب جدول البيانات Excel (CSV)</span>
-        </button>
       </div>
 
       {/* Spending Distribution Breakdown Section */}

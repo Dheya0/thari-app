@@ -2255,18 +2255,21 @@ const App: React.FC = () => {
                   </span>
                 </button>
 
-                {/* Tools Hub Button */}
+                {/*Tools Hub Button */}
                 <button
                   type="button"
                   onClick={() => {
                     NativeHaptics.selection().catch(() => {});
                     setShowToolsHub(true);
                   }}
-                  aria-label="مركز الأدوات والتقارير"
-                  className="relative p-2 rounded-xl border border-white/10 text-slate-400 bg-white/5 hover:bg-white/10 hover:text-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer flex items-center justify-center min-w-[38px] min-h-[38px]"
-                  title="مركز الأدوات والتقارير"
+                  aria-label="مركز الأدوات والخيارات المهمة"
+                  className="relative flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-[#D9B978]/35 text-[#F4F1EA] bg-[#141B24]/90 hover:bg-[#1C2633] hover:border-[#D9B978] transition-all shrink-0 active:scale-95 cursor-pointer min-w-[38px] min-h-[38px]"
+                  title="مركز الأدوات والخيارات المهمة"
                 >
-                  <Sparkles size={15} className="sm:w-4 sm:h-4 text-[#D9B978]/90" />
+                  <Sparkles size={15} className="sm:w-4 sm:h-4 text-[#D9B978]" />
+                  <span className="hidden sm:inline font-black text-xs text-[#F4F1EA]">
+                    {state.language === 'en' ? 'Tools' : 'الأدوات'}
+                  </span>
                   {((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0) && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[#D9B978] rounded-full ring-2 ring-[#0A0D10]" />
                   )}
@@ -2377,26 +2380,24 @@ const App: React.FC = () => {
                     onToggleSeparateCurrencies={(val) => setState(p => ({ ...p, showSeparateCurrencies: val }))}
                     onOpenGoals={() => setActiveTab('goals')}
                     onOpenBudgets={() => setActiveTab('budgets')}
+                    onOpenForecast={() => setActiveTab('forecast')}
+                    onOpenRecurring={() => setShowRecurringModal(true)}
+                    onOpenZakat={() => setActiveTab('zakat')}
+                    onOpenSettings={() => setActiveTab('settings')}
                   />
                 )}
 
                 {(activeTab === 'forecast' || activeTab === 'reports') && (
-                  <FinancialSuiteTab
-                    initialSubTab={activeTab === 'forecast' ? 'forecast' : 'reports'}
+                  <CashflowForecast
                     transactions={state.transactions}
                     wallets={state.wallets}
-                    categories={state.categories}
                     recurringRules={state.recurringRules}
                     debts={state.debts}
                     budgets={state.budgets}
-                    goals={state.goals}
-                    currency={state.currency}
+                    baseCurrency={state.currency}
                     currencies={localizedCurrencies}
                     exchangeRates={state.exchangeRates}
-                    userName={state.userName}
                     language={activeLanguage}
-                    onPrint={handlePrint}
-                    onExportExcel={handleExportExcelReport}
                     onOpenRecurringManager={() => setShowRecurringModal(true)}
                     onOpenNewTransaction={(type) => {
                       setEditingTransaction(null);
@@ -2728,7 +2729,7 @@ const App: React.FC = () => {
                   <Plus size={24} strokeWidth={3.5} />
                 </motion.button>
 
-                <NavButton icon={<BookOpen />} label={activeLanguage === 'en' ? 'Statements' : 'التقارير'} active={activeTab === 'reports' || activeTab === 'forecast'} onClick={() => setActiveTab('reports')} />
+                <NavButton icon={<TrendingUp />} label={activeLanguage === 'en' ? 'Planning' : 'التخطيط'} active={activeTab === 'forecast' || activeTab === 'reports'} onClick={() => setActiveTab('forecast')} />
                 <NavButton icon={<SettingsIcon />} label={t.settings || (activeLanguage === 'en' ? 'Settings' : 'الإعدادات')} active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
             </nav>
         </div>
@@ -2741,7 +2742,7 @@ const App: React.FC = () => {
               onClose={() => setShowToolsHub(false)}
               recurringRulesCount={state.recurringRules?.length || 0}
               trashCount={state.trashTransactions?.length || 0}
-              onOpenReports={() => setShowReportModal(true)}
+              onOpenForecast={() => { setShowToolsHub(false); setActiveTab('forecast'); }}
               onOpenRecurring={() => setShowRecurringModal(true)}
               onOpenTrash={() => setShowTrashModal(true)}
               onOpenZakat={() => { setShowToolsHub(false); setActiveTab('zakat'); }}
@@ -2763,26 +2764,6 @@ const App: React.FC = () => {
               onPermanentDelete={handlePermanentDelete}
               onEmptyTrash={handleEmptyTrash}
               language={state.language || 'ar'}
-            />
-          )}
-          {showReportModal && (
-            <ReportModal
-              isOpen={showReportModal}
-              onClose={() => setShowReportModal(false)}
-              transactions={state.transactions}
-              categories={state.categories}
-              wallets={state.wallets}
-              currencies={state.currencies}
-              currentCurrency={state.currency}
-              userName={state.userName}
-              exchangeRates={state.exchangeRates}
-              budgets={state.budgets}
-              debts={state.debts}
-              goals={state.goals}
-              initialType={printType}
-              initialWalletId={selectedWalletId}
-              initialCurrencyCode={printCurrencyFilter}
-              onTriggerPrint={handlePrint}
             />
           )}
           {showRecurringModal && (
@@ -2970,17 +2951,17 @@ const NavButton = React.memo(({ icon, label, active, onClick }: { icon: any, lab
       onClick();
     }} 
     aria-label={label}
-    className={`flex flex-col items-center justify-center gap-0.5 xs:gap-1 transition-transform duration-100 active:scale-90 flex-1 min-w-[38px] xs:min-w-[46px] group cursor-pointer select-none ${active ? 'text-[#D9B978]' : 'text-slate-500'}`}
+    className={`flex flex-col items-center justify-center gap-1 transition-transform duration-100 active:scale-90 flex-1 min-w-[44px] xs:min-w-[50px] py-1 group cursor-pointer select-none ${active ? 'text-[#D9B978]' : 'text-slate-300'}`}
   >
-    <div className={`p-1.5 xs:p-2 rounded-2xl transition-colors duration-150 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/20 to-[#D9B978]/5 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.25)] border border-[#D9B978]/30' : 'group-hover:bg-white/5'}`}>
-        {React.cloneElement(icon, { size: 19, strokeWidth: active ? 2.4 : 1.8 })}
+    <div className={`p-2 rounded-2xl transition-colors duration-150 relative ${active ? 'bg-gradient-to-b from-[#D9B978]/25 to-[#D9B978]/10 text-[#D9B978] shadow-[0_0_15px_rgba(217,185,120,0.3)] border border-[#D9B978]/40' : 'bg-white/[0.03] group-hover:bg-white/10 border border-transparent'}`}>
+        {React.cloneElement(icon, { size: 20, strokeWidth: active ? 2.5 : 2 })}
         {active && (
           <div 
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3.5 h-1 bg-[#D9B978] rounded-full shadow-[0_0_10px_#D9B978]" 
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-[#D9B978] rounded-full shadow-[0_0_10px_#D9B978]" 
           />
         )}
     </div>
-    <span className={`text-[8.5px] xs:text-[9.5px] font-black tracking-tight transition-colors duration-150 truncate max-w-[56px] text-center ${active ? 'opacity-100 text-[#D9B978]' : 'opacity-70 text-slate-400'}`}>{label}</span>
+    <span className={`text-[10px] xs:text-[11px] font-black tracking-tight transition-colors duration-150 truncate max-w-[62px] text-center ${active ? 'text-[#D9B978]' : 'text-slate-300'}`}>{label}</span>
   </button>
 ));
 

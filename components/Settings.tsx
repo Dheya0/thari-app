@@ -1963,38 +1963,20 @@ export default function Settings({
                    </div>
                  </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                    <button type="button" onClick={() => { setReportConfig({ type: 'detailed', currencyFilter: null, action: 'print' }); setShowReportModal(true); }} className="flex flex-col items-center justify-center gap-1.5 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-[#D9B978]/30 text-xs font-bold">
-                        <Printer size={18} className="text-[#D9B978]" />
-                        <span className="text-[10px]">{t.printStatement}</span>
-                    </button>
-                    <button type="button" onClick={() => { setReportConfig({ type: 'detailed', currencyFilter: null, action: 'share' }); setShowReportModal(true); }} className="flex flex-col items-center justify-center gap-1.5 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-emerald-500/30 text-xs font-bold">
-                        <FileDown size={18} className="text-emerald-400" />
-                        <span className="text-[10px]">{t.sharePdf}</span>
-                    </button>
-                    <button type="button" onClick={() => handleExportCSV('detailed', null)} className="flex flex-col items-center justify-center gap-1.5 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-[#8EB9A7]/40 text-xs font-bold">
+                <div className="grid grid-cols-1 gap-2">
+                    <button type="button" onClick={() => handleExportCSV('detailed', null)} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-[#8EB9A7]/40 text-xs font-bold cursor-pointer">
                         <FileSpreadsheet size={18} className="text-[#8EB9A7]" />
-                        <span className="text-[10px]">{t.exportExcel}</span>
+                        <span>{t.exportExcel}</span>
                     </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button type="button" onClick={() => onPrint?.('detailed', null, null, null, null)} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-xl active:scale-95 border border-white/10 text-xs font-bold text-white">
-                        <Printer size={14} className="text-[#D9B978]" />
-                        <span>{'طباعة'}</span>
-                    </button>
-                    <button type="button" onClick={() => onShare?.('detailed', null, null, null, null)} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-xl active:scale-95 border border-white/10 text-xs font-bold text-white">
-                        <Share2 size={14} className="text-sky-400" />
-                        <span>{'مشاركة'}</span>
-                    </button>
-                </div>
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button type="button" onClick={() => handleExportBackup()} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-xl active:scale-95 border border-white/10 text-xs font-bold text-white">
-                        <FileDown size={14} className="text-[#D9B978]" />
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                    <button type="button" onClick={() => handleExportBackup()} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-xl active:scale-95 border border-white/10 text-xs font-bold text-white cursor-pointer">
+                        <FileDown size={15} className="text-[#D9B978]" />
                         <span>{t.backupThari}</span>
                     </button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-xl active:scale-95 border border-white/10 text-xs font-bold text-white">
-                        <Upload size={14} className="text-slate-400" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-xl active:scale-95 border border-white/10 text-xs font-bold text-white cursor-pointer">
+                        <Upload size={15} className="text-slate-400" />
                         <span>{t.restoreBackup}</span>
                     </button>
                 </div>

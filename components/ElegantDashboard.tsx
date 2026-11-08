@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -16,9 +16,16 @@ import {
   Layers,
   Coins,
   X,
-  Check,
   ChevronDown,
-  Sparkles
+  HandCoins,
+  PieChart,
+  PiggyBank,
+  TrendingUp,
+  Repeat,
+  Scale,
+  Plus,
+  History,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { Wallet, Transaction, Category, Currency, Debt } from '../types';
 import { convertCurrency } from '../constants';
@@ -62,6 +69,10 @@ interface ElegantDashboardProps {
   onToggleSeparateCurrencies?: (enabled: boolean) => void;
   onOpenGoals?: () => void;
   onOpenBudgets?: () => void;
+  onOpenForecast?: () => void;
+  onOpenRecurring?: () => void;
+  onOpenZakat?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export const getGreeting = (lang: 'ar' | 'en' = 'ar'): { text: string; sub: string } => {
@@ -97,7 +108,6 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   exchangeRates,
   selectedWalletId,
   onSelectWallet,
-  onChangeCurrency,
   onOpenCurrencySelector,
   onOpenNewTransaction,
   onOpenDebts,
@@ -105,11 +115,14 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   onEditTransaction,
   onDeleteTransaction,
   language = 'ar',
-  isTravelMode = false,
   showSeparateCurrencies = false,
   onToggleSeparateCurrencies,
   onOpenGoals,
-  onOpenBudgets
+  onOpenBudgets,
+  onOpenForecast,
+  onOpenRecurring,
+  onOpenZakat,
+  onOpenSettings
 }) => {
   const lang = language || 'ar';
   const t = getTranslation(lang);
@@ -272,51 +285,53 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   }, [transactions, selectedWalletId]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-7 sm:space-y-9 pb-16 font-sans selection:bg-[#D9B978]/20">
+    <div className="w-full max-w-4xl mx-auto space-y-6 sm:space-y-8 pb-16 font-sans selection:bg-[#D9B978]/20">
       
       {/* ─────────────────────────────────────────────────────────────
-          1. HEADER: QUIET GREETING & STATUS
+          1. HEADER: GREETING & QUICK ACTIONS
       ───────────────────────────────────────────────────────────── */}
-      <section className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 sm:gap-3 pt-1 sm:pt-2 border-b border-white/[0.04] pb-3.5 sm:pb-5">
-        <div className="space-y-0.5 sm:space-y-1">
-          <span className="text-[11px] sm:text-xs font-medium tracking-wide text-[#D9B978] block">
+      <section className="flex items-center justify-between gap-3 pt-1 sm:pt-2 border-b border-white/[0.06] pb-3.5 sm:pb-4">
+        <div className="space-y-0.5 min-w-0">
+          <span className="text-xs font-bold tracking-wide text-[#D9B978] block truncate">
             {greeting.text}، {userName || (isEn ? 'Thari User' : 'مستخدم ثري')}
           </span>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-[#F4F1EA]">
+          <h1 className="text-lg sm:text-2xl font-black tracking-tight text-[#F4F1EA] truncate">
             {t.comprehensiveFinancialCenter}
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] sm:text-xs text-slate-400 font-normal">
-            {new Intl.DateTimeFormat(isEn ? 'en-US' : 'ar-SA', { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date())}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-slate-300 font-bold bg-[#171D24] border border-white/10 px-3 py-1.5 rounded-xl">
+            {new Intl.DateTimeFormat(isEn ? 'en-US' : 'ar-SA', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date())}
           </span>
         </div>
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. WEALTH HERO: SEPARATION BETWEEN WALLETS & CURRENCIES
+          2. WEALTH HERO CARD: CLEAR BALANCE, CURRENCY & METRICS
       ───────────────────────────────────────────────────────────── */}
       <motion.section 
-        initial={{ opacity: 0, y: 8 }}
+        initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/[0.06] shadow-[0_20px_60px_rgba(0,0,0,0.25)] space-y-5 sm:space-y-6"
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+        className="p-4 sm:p-6 md:p-7 rounded-3xl bg-gradient-to-b from-[#171D24] to-[#11161C] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.35)] space-y-5"
       >
         {/* Selected Wallet Filter Active Notification Banner */}
         {selectedWallet && (
           <div className="flex items-center justify-between bg-gradient-to-r from-[#8EB9A7]/20 via-[#171D24] to-[#171D24] border border-[#8EB9A7]/50 px-4 py-3 rounded-2xl shadow-sm">
             <div className="flex items-center gap-3 min-w-0">
               <div 
-                className="w-3.5 h-3.5 rounded-full shrink-0 shadow-md ring-2 ring-[#8EB9A7]/40" 
+                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-slate-950 font-black shadow-sm"
                 style={{ backgroundColor: selectedWallet.color || '#8EB9A7' }} 
-              />
+              >
+                <WalletIcon size={18} />
+              </div>
               <div className="truncate">
                 <span className="text-[11px] font-black text-[#8EB9A7] uppercase tracking-wider block">
                   {isEn ? 'Active Single-Wallet View' : 'عرض المحفظة المحددة فقط'}
                 </span>
-                <h3 className="text-sm sm:text-base font-bold text-white truncate">
-                  {selectedWallet.name} <span className="text-xs font-normal text-slate-300">({selectedWalletCurrencyObj.name})</span>
+                <h3 className="text-sm sm:text-base font-black text-white truncate">
+                  {selectedWallet.name} <span className="text-xs font-bold text-slate-300">({selectedWalletCurrencyObj.name})</span>
                 </h3>
               </div>
             </div>
@@ -324,130 +339,113 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
             <button
               type="button"
               onClick={() => onSelectWallet(null)}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-[#8EB9A7] text-white hover:text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shrink-0 shadow-sm cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-[#8EB9A7] text-slate-950 text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 shrink-0 shadow-sm cursor-pointer"
               title={isEn ? 'Show All Wallets' : 'عرض كافة المحافظ وإلغاء التحديد'}
             >
-              <span>{isEn ? 'All Wallets' : 'كافة المحافظ'}</span>
-              <X size={14} />
+              <span>{isEn ? 'All Wallets' : 'عرض الكل'}</span>
+              <X size={14} strokeWidth={2.5} />
             </button>
           </div>
         )}
 
-        <div className="space-y-3">
-          {/* Card Subheader: Title, Currency Switcher (if All Wallets), and Eye Toggle */}
+        <div className="space-y-3.5">
+          {/* Card Subheader: Title, Eye Toggle, and Currency Mode Switcher */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs sm:text-sm font-black text-slate-300">
                 {selectedWallet 
                   ? (isEn ? `Wallet Balance: ${selectedWallet.name}` : `رصيد المحفظة: ${selectedWallet.name}`)
                   : (currencyViewMode === 'separated' && currencyEntries.length > 1
-                      ? (isEn ? 'Independent Currencies' : 'العملات المنفصلة')
+                      ? (isEn ? 'Independent Currencies' : 'أرصدة العملات المستقلة')
                       : t.netWorth)}
               </span>
               <button
                 type="button"
                 onClick={toggleHideBalances}
-                className="p-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-slate-400 hover:text-[#D9B978] transition-colors flex items-center gap-1 text-[11px] touch-manipulation cursor-pointer"
+                className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-slate-200 hover:text-[#D9B978] transition-colors flex items-center gap-1.5 text-xs font-bold touch-manipulation cursor-pointer"
                 title={hideBalances ? (isEn ? 'Show figures' : 'إظهار الأرقام') : (isEn ? 'Hide figures' : 'إخفاء الأرقام')}
                 aria-label={hideBalances ? 'إظهار الأرقام' : 'إخفاء الأرقام'}
               >
-                {hideBalances ? <EyeOff size={13} className="text-[#D9B978]" /> : <Eye size={13} />}
-                <span className="text-[10px] hidden sm:inline">{hideBalances ? (isEn ? 'Hidden' : 'مخفي') : (isEn ? 'Hide' : 'إخفاء')}</span>
+                {hideBalances ? <EyeOff size={14} className="text-[#D9B978]" /> : <Eye size={14} className="text-[#D9B978]" />}
+                <span>{hideBalances ? (isEn ? 'Show' : 'إظهار') : (isEn ? 'Hide' : 'إخفاء')}</span>
               </button>
             </div>
 
             {/* Mode Controls: Consolidated vs Separated (when All Wallets) */}
             {!selectedWallet && currencyEntries.length > 1 && (
-              <div className="flex items-center bg-[#0D1217] p-1 rounded-xl border border-white/10 shadow-inner">
+              <div className="flex items-center bg-[#0A0D10] p-1 rounded-xl border border-white/10">
                 <button
                   type="button"
                   onClick={() => handleToggleCurrencyViewMode('consolidated')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                     currencyViewMode === 'consolidated'
                       ? 'bg-[#D9B978] text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-300 hover:text-white'
                   }`}
-                  title={isEn ? 'Consolidated total converted to base currency' : 'عرض المجموع الموحد محولاً للعملة الأساسية'}
                 >
-                  <Layers size={12} />
-                  <span>{isEn ? 'Aggregated' : 'مجموع موحد'}</span>
+                  <Layers size={13} />
+                  <span>{isEn ? 'Unified' : 'مجموع موحد'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleToggleCurrencyViewMode('separated')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                     currencyViewMode === 'separated'
                       ? 'bg-[#D9B978] text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
+                      : 'text-slate-300 hover:text-white'
                   }`}
-                  title={isEn ? 'Separated balances per currency without mixing' : 'فصل العملات المستقلة دون جمع غير متجانس'}
                 >
-                  <Coins size={12} />
+                  <Coins size={13} />
                   <span>{isEn ? 'Separated' : 'فصل العملات'}</span>
                 </button>
               </div>
             )}
 
             {!selectedWallet && growthInfo.rate !== 0 && (
-              <div className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${
+              <div className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-xl border ${
                 growthInfo.rate > 0 
-                  ? 'text-[#8EB9A7] bg-[#8EB9A7]/10' 
-                  : 'text-[#C98387] bg-[#C98387]/10'
+                  ? 'text-[#8EB9A7] bg-[#8EB9A7]/10 border-[#8EB9A7]/30' 
+                  : 'text-[#C98387] bg-[#C98387]/10 border-[#C98387]/30'
               }`}>
-                {growthInfo.rate > 0 ? <ArrowUp size={12} strokeWidth={2.2} /> : <ArrowDown size={12} strokeWidth={2.2} />}
+                {growthInfo.rate > 0 ? <ArrowUp size={13} strokeWidth={2.5} /> : <ArrowDown size={13} strokeWidth={2.5} />}
                 <span dir="ltr">{Math.abs(growthInfo.rate)}%</span>
-                <span className="text-[10px] font-normal opacity-80">{growthInfo.comparisonText}</span>
+                <span className="text-[11px] font-medium opacity-90">{growthInfo.comparisonText}</span>
               </div>
             )}
           </div>
 
           {/* DISPLAY CASE 1: SPECIFIC WALLET IS SELECTED */}
           {selectedWallet ? (
-            <div className="space-y-1.5 pt-1">
-              <div className="flex items-baseline gap-2.5 sm:gap-3 flex-wrap">
-                <span className={`font-light tracking-tight ${selectedWalletNativeBalance < 0 ? 'text-[#C98387]' : 'text-[#F4F1EA]'} font-numeric break-all text-4xl sm:text-5xl md:text-6xl`}>
+            <div className="space-y-2 pt-1">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className={`font-black tracking-tight ${selectedWalletNativeBalance < 0 ? 'text-[#C98387]' : 'text-[#F4F1EA]'} font-numeric break-all text-4xl sm:text-5xl md:text-6xl`}>
                   {displayFinancialValue(selectedWalletNativeBalance)}
                 </span>
-                <span className="text-xl sm:text-2xl font-bold text-[#D9B978]">
+                <span className="text-xl sm:text-2xl font-black text-[#D9B978]">
                   {selectedWalletCurrencyObj.symbol}
                 </span>
               </div>
               {selectedWalletCurrencyObj.code !== currency.code && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs text-slate-400 font-numeric">
-                    ≈ {displayFinancialValue(selectedWalletBalanceInBase)} {currency.symbol} <span className="text-[10px] text-slate-500">({isEn ? 'converted equivalent at current rate' : 'المعادل بالعملة الأساسية'})</span>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <p className="text-xs font-bold text-slate-300 font-numeric">
+                    ≈ {displayFinancialValue(selectedWalletBalanceInBase)} {currency.symbol} <span className="text-[11px] text-slate-400">({isEn ? 'in base currency' : 'المعادل بالعملة الأساسية'})</span>
                   </p>
                   {onOpenCurrencySelector && (
                     <button
                       type="button"
                       onClick={onOpenCurrencySelector}
-                      className="text-[11px] font-bold text-[#D9B978] hover:underline flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-[#D9B978]/15 border border-[#D9B978]/30 text-xs font-black text-[#D9B978] flex items-center gap-1 cursor-pointer active:scale-95"
                     >
-                      <Coins size={12} />
-                      <span>{isEn ? `Change Base (${currency.code})` : `تغيير الأساس (${currency.code})`}</span>
+                      <Coins size={13} />
+                      <span>{isEn ? `Change Base (${currency.code})` : `تغيير العملة (${currency.code})`}</span>
                     </button>
                   )}
                 </div>
               )}
             </div>
           ) : currencyViewMode === 'separated' && currencyEntries.length > 1 ? (
-            /* DISPLAY CASE 2: SEPARATED CURRENCIES VIEW (STRICT NON-MIXING) */
+            /* DISPLAY CASE 2: SEPARATED CURRENCIES VIEW */
             <div className="space-y-3 pt-1">
-              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs">
-                <span className="text-amber-300 font-bold flex items-center gap-1.5">
-                  <Coins size={14} className="text-amber-400" />
-                  {isEn ? 'Strict Currency Separation Active (No Mixed Totals)' : 'وضع فصل العملات مفعّل: الأرصدة مستقلة تماماً دون جمع غير متجانس'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleCurrencyViewMode('consolidated')}
-                  className="text-[11px] text-amber-200 underline hover:text-white"
-                >
-                  {isEn ? 'View Converted Total' : 'عرض المجموع المحول'}
-                </button>
-              </div>
-
-              {/* Currency Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {currencyEntries.map(([code, amt]) => {
                   const loc = getLocalizedCurrency(code, code, undefined, lang);
@@ -457,29 +455,29 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                   return (
                     <div 
                       key={code} 
-                      className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] hover:border-[#D9B978]/40 transition-all flex flex-col justify-between gap-3 shadow-sm"
+                      className="p-4 rounded-2xl bg-[#0A0D10]/80 border border-white/10 hover:border-[#D9B978]/40 transition-all flex flex-col justify-between gap-3 shadow-sm"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center font-bold text-xs shadow-xs">
+                          <div className="w-9 h-9 rounded-xl bg-[#D9B978]/20 border border-[#D9B978]/30 text-[#D9B978] flex items-center justify-center font-black text-xs">
                             {loc.symbol}
                           </div>
                           <div>
-                            <h4 className="text-xs font-bold text-white tracking-wide">{loc.name}</h4>
-                            <span className="text-[10px] text-slate-400 font-mono">{code}</span>
+                            <h4 className="text-xs font-black text-white">{loc.name}</h4>
+                            <span className="text-[11px] text-slate-400 font-mono">{code}</span>
                           </div>
                         </div>
-                        <span className="text-[11px] text-slate-400 font-medium">
+                        <span className="text-[11px] text-slate-300 font-bold bg-white/5 px-2 py-0.5 rounded-lg">
                           {walletCount} {isEn ? 'wallets' : 'محافظ'}
                         </span>
                       </div>
 
                       <div>
-                        <span className="text-[10px] text-slate-400 uppercase font-medium block">
+                        <span className="text-[11px] text-slate-400 font-bold block">
                           {isEn ? 'Current Balance' : 'الرصيد الفعلي'}
                         </span>
-                        <div className={`text-xl sm:text-2xl font-bold font-numeric tracking-tight ${isNeg ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
-                          {displayFinancialValue(amt)} <span className="text-xs font-normal text-slate-400 ms-1">{loc.symbol}</span>
+                        <div className={`text-xl sm:text-2xl font-black font-numeric tracking-tight ${isNeg ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
+                          {displayFinancialValue(amt)} <span className="text-xs font-bold text-slate-300 ms-1">{loc.symbol}</span>
                         </div>
                       </div>
                     </div>
@@ -490,8 +488,8 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           ) : (
             /* DISPLAY CASE 3: CONSOLIDATED GLOBAL TOTAL */
             <div className="space-y-3 pt-1">
-              <div className="flex items-baseline gap-2.5 sm:gap-3 flex-wrap">
-                <span className={`font-light tracking-tight text-[#F4F1EA] font-numeric break-all ${
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className={`font-black tracking-tight text-[#F4F1EA] font-numeric break-all ${
                   String(Math.round(Math.abs(netWorth || 0))).length > 12
                     ? 'text-2xl sm:text-3xl md:text-4xl'
                     : String(Math.round(Math.abs(netWorth || 0))).length > 8
@@ -504,15 +502,16 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                   <button
                     type="button"
                     onClick={onOpenCurrencySelector}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/40 hover:border-[#D9B978] text-[#D9B978] transition-all text-xs font-bold active:scale-95 cursor-pointer shadow-xs group"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/50 text-[#D9B978] transition-all text-xs font-black active:scale-95 cursor-pointer shadow-xs"
                     title={isEn ? `Change base currency (${currency.code})` : `تغيير العملة الأساسية للتطبيق (${currency.code})`}
                   >
-                    <span className="text-xl sm:text-2xl font-black">{currency.symbol}</span>
-                    <span className="text-xs font-mono opacity-80">{currency.code}</span>
-                    <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+                    <Coins size={15} />
+                    <span className="text-base sm:text-lg font-black">{currency.symbol}</span>
+                    <span className="text-xs font-mono opacity-90">({currency.code})</span>
+                    <ChevronDown size={14} />
                   </button>
                 ) : (
-                  <span className="text-lg sm:text-2xl font-normal text-[#D9B978]">
+                  <span className="text-xl sm:text-2xl font-black text-[#D9B978]">
                     {currency.symbol}
                   </span>
                 )}
@@ -522,34 +521,34 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
               {currencyEntries.length > 1 && (
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-2 px-0.5">
-                    <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
-                      <Coins size={12} className="text-[#D9B978]" />
-                      {isEn ? 'Currency Pockets (Live Breakdown)' : 'جيوب العملات الفعلية (الأرصدة الأصلية)'}
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Coins size={14} className="text-[#D9B978]" />
+                      {isEn ? 'Actual Balances by Currency' : 'الأرصدة الفعلية حسب كل عملة'}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleToggleCurrencyViewMode('separated')}
-                      className="text-[10px] font-bold text-[#D9B978] hover:underline"
+                      className="text-xs font-black text-[#D9B978] hover:underline cursor-pointer"
                     >
-                      {isEn ? 'Expand All' : 'فصل كبطاقات'}
+                      {isEn ? 'Separate Currencies' : 'فصل العملات كبطاقات'}
                     </button>
                   </div>
                   
-                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                  <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
                     {currencyEntries.map(([code, amt]) => {
                       const loc = getLocalizedCurrency(code, code, undefined, lang);
                       const isNeg = amt < 0;
                       return (
                         <div
                           key={code}
-                          className="shrink-0 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.08] hover:border-[#D9B978]/40 transition-all flex items-center gap-2.5 min-w-[110px]"
+                          className="shrink-0 px-3.5 py-2.5 rounded-2xl bg-[#0A0D10]/70 border border-white/10 flex items-center gap-2.5 min-w-[125px]"
                         >
-                          <span className="w-5 h-5 rounded-md bg-[#D9B978]/15 text-[#D9B978] flex items-center justify-center font-bold text-[10px]">
+                          <span className="w-7 h-7 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 text-[#D9B978] flex items-center justify-center font-black text-xs">
                             {loc.symbol}
                           </span>
                           <div>
-                            <span className="text-[10px] text-slate-400 block font-mono">{code}</span>
-                            <span className={`text-xs font-bold font-numeric block ${isNeg ? 'text-[#C98387]' : 'text-white'}`}>
+                            <span className="text-[11px] text-slate-300 font-bold block">{loc.name}</span>
+                            <span className={`text-xs sm:text-sm font-black font-numeric block ${isNeg ? 'text-[#C98387]' : 'text-white'}`}>
                               {displayFinancialValue(amt, true)}
                             </span>
                           </div>
@@ -563,198 +562,406 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
           )}
         </div>
 
-        {/* Triad Balance Metrics: Adapts based on whether single wallet is selected or all wallets */}
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4 pt-5 border-t border-white/[0.05]">
-          
+        {/* Triad Balance Metrics with Clear Icons */}
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 pt-4 border-t border-white/10">
           {selectedWallet ? (
-            /* Selected Wallet Metrics: Inflows, Outflows, Net Movement */
             <>
-              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
-                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
-                  {isEn ? 'Total Inflows' : 'إجمالي الواردات'}
-                </span>
-                <p className="text-base sm:text-xl font-medium text-[#8EB9A7] font-numeric tracking-tight truncate">
-                  {displayFinancialValue(selectedWalletInflows)}
-                  <span className="text-[10px] sm:text-xs text-[#8EB9A7]/70 ms-1 font-normal">{selectedWalletCurrencyObj.symbol}</span>
+              <div className="p-3 sm:p-4 rounded-2xl bg-[#0A0D10]/60 border border-white/10 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[#8EB9A7]">
+                  <ArrowUpRight size={15} strokeWidth={2.5} className="shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-300 truncate">
+                    {isEn ? 'Inflows' : 'إجمالي الواردات'}
+                  </span>
+                </div>
+                <p className="text-sm sm:text-lg font-black text-[#8EB9A7] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(selectedWalletInflows, true)}
+                  <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-bold">{selectedWalletCurrencyObj.symbol}</span>
                 </p>
               </div>
 
-              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
-                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
-                  {isEn ? 'Total Outflows' : 'إجمالي المصروفات'}
-                </span>
-                <p className="text-base sm:text-xl font-medium text-[#C98387] font-numeric tracking-tight truncate">
-                  {displayFinancialValue(selectedWalletOutflows)}
-                  <span className="text-[10px] sm:text-xs text-[#C98387]/70 ms-1 font-normal">{selectedWalletCurrencyObj.symbol}</span>
+              <div className="p-3 sm:p-4 rounded-2xl bg-[#0A0D10]/60 border border-white/10 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[#C98387]">
+                  <ArrowDownLeft size={15} strokeWidth={2.5} className="shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-300 truncate">
+                    {isEn ? 'Outflows' : 'إجمالي المصروفات'}
+                  </span>
+                </div>
+                <p className="text-sm sm:text-lg font-black text-[#C98387] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(selectedWalletOutflows, true)}
+                  <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-bold">{selectedWalletCurrencyObj.symbol}</span>
                 </p>
               </div>
 
-              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
-                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
-                  {isEn ? 'Net Movement' : 'صافي الحركة'}
-                </span>
-                <p className={`text-base sm:text-xl font-medium font-numeric tracking-tight truncate ${selectedWalletNetMovement >= 0 ? 'text-[#D9B978]' : 'text-[#C98387]'}`}>
-                  {selectedWalletNetMovement >= 0 ? '+' : ''}{displayFinancialValue(selectedWalletNetMovement)}
-                  <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{selectedWalletCurrencyObj.symbol}</span>
+              <div className="p-3 sm:p-4 rounded-2xl bg-[#0A0D10]/60 border border-white/10 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[#D9B978]">
+                  <TrendingUp size={15} strokeWidth={2.5} className="shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-300 truncate">
+                    {isEn ? 'Net Flow' : 'صافي الحركة'}
+                  </span>
+                </div>
+                <p className={`text-sm sm:text-lg font-black font-numeric tracking-tight truncate ${selectedWalletNetMovement >= 0 ? 'text-[#D9B978]' : 'text-[#C98387]'}`}>
+                  {selectedWalletNetMovement >= 0 ? '+' : ''}{displayFinancialValue(selectedWalletNetMovement, true)}
+                  <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-bold">{selectedWalletCurrencyObj.symbol}</span>
                 </p>
               </div>
             </>
           ) : (
-            /* All Wallets Global Triad: Available, Debts Owed to Me, Debts I Owe */
             <>
-              <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.03] space-y-1">
-                <span className="text-[11px] sm:text-xs font-normal text-slate-400 block truncate">
-                  {t.availableNow}
-                </span>
-                <p className="text-base sm:text-xl font-medium text-[#F4F1EA] font-numeric tracking-tight truncate">
-                  {displayFinancialValue(availableBalance)}
-                  <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">{currency.symbol}</span>
+              <div className="p-3 sm:p-4 rounded-2xl bg-[#0A0D10]/60 border border-white/10 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-[#D9B978]">
+                  <WalletIcon size={15} strokeWidth={2.3} className="shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-bold text-slate-300 truncate">
+                    {t.availableNow}
+                  </span>
+                </div>
+                <p className="text-sm sm:text-lg font-black text-[#F4F1EA] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(availableBalance, true)}
+                  <span className="text-[10px] sm:text-xs text-[#D9B978] ms-1 font-bold">{currency.symbol}</span>
                 </p>
               </div>
 
               <button 
                 type="button"
                 onClick={() => onOpenDebts('to_me')}
-                className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#8EB9A7]/5 border border-white/[0.03] hover:border-[#8EB9A7]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px] cursor-pointer"
+                className="p-3 sm:p-4 rounded-2xl bg-[#0A0D10]/60 hover:bg-[#8EB9A7]/15 border border-white/10 hover:border-[#8EB9A7]/40 text-start space-y-1.5 group transition-all duration-150 active:scale-[0.98] cursor-pointer"
               >
-                <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#8EB9A7] transition-colors block truncate">
-                  {t.youOweOthers}
-                </span>
-                <p className="text-base sm:text-xl font-medium text-[#8EB9A7] font-numeric tracking-tight truncate">
-                  {displayFinancialValue(debtsOwedToMe)}
-                  <span className="text-[10px] sm:text-xs text-[#8EB9A7]/70 ms-1 font-normal">{currency.symbol}</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 text-[#8EB9A7] min-w-0">
+                    <HandCoins size={15} strokeWidth={2.3} className="shrink-0" />
+                    <span className="text-[11px] sm:text-xs font-bold text-slate-300 group-hover:text-white truncate">
+                      {t.youOweOthers}
+                    </span>
+                  </div>
+                  {isEn ? <ChevronRight size={13} className="text-slate-500 shrink-0" /> : <ChevronLeft size={13} className="text-slate-500 shrink-0" />}
+                </div>
+                <p className="text-sm sm:text-lg font-black text-[#8EB9A7] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(debtsOwedToMe, true)}
+                  <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-bold">{currency.symbol}</span>
                 </p>
               </button>
 
               <button 
                 type="button"
                 onClick={() => onOpenDebts('on_me')}
-                className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.02] hover:bg-[#C98387]/5 border border-white/[0.03] hover:border-[#C98387]/20 text-start space-y-1 group transition-all duration-200 active:scale-[0.98] min-h-[48px] cursor-pointer"
+                className="p-3 sm:p-4 rounded-2xl bg-[#0A0D10]/60 hover:bg-[#C98387]/15 border border-white/10 hover:border-[#C98387]/40 text-start space-y-1.5 group transition-all duration-150 active:scale-[0.98] cursor-pointer"
               >
-                <span className="text-[11px] sm:text-xs font-normal text-slate-400 group-hover:text-[#C98387] transition-colors block truncate">
-                  {t.othersOweYou}
-                </span>
-                <p className="text-base sm:text-xl font-medium text-[#C98387] font-numeric tracking-tight truncate">
-                  {displayFinancialValue(debtsIOwe)}
-                  <span className="text-[10px] sm:text-xs text-[#C98387]/70 ms-1 font-normal">{currency.symbol}</span>
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5 text-[#C98387] min-w-0">
+                    <HandCoins size={15} strokeWidth={2.3} className="shrink-0" />
+                    <span className="text-[11px] sm:text-xs font-bold text-slate-300 group-hover:text-white truncate">
+                      {t.othersOweYou}
+                    </span>
+                  </div>
+                  {isEn ? <ChevronRight size={13} className="text-slate-500 shrink-0" /> : <ChevronLeft size={13} className="text-slate-500 shrink-0" />}
+                </div>
+                <p className="text-sm sm:text-lg font-black text-[#C98387] font-numeric tracking-tight truncate">
+                  {displayFinancialValue(debtsIOwe, true)}
+                  <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-bold">{currency.symbol}</span>
                 </p>
               </button>
             </>
           )}
-
         </div>
       </motion.section>
 
       {/* ─────────────────────────────────────────────────────────────
-          3. ACTION BAR: CLEAN DIRECT TRIGGERS (THUMB ZONE OPTIMIZED)
+          3. PRIMARY OPERATIONS: PROMINENT ACTION BUTTONS WITH CLEAR ICONS
       ───────────────────────────────────────────────────────────── */}
-      <section className="space-y-2.5">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xs sm:text-sm font-black text-slate-200 flex items-center gap-2">
+            <Plus size={16} className="text-[#D9B978]" strokeWidth={2.5} />
+            <span>{isEn ? 'Quick Financial Operations' : 'العمليات المالية السريعة'}</span>
+          </h2>
+          <span className="text-[11px] text-slate-400 font-bold">
+            {isEn ? 'Tap to record immediately' : 'اختر نوع العملية للتسجيل الفوري'}
+          </span>
+        </div>
+
         <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+          {/* Expense Button */}
           <button
             type="button"
             onClick={() => {
               NativeHaptics.selection().catch(() => {});
               onOpenNewTransaction('expense');
             }}
-            className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#C98387]/15 border border-white/[0.06] hover:border-[#C98387]/30 text-white/90 hover:text-[#C98387] transition-all duration-150 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
+            className="flex flex-col sm:flex-row items-center sm:justify-start gap-2.5 sm:gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-[#171D24] hover:bg-[#C98387]/15 border border-[#C98387]/35 hover:border-[#C98387] text-white transition-all duration-150 active:scale-95 group shadow-md cursor-pointer text-center sm:text-start"
           >
-            <div className="w-6 h-6 rounded-full bg-[#C98387]/15 flex items-center justify-center text-[#C98387] group-hover:scale-110 transition-transform">
-              <ArrowDownLeft size={14} strokeWidth={2.2} />
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#C98387]/20 border border-[#C98387]/40 flex items-center justify-center text-[#C98387] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <ArrowDownLeft size={22} strokeWidth={2.5} />
             </div>
-            <span className="truncate">{t.expenses}</span>
+            <div className="min-w-0">
+              <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#C98387] block truncate">
+                {isEn ? 'Record Expense' : 'تسجيل مصروف'}
+              </span>
+              <span className="text-[10px] sm:text-xs text-slate-400 hidden xs:block truncate mt-0.5">
+                {isEn ? 'Deduct from wallet' : 'خصم من المحفظة'}
+              </span>
+            </div>
           </button>
 
+          {/* Income Button */}
           <button
             type="button"
             onClick={() => {
               NativeHaptics.selection().catch(() => {});
               onOpenNewTransaction('income');
             }}
-            className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#8EB9A7]/15 border border-white/[0.06] hover:border-[#8EB9A7]/30 text-white/90 hover:text-[#8EB9A7] transition-all duration-150 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
+            className="flex flex-col sm:flex-row items-center sm:justify-start gap-2.5 sm:gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-[#171D24] hover:bg-[#8EB9A7]/15 border border-[#8EB9A7]/35 hover:border-[#8EB9A7] text-white transition-all duration-150 active:scale-95 group shadow-md cursor-pointer text-center sm:text-start"
           >
-            <div className="w-6 h-6 rounded-full bg-[#8EB9A7]/15 flex items-center justify-center text-[#8EB9A7] group-hover:scale-110 transition-transform">
-              <ArrowUpRight size={14} strokeWidth={2.2} />
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#8EB9A7]/20 border border-[#8EB9A7]/40 flex items-center justify-center text-[#8EB9A7] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <ArrowUpRight size={22} strokeWidth={2.5} />
             </div>
-            <span className="truncate">{t.income}</span>
+            <div className="min-w-0">
+              <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#8EB9A7] block truncate">
+                {isEn ? 'Record Income' : 'تسجيل دخل'}
+              </span>
+              <span className="text-[10px] sm:text-xs text-slate-400 hidden xs:block truncate mt-0.5">
+                {isEn ? 'Add to wallet' : 'إيداع في المحفظة'}
+              </span>
+            </div>
           </button>
 
+          {/* Transfer Button */}
           <button
             type="button"
             onClick={() => {
               NativeHaptics.selection().catch(() => {});
               onOpenNewTransaction('transfer');
             }}
-            className="flex items-center justify-center gap-2 py-4 px-3.5 rounded-2xl bg-[#171D24]/90 hover:bg-[#759BC8]/15 border border-white/[0.06] hover:border-[#759BC8]/30 text-white/90 hover:text-[#759BC8] transition-all duration-150 active:scale-95 active:opacity-80 group text-xs sm:text-sm font-medium shadow-sm min-h-[50px] cursor-pointer"
+            className="flex flex-col sm:flex-row items-center sm:justify-start gap-2.5 sm:gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-[#171D24] hover:bg-[#759BC8]/15 border border-[#759BC8]/35 hover:border-[#759BC8] text-white transition-all duration-150 active:scale-95 group shadow-md cursor-pointer text-center sm:text-start"
           >
-            <div className="w-6 h-6 rounded-full bg-[#759BC8]/15 flex items-center justify-center text-[#759BC8] group-hover:scale-110 transition-transform">
-              <ArrowLeftRight size={14} strokeWidth={2.2} />
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#759BC8]/20 border border-[#759BC8]/40 flex items-center justify-center text-[#759BC8] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <ArrowLeftRight size={22} strokeWidth={2.5} />
             </div>
-            <span className="truncate">{t.transfer}</span>
+            <div className="min-w-0">
+              <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#759BC8] block truncate">
+                {isEn ? 'Transfer Funds' : 'تحويل محفظة'}
+              </span>
+              <span className="text-[10px] sm:text-xs text-slate-400 hidden xs:block truncate mt-0.5">
+                {isEn ? 'Between wallets' : 'نقل وصرف عملات'}
+              </span>
+            </div>
           </button>
         </div>
-
-        {(onOpenBudgets || onOpenGoals) && (
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:hidden">
-            {onOpenBudgets && (
-              <button
-                type="button"
-                onClick={() => {
-                  NativeHaptics.selection().catch(() => {});
-                  onOpenBudgets();
-                }}
-                className="flex items-center justify-between py-3 px-3.5 rounded-2xl bg-[#11161C] hover:bg-[#171D24] border border-white/[0.06] text-slate-300 hover:text-[#759BC8] transition-all duration-150 active:scale-[0.98] text-xs font-medium min-h-[46px] cursor-pointer"
-              >
-                <span className="flex items-center gap-2 truncate">
-                  <Layers size={14} className="text-[#759BC8] shrink-0" />
-                  <span className="truncate">{isEn ? 'Monthly Budgets' : 'إدارة الميزانية'}</span>
-                </span>
-                {isEn ? <ChevronRight size={14} className="text-slate-500 shrink-0" /> : <ChevronLeft size={14} className="text-slate-500 shrink-0" />}
-              </button>
-            )}
-            {onOpenGoals && (
-              <button
-                type="button"
-                onClick={() => {
-                  NativeHaptics.selection().catch(() => {});
-                  onOpenGoals();
-                }}
-                className="flex items-center justify-between py-3 px-3.5 rounded-2xl bg-[#11161C] hover:bg-[#171D24] border border-white/[0.06] text-slate-300 hover:text-[#D9B978] transition-all duration-150 active:scale-[0.98] text-xs font-medium min-h-[46px] cursor-pointer"
-              >
-                <span className="flex items-center gap-2 truncate">
-                  <Coins size={14} className="text-[#D9B978] shrink-0" />
-                  <span className="truncate">{isEn ? 'Savings Goals' : 'الأهداف المالية'}</span>
-                </span>
-                {isEn ? <ChevronRight size={14} className="text-slate-500 shrink-0" /> : <ChevronLeft size={14} className="text-slate-500 shrink-0" />}
-              </button>
-            )}
-          </div>
-        )}
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          4. WALLETS SECTION (INTERACTIVE SEPARATION & ISOLATION)
+          4. IMPORTANT OPTIONS & TOOLS GRID (الخيارات والأدوات المهمة)
+      ───────────────────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xs sm:text-sm font-black text-slate-200 flex items-center gap-2">
+            <Layers size={16} className="text-[#D9B978]" strokeWidth={2.3} />
+            <span>{isEn ? 'Important Options & Financial Tools' : 'الخيارات والأدوات المهمة'}</span>
+          </h2>
+          <span className="text-[11px] text-slate-400 font-bold">
+            {isEn ? 'Direct access' : 'وصول سريع ومباشر'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
+          {/* Option 1: Debts Manager */}
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              onOpenDebts('all');
+            }}
+            className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#D9B978]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] shrink-0 group-hover:scale-105 transition-transform">
+                <HandCoins size={20} strokeWidth={2.2} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#D9B978] block truncate">
+                  {isEn ? 'Debts & Dues' : 'الديون والالتزامات'}
+                </span>
+                <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
+                  {isEn ? 'Track & settle debts' : 'ديون لك وعليك والسداد'}
+                </span>
+              </div>
+            </div>
+            {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" />}
+          </button>
+
+          {/* Option 2: Monthly Budgets */}
+          {onOpenBudgets && (
+            <button
+              type="button"
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                onOpenBudgets();
+              }}
+              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#759BC8]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#759BC8]/15 border border-[#759BC8]/30 flex items-center justify-center text-[#759BC8] shrink-0 group-hover:scale-105 transition-transform">
+                  <PieChart size={20} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#759BC8] block truncate">
+                    {isEn ? 'Monthly Budgets' : 'الميزانية الشهرية'}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
+                    {isEn ? 'Spending limits' : 'سقوف الصرف والتنبيهات'}
+                  </span>
+                </div>
+              </div>
+              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#759BC8] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#759BC8] shrink-0" />}
+            </button>
+          )}
+
+          {/* Option 3: Savings Goals */}
+          {onOpenGoals && (
+            <button
+              type="button"
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                onOpenGoals();
+              }}
+              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#8EB9A7]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 flex items-center justify-center text-[#8EB9A7] shrink-0 group-hover:scale-105 transition-transform">
+                  <PiggyBank size={20} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#8EB9A7] block truncate">
+                    {isEn ? 'Savings Goals' : 'الأهداف والادخار'}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
+                    {isEn ? 'Target funds' : 'خطط التوفير والطوارئ'}
+                  </span>
+                </div>
+              </div>
+              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" />}
+            </button>
+          )}
+
+          {/* Option 4: Cashflow & Planning */}
+          {onOpenForecast && (
+            <button
+              type="button"
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                onOpenForecast();
+              }}
+              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#D9B978]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] shrink-0 group-hover:scale-105 transition-transform">
+                  <TrendingUp size={20} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#D9B978] block truncate">
+                    {isEn ? 'Cashflow Planning' : 'التخطيط والسيولة'}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
+                    {isEn ? 'Future forecast' : 'توقعات الرصيد المستقبلي'}
+                  </span>
+                </div>
+              </div>
+              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" />}
+            </button>
+          )}
+
+          {/* Option 5: Recurring Rules */}
+          {onOpenRecurring && (
+            <button
+              type="button"
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                onOpenRecurring();
+              }}
+              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#8EB9A7]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 flex items-center justify-center text-[#8EB9A7] shrink-0 group-hover:scale-105 transition-transform">
+                  <Repeat size={20} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#8EB9A7] block truncate">
+                    {isEn ? 'Recurring Rules' : 'العمليات الدورية'}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
+                    {isEn ? 'Automated bills' : 'رواتب والتزامات مجدولة'}
+                  </span>
+                </div>
+              </div>
+              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" />}
+            </button>
+          )}
+
+          {/* Option 6: Zakat Calculator */}
+          {onOpenZakat && (
+            <button
+              type="button"
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                onOpenZakat();
+              }}
+              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-emerald-400/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
+                  <Scale size={20} strokeWidth={2.2} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-emerald-400 block truncate">
+                    {isEn ? 'Zakat Calculator' : 'حاسبة الزكاة'}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
+                    {isEn ? 'Sharia calculation' : 'حساب النصاب والزكاة'}
+                  </span>
+                </div>
+              </div>
+              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-emerald-400 shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-emerald-400 shrink-0" />}
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* ─────────────────────────────────────────────────────────────
+          5. WALLETS SECTION: TACTILE CARDS WITH CLEAR ICONS
       ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <WalletIcon size={16} className="text-[#D9B978]" strokeWidth={2.3} />
+            <h2 className="text-xs sm:text-sm font-black text-slate-200">
               {t.walletsManagement}
             </h2>
-            <span className="text-[10px] text-slate-500 font-medium">({wallets.length})</span>
+            <span className="text-xs text-slate-400 font-bold">({wallets.length})</span>
           </div>
-          {selectedWalletId && (
-            <button
-              type="button"
-              onClick={() => onSelectWallet(null)}
-              className="text-xs text-[#D9B978] hover:underline p-1 min-h-[36px] flex items-center gap-1 font-bold cursor-pointer"
-            >
-              <span>{t.allWallets}</span>
-              <X size={12} />
-            </button>
-          )}
+
+          <div className="flex items-center gap-2">
+            {selectedWalletId && (
+              <button
+                type="button"
+                onClick={() => onSelectWallet(null)}
+                className="px-2.5 py-1.5 rounded-xl bg-[#8EB9A7]/15 border border-[#8EB9A7]/40 text-xs text-[#8EB9A7] flex items-center gap-1 font-black cursor-pointer active:scale-95"
+              >
+                <span>{t.allWallets}</span>
+                <X size={13} />
+              </button>
+            )}
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="px-2.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-xs text-slate-300 hover:text-[#D9B978] flex items-center gap-1.5 font-bold cursor-pointer active:scale-95"
+              >
+                <SettingsIcon size={13} className="text-[#D9B978]" />
+                <span>{isEn ? 'Manage Wallets' : 'إدارة المحافظ'}</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="divide-y divide-white/[0.04] border-y border-white/[0.05]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
           {walletRows.map(w => {
             const isSelected = selectedWalletId === w.id;
             return (
@@ -762,44 +969,46 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                 type="button"
                 key={w.id}
                 onClick={() => onSelectWallet(isSelected ? null : w.id)}
-                className={`w-full flex items-center justify-between py-4 px-3.5 hover:bg-white/[0.03] transition-all duration-200 active:scale-[0.99] rounded-2xl text-start min-h-[54px] cursor-pointer ${
+                className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-150 active:scale-[0.99] text-start cursor-pointer border ${
                   isSelected 
-                    ? 'bg-gradient-to-r from-[#8EB9A7]/15 via-[#171D24] to-[#171D24] border border-[#8EB9A7] ring-1 ring-[#8EB9A7]/40 shadow-sm' 
-                    : ''
+                    ? 'bg-gradient-to-r from-[#8EB9A7]/20 via-[#171D24] to-[#171D24] border-[#8EB9A7] ring-1 ring-[#8EB9A7]/40 shadow-md' 
+                    : 'bg-[#141A21] hover:bg-[#1A222C] border-white/10 hover:border-[#D9B978]/40'
                 }`}
                 title={isSelected ? (isEn ? 'Click to show all wallets' : 'انقر لإلغاء التحديد وعرض كافة المحافظ') : (isEn ? 'Click to isolate this wallet' : 'انقر لفصل وعرض هذه المحفظة فقط')}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div 
-                    className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm ring-1 ring-white/10" 
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-slate-950 shadow-xs" 
                     style={{ backgroundColor: w.color || '#D9B978' }} 
-                  />
+                  >
+                    <WalletIcon size={18} strokeWidth={2.4} />
+                  </div>
                   <div className="truncate">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-[#F4F1EA] block truncate">
+                      <span className="text-sm font-black text-[#F4F1EA] block truncate">
                         {w.name}
                       </span>
                       {isSelected && (
-                        <span className="text-[10px] bg-[#8EB9A7] text-slate-950 font-black px-2 py-0.5 rounded-full shrink-0">
-                          {isEn ? 'Active' : 'محددة'}
+                        <span className="text-[10px] bg-[#8EB9A7] text-slate-950 font-black px-2 py-0.5 rounded-lg shrink-0">
+                          {isEn ? 'Selected' : 'محددة'}
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-400 font-bold">
                       {w.currencyObj.name} ({w.currencyCode})
                     </span>
                   </div>
                 </div>
 
                 <div className="text-end shrink-0 ms-3">
-                  <div className={`text-sm sm:text-base font-bold font-numeric tracking-tight ${w.nativeBalance < 0 ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
+                  <div className={`text-sm sm:text-base font-black font-numeric tracking-tight ${w.nativeBalance < 0 ? 'text-[#C98387]' : 'text-[#8EB9A7]'}`}>
                     {displayFinancialValue(w.nativeBalance, true)}
-                    <span className="text-xs text-slate-400 ms-1.5 font-normal">
+                    <span className="text-xs text-slate-300 ms-1 font-bold">
                       {w.currencyObj.symbol}
                     </span>
                   </div>
                   {w.currencyCode !== currency.code && (
-                    <span className={`text-[10px] block font-numeric ${w.balanceInBase < 0 ? 'text-[#C98387]' : 'text-slate-400'}`}>
+                    <span className={`text-[11px] block font-numeric font-bold ${w.balanceInBase < 0 ? 'text-[#C98387]' : 'text-slate-400'}`}>
                       ≈ {displayFinancialValue(w.balanceInBase, true)} {currency.symbol}
                     </span>
                   )}
@@ -811,53 +1020,62 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          5. THIS MONTH SUMMARY (SCOPED BY WALLET IF FILTERED)
+          6. THIS MONTH SUMMARY (SCOPED BY WALLET IF FILTERED)
       ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              {t.monthlyIncome.replace('الدخل الشهري', 'هذا الشهر')}
+            <h2 className="text-xs sm:text-sm font-black text-slate-200">
+              {isEn ? 'This Month Summary' : 'ملخص حركة هذا الشهر'}
             </h2>
             {selectedWallet && (
-              <span className="text-[10px] text-[#8EB9A7] bg-[#8EB9A7]/10 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-[11px] text-[#8EB9A7] bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 px-2.5 py-0.5 rounded-lg font-black">
                 {selectedWallet.name}
               </span>
             )}
           </div>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-400 font-bold">
             {new Intl.DateTimeFormat(isEn ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' }).format(new Date())}
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 py-4 px-4 sm:px-6 rounded-2xl bg-[#171D24]/60 border border-white/[0.05]">
+        <div className="grid grid-cols-3 gap-2.5 sm:gap-3.5 p-4 sm:p-5 rounded-2xl bg-[#141A21] border border-white/10">
           <div className="space-y-1">
-            <span className="text-xs text-slate-400 block font-normal">{t.income}</span>
-            <div className="text-sm sm:text-base font-semibold text-[#8EB9A7] font-numeric tracking-tight">
+            <span className="text-xs text-slate-400 font-bold flex items-center gap-1">
+              <ArrowUpRight size={14} className="text-[#8EB9A7]" />
+              <span>{t.income}</span>
+            </span>
+            <div className="text-sm sm:text-lg font-black text-[#8EB9A7] font-numeric tracking-tight">
               {displayFinancialValue(monthlyIncome, true)}
-              <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-normal">
+              <span className="text-[10px] sm:text-xs text-[#8EB9A7]/80 ms-1 font-bold">
                 {selectedWallet ? selectedWalletCurrencyObj.symbol : currency.symbol}
               </span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <span className="text-xs text-slate-400 block font-normal">{t.expenses}</span>
-            <div className="text-sm sm:text-base font-semibold text-[#C98387] font-numeric tracking-tight">
+            <span className="text-xs text-slate-400 font-bold flex items-center gap-1">
+              <ArrowDownLeft size={14} className="text-[#C98387]" />
+              <span>{t.expenses}</span>
+            </span>
+            <div className="text-sm sm:text-lg font-black text-[#C98387] font-numeric tracking-tight">
               {displayFinancialValue(monthlyExpense, true)}
-              <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-normal">
+              <span className="text-[10px] sm:text-xs text-[#C98387]/80 ms-1 font-bold">
                 {selectedWallet ? selectedWalletCurrencyObj.symbol : currency.symbol}
               </span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <span className="text-xs text-slate-400 block font-normal">{t.net}</span>
-            <div className={`text-sm sm:text-base font-semibold font-numeric tracking-tight ${
+            <span className="text-xs text-slate-400 font-bold flex items-center gap-1">
+              <TrendingUp size={14} className="text-[#D9B978]" />
+              <span>{t.net}</span>
+            </span>
+            <div className={`text-sm sm:text-lg font-black font-numeric tracking-tight ${
               monthlyNet >= 0 ? 'text-[#D9B978]' : 'text-[#C98387]'
             }`}>
               {hideBalances ? '••••••' : (monthlyNet >= 0 ? '+' : '') + formatFinancialNumber(monthlyNet, true)}
-              <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-normal">
+              <span className="text-[10px] sm:text-xs text-slate-400 ms-1 font-bold">
                 {selectedWallet ? selectedWalletCurrencyObj.symbol : currency.symbol}
               </span>
             </div>
@@ -866,41 +1084,43 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
-          6. RECENT TRANSACTIONS (SCOPED TO SELECTED WALLET)
+          7. RECENT TRANSACTIONS (WITH CLEAR ICONS & ACTION BUTTONS)
       ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <History size={16} className="text-[#D9B978]" strokeWidth={2.3} />
+            <h2 className="text-xs sm:text-sm font-black text-slate-200">
               {t.recentTransactions}
             </h2>
             {selectedWallet && (
-              <span className="text-[10px] text-slate-400 font-normal">({selectedWallet.name})</span>
+              <span className="text-xs text-slate-400 font-bold">({selectedWallet.name})</span>
             )}
           </div>
           <button
             type="button"
             onClick={onOpenAllTransactions}
-            className="text-xs text-[#D9B978] hover:text-[#D9B978]/80 transition-colors flex items-center gap-1 font-medium p-1 min-h-[36px] cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/30 text-xs text-[#D9B978] transition-colors flex items-center gap-1 font-black cursor-pointer active:scale-95"
           >
             <span>{t.viewAll}</span>
-            {isEn ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+            {isEn ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
         </div>
 
         {recentTransactions.length === 0 ? (
-          <div className="py-10 text-center border border-dashed border-white/10 rounded-2xl">
-            <p className="text-xs text-slate-400">{t.noTransactionsYet}</p>
+          <div className="py-10 text-center border border-dashed border-white/15 rounded-2xl bg-[#141A21]/50">
+            <p className="text-xs sm:text-sm font-bold text-slate-400">{t.noTransactionsYet}</p>
             <button
               type="button"
               onClick={() => onOpenNewTransaction('expense')}
-              className="mt-3 text-xs font-medium text-[#D9B978] hover:underline min-h-[44px] inline-flex items-center cursor-pointer"
+              className="mt-3 px-4 py-2.5 rounded-xl bg-[#D9B978] text-slate-950 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
             >
-              {isEn ? 'Record first financial movement' : 'تسجيل أول حركة مالية'}
+              <Plus size={15} strokeWidth={2.5} />
+              <span>{isEn ? 'Record first operation' : 'تسجيل أول عملية مالية'}</span>
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {recentTransactions.map(tx => {
               const category = categories.find(c => c.id === tx.categoryId);
               const wallet = wallets.find(w => w.id === tx.walletId);
@@ -920,49 +1140,71 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                   className="rounded-2xl"
                 >
                   <div
-                    className="flex items-center justify-between py-3.5 px-3.5 bg-[#171D24] hover:bg-[#1C242E] border border-white/[0.05] hover:border-[#D9B978]/30 transition-colors duration-150 rounded-2xl cursor-pointer group min-h-[56px]"
-                    title="اسحب لليمين/اليسار لتعديل أو حذف المعاملة"
+                    className="flex items-center justify-between py-3.5 px-3.5 sm:px-4 bg-[#141A21] hover:bg-[#1A222C] border border-white/10 hover:border-[#D9B978]/40 transition-colors duration-150 rounded-2xl cursor-pointer group min-h-[60px]"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
                         isIncome 
-                          ? 'bg-[#8EB9A7]/15 text-[#8EB9A7]' 
+                          ? 'bg-[#8EB9A7]/15 text-[#8EB9A7] border-[#8EB9A7]/30' 
                           : isExpense 
-                          ? 'bg-[#C98387]/15 text-[#C98387]' 
-                          : 'bg-[#759BC8]/15 text-[#759BC8]'
+                          ? 'bg-[#C98387]/15 text-[#C98387] border-[#C98387]/30' 
+                          : 'bg-[#759BC8]/15 text-[#759BC8] border-[#759BC8]/30'
                       }`}>
-                        {isIncome && <ArrowUpRight size={17} />}
-                        {isExpense && <ArrowDownLeft size={17} />}
-                        {isTransfer && <ArrowLeftRight size={17} />}
+                        {isIncome && <ArrowUpRight size={19} strokeWidth={2.4} />}
+                        {isExpense && <ArrowDownLeft size={19} strokeWidth={2.4} />}
+                        {isTransfer && <ArrowLeftRight size={19} strokeWidth={2.4} />}
+                        {!isIncome && !isExpense && !isTransfer && <WalletIcon size={18} strokeWidth={2.2} />}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <span className="text-sm font-semibold text-[#F4F1EA] group-hover:text-[#D9B978] transition-colors block truncate">
+                        <span className="text-sm font-black text-[#F4F1EA] group-hover:text-[#D9B978] transition-colors block truncate">
                           {tx.note || category?.name || (isTransfer ? (isEn ? 'Transfer between wallets' : 'تحويل بين المحافظ') : (isEn ? 'Financial operation' : 'عملية مالية'))}
                         </span>
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                          <span className="truncate max-w-[100px]">{wallet?.name || t.wallet}</span>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-bold mt-0.5">
+                          <span className="truncate max-w-[110px]">{wallet?.name || t.wallet}</span>
                           <span>•</span>
                           <span className="shrink-0">{tx.date}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 ms-2">
+                    <div className="flex items-center gap-2.5 shrink-0 ms-2">
                       <div className="text-end font-numeric">
-                        <span className={`text-sm sm:text-base font-semibold ${
+                        <span className={`text-sm sm:text-base font-black ${
                           isIncome 
                             ? 'text-[#8EB9A7]' 
                             : isExpense 
-                            ? 'text-[#F4F1EA]' 
+                            ? 'text-[#C98387]' 
                             : 'text-[#759BC8]'
                         }`}>
                           {isIncome ? '+' : isExpense ? '-' : ''}
                           {formatFinancialNumber(tx.amount)}
                         </span>
-                        <span className="text-xs text-slate-400 ms-1 font-normal">
+                        <span className="text-xs text-slate-300 ms-1 font-bold">
                           {tx.currency || currency.symbol}
                         </span>
+                      </div>
+
+                      {/* Explicit Edit / Delete Quick Buttons for Clear Visibility */}
+                      <div className="flex items-center gap-1 ps-1 border-s border-white/10" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => onEditTransaction(tx)}
+                          className="p-2 rounded-xl bg-white/[0.04] hover:bg-[#D9B978]/20 text-slate-300 hover:text-[#D9B978] transition-colors active:scale-90 cursor-pointer"
+                          title={isEn ? 'Edit' : 'تعديل'}
+                          aria-label={isEn ? 'Edit' : 'تعديل'}
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteTransaction(tx.id)}
+                          className="p-2 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 transition-colors active:scale-90 cursor-pointer"
+                          title={isEn ? 'Delete' : 'حذف'}
+                          aria-label={isEn ? 'Delete' : 'حذف'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
