@@ -151,6 +151,8 @@ export interface ReportLedgerEntry {
   baseCurrencySymbol: string;
   runningBalance?: number;
   currencyRunningBalance?: number; // Running balance purely within this transaction's native currency stream
+  walletRunningBalance?: number;   // Running balance purely within this transaction's specific wallet
+  walletEntryDirection?: 'inflow' | 'outflow';
 }
 
 export interface ReportCurrencyLedgerGroup {
@@ -161,6 +163,21 @@ export interface ReportCurrencyLedgerGroup {
   totalExpense: number;
   netAmount: number;
   closingBalance: number;
+  transactions: ReportLedgerEntry[];
+}
+
+export interface ReportWalletLedgerGroup {
+  walletId: string;
+  walletName: string;
+  walletColor: string;
+  currencyCode: string;
+  metadata: CurrencyMetadata;
+  openingBalance: number;
+  totalIncome: number;
+  totalExpense: number;
+  netAmount: number;
+  closingBalance: number;
+  convertedClosingToBase: number;
   transactions: ReportLedgerEntry[];
 }
 
@@ -263,6 +280,7 @@ export interface ReportModel {
   transactions: ReportLedgerEntry[];
   ledger?: ReportLedgerEntry[];
   currencyLedgers?: ReportCurrencyLedgerGroup[]; // Currency-segregated ledgers with independent running balances
+  walletLedgers?: ReportWalletLedgerGroup[];     // Wallet-segregated ledgers with independent per-wallet running balances
   budgets?: ReportBudgetSummary[];
   debts?: ReportDebtSummary;
   goals?: ReportGoalSummary;

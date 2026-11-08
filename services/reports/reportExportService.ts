@@ -235,10 +235,9 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
 
   // --- 1. ورقة الملخص التنفيذي والمؤشرات ---
   const summaryAoa: any[][] = [
-    ['تطبيق ثـري المالي - ' + reportTitleAr + ' (THARI Financial Report)'],
+    ['تطبيق ثـري للإدارة المالية الذكية - ' + reportTitleAr],
     [],
-    ['معرف التقرير', metadata.reportId, 'البصمة الرقمية', metadata.fingerprint],
-    ['صاحب الحساب', `${account.name} (${account.accountTypeAr})`, 'تاريخ الإصدار', `${metadata.generatedAtFormattedAr} - ${metadata.generatedTimeFormattedAr}`],
+    ['صاحب الحساب', `${account.name}`, 'تاريخ الإصدار', `${metadata.generatedAtFormattedAr}`],
     ['نطاق المحافظ المحددة', walletsStr, 'العملات قيد التقرير', currenciesStr],
     ['فترة التقرير', scope.periodLabelAr, 'عملة التقييم الموحدة', `${scope.baseCurrency.code} (${scope.baseCurrency.symbol})`],
     [],
@@ -252,9 +251,26 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
     ['إجمالي عدد الحركات المسجلة', kpis.totalTransactions, 'حركة'],
   ];
 
+  if (model.walletLedgers && model.walletLedgers.length > 0) {
+    summaryAoa.push([]);
+    summaryAoa.push(['تفصيل أرصدة وحركة المحافظ المالية (مراجعة كل محفظة على حدة)', 'العملة', 'الرصيد الافتتاحي', 'إجمالي الوارد (+)', 'إجمالي المنصرف (-)', 'صافي الحركة', 'الرصيد الختامي (=)', 'عدد العمليات']);
+    model.walletLedgers.forEach(w => {
+      summaryAoa.push([
+        w.walletName,
+        w.currencyCode,
+        Math.round(w.openingBalance),
+        Math.round(w.totalIncome),
+        Math.round(w.totalExpense),
+        Math.round(w.netAmount),
+        Math.round(w.closingBalance),
+        `${w.transactions.length} حركة`,
+      ]);
+    });
+  }
+
   if (currencyBreakdown && currencyBreakdown.length > 0) {
     summaryAoa.push([]);
-    summaryAoa.push(['مصفوفة العملات الأجنبية والأرصدة', 'الافتتاحي', 'الوارد (+)', 'المنصرف (-)', 'الصافي بالعملة', 'الختامي بالعملة', 'المعادل بالأساسية (' + scope.baseCurrency.code + ')', 'عدد العمليات']);
+    summaryAoa.push(['مصفوفة العملات والأرصدة', 'الافتتاحي', 'الوارد (+)', 'المنصرف (-)', 'الصافي بالعملة', 'الختامي بالعملة', 'المعادل بالأساسية (' + scope.baseCurrency.code + ')', 'عدد العمليات']);
     currencyBreakdown.forEach(c => {
       summaryAoa.push([
         c.metadata?.nameAr || c.code,
@@ -270,9 +286,52 @@ export async function buildModernExcelWorkbook(model: ReportModel): Promise<any>
   }
 
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
-  wsSummary['!cols'] = [{ wch: 30 }, { wch: 22 }, { wch: 24 }, { wch: 28 }];
+  wsSummary['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 22 }, { wch: 16 }];
   wsSummary['!views'] = [{ RTL: true }];
   XLSX.utils.book_append_sheet(wb, wsSummary, 'الملخص التنفيذي');
+
+  // --- 1B. أوراق مستقلة لكل محفظة على حدة لسهولة المراجعة ---
+  if (model.walletLedgers && model.walletLedgers.length > 0) {
+    model.walletLedgers.forEach((wGroup, wIdx) => {
+      const sym = wGroup.metadata?.symbol || wGroup.currencyCode;
+      const wAoa: any[][] = [
+        [`كشف حساب المحفظة: ${wGroup.walletName} (${wGroup.currencyCode})`],
+        [],
+        ['الرصيد الافتتاحي', Math.round(wGroup.openingBalance), sym, 'إجمالي الوارد (+)', Math.round(wGroup.totalIncome), sym],
+        ['إجمالي المنصرف (-)', Math.round(wGroup.totalExpense), sym, 'الرصيد الختامي (=)', Math.round(wGroup.closingBalance), sym],
+        ['صافي حركة المحفظة', Math.round(wGroup.netAmount), sym, 'عدد العمليات', wGroup.transactions.length, 'عملية'],
+        [],
+        ['م', 'التاريخ', 'البيان وتفاصيل العملية', 'التصنيف', 'منصرف / مدين (-)', 'وارد / دائن (+)', `رصيد المحفظة (${sym})`, 'ملاحظات إضافية'],
+      ];
+
+      wGroup.transactions.forEach((t, idx) => {
+        const isInflow = t.walletEntryDirection ? t.walletEntryDirection === 'inflow' : t.type === 'income';
+        const isOutflow = !isInflow;
+        const runBal = t.walletRunningBalance !== undefined ? Math.round(t.walletRunningBalance) : '';
+        wAoa.push([
+          idx + 1,
+          t.date,
+          t.note || t.categoryName,
+          t.categoryName,
+          isOutflow ? Math.round(t.originalAmount) : '',
+          isInflow ? Math.round(t.originalAmount) : '',
+          runBal,
+          t.conversionNote || '',
+        ]);
+      });
+
+      const wsWallet = XLSX.utils.aoa_to_sheet(wAoa);
+      wsWallet['!cols'] = [
+        { wch: 8 }, { wch: 14 }, { wch: 38 }, { wch: 18 },
+        { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 26 },
+      ];
+      wsWallet['!views'] = [{ RTL: true }];
+      // Excel sheet names cannot exceed 31 chars or contain \ / ? * : [ ]
+      const cleanName = wGroup.walletName.replace(/[\\/?*:[\]]/g, '').slice(0, 20).trim();
+      const sheetName = `محفظة ${wIdx + 1} - ${cleanName}`.slice(0, 31);
+      XLSX.utils.book_append_sheet(wb, wsWallet, sheetName);
+    });
+  }
 
   // --- 2. ورقة القيود والمعاملات المحاسبية العامة (كشف الحساب البنكي) ---
   if (transactions && transactions.length > 0) {
@@ -816,7 +875,7 @@ let isExportingActive = false;
  */
 export async function printOrShareFinancialReport(
   model: ReportModel,
-  preferredAction: 'print' | 'share' | 'excel' = 'print'
+  preferredAction: 'print' | 'share' | 'pdf' | 'excel' = 'pdf'
 ): Promise<void> {
   if (isExportingActive) return;
   isExportingActive = true;
@@ -836,7 +895,7 @@ export async function printOrShareFinancialReport(
       return;
     }
 
-    // If on desktop/web browser, printHtmlViaIframe gives instant native vector print dialog
+    // If user explicitly requested browser print dialog on desktop/web
     if (preferredAction === 'print' && !Capacitor.isNativePlatform()) {
       const html = buildPrintableReportHTML(model);
       const printed = await printHtmlViaIframe(html);
@@ -845,12 +904,15 @@ export async function printOrShareFinancialReport(
       }
     }
 
-    // Generate real PDF blob for share actions or mobile fallback
+    // Generate real A4 PDF blob for 'pdf' (download) or 'share' actions or mobile native
     const pdfBlob = await generatePdfBlobFromModel(model);
     const fileName = `THARI_Report_${typeKey.toUpperCase()}_${dateStr}.pdf`;
-    const dialogTitle = preferredAction === 'share' ? 'مشاركة التقرير المالي (PDF)' : 'حفظ وطباعة التقرير المالي (PDF)';
+    const dialogTitle = preferredAction === 'share'
+      ? 'مشاركة التقرير المالي (PDF)'
+      : 'تنزيل وحفظ التقرير المالي (PDF)';
 
-    await exportAndSharePdfFile(pdfBlob, fileName, dialogTitle);
+    const forceDownloadOnWeb = preferredAction === 'pdf' || preferredAction === 'print';
+    await exportAndSharePdfFile(pdfBlob, fileName, dialogTitle, forceDownloadOnWeb);
   } catch (err) {
     const errName = (err as Error)?.name;
     const errMsg = (err as Error)?.message || '';
@@ -870,7 +932,8 @@ export async function printOrShareFinancialReport(
 export async function exportAndSharePdfFile(
   pdfBlob: Blob,
   fileName: string,
-  dialogTitle: string
+  dialogTitle: string,
+  forceDownloadOnWeb = false
 ): Promise<void> {
   const mimeType = 'application/pdf';
 
@@ -899,7 +962,7 @@ export async function exportAndSharePdfFile(
         url: result.uri,
         dialogTitle: dialogTitle,
       });
-      return; // Success -> stop completely (no fallback)
+      return; // Success -> stop completely
     } catch (e) {
       const errName = (e as Error).name;
       const errMsg = (e as Error).message || '';
@@ -910,8 +973,8 @@ export async function exportAndSharePdfFile(
     }
   }
 
-  // 2. Web Share API with files (iPhone Safari / Android Chrome PWA)
-  if (navigator.share && navigator.canShare) {
+  // 2. Web Share API with files (Only when not forcing direct download on web)
+  if (!forceDownloadOnWeb && navigator.share && navigator.canShare) {
     try {
       const file = new File([pdfBlob], fileName, { type: mimeType });
       if (navigator.canShare({ files: [file] })) {
@@ -920,18 +983,18 @@ export async function exportAndSharePdfFile(
           text: dialogTitle,
           files: [file],
         });
-        return; // Success -> stop completely
+        return;
       }
     } catch (err) {
       const errName = (err as Error).name;
       if (errName === 'AbortError' || (err as Error).message?.includes('cancel')) {
-        return; // User cancelled share dialog -> stop
+        return;
       }
       console.warn('Web Share API PDF failed, falling back to download:', err);
     }
   }
 
-  // 3. Web Browser / Fallback Download Handler
+  // 3. Direct Browser Download Handler (.pdf file)
   try {
     const url = URL.createObjectURL(pdfBlob);
     const link = document.createElement('a');
@@ -1106,7 +1169,7 @@ export async function exportAndShareNativeFile(
  * ideal for instant clipboard copying or sharing via WhatsApp, Telegram, or Email.
  */
 export function buildReportTextSummary(model: ReportModel): string {
-  const { metadata, reportType, account, scope, kpis, currencyBreakdown = [], expenseCategories = [] } = model;
+  const { metadata, reportType, account, scope, kpis, walletLedgers = [], currencyBreakdown = [], expenseCategories = [] } = model;
   const baseSymbol = scope.baseCurrency?.symbol || 'SAR';
   const baseCode = scope.baseCurrency?.code || 'SAR';
 
@@ -1137,6 +1200,17 @@ export function buildReportTextSummary(model: ReportModel): string {
     `• الرصيد الختامي: ${Math.round(kpis.closingBalance).toLocaleString()} ${baseSymbol}`,
   ];
 
+  if (walletLedgers.length > 0) {
+    lines.push(`━━━━━━━━━━━━━━━━━━━━`);
+    lines.push(`🏦 *تفصيل أرصدة وحركة المحافظ:*`);
+    walletLedgers.forEach((w) => {
+      const sym = w.metadata?.symbol || w.currencyCode;
+      lines.push(
+        `• *${w.walletName}* (${w.currencyCode}): افتتاحي ${Math.round(w.openingBalance).toLocaleString()} | وارد +${Math.round(w.totalIncome).toLocaleString()} | منصرف -${Math.round(w.totalExpense).toLocaleString()} | *الختامي: ${Math.round(w.closingBalance).toLocaleString()} ${sym}*`
+      );
+    });
+  }
+
   if (currencyBreakdown.length > 1) {
     lines.push(`━━━━━━━━━━━━━━━━━━━━`);
     lines.push(`💱 *تفصيل العملات المتعددة:*`);
@@ -1158,10 +1232,8 @@ export function buildReportTextSummary(model: ReportModel): string {
   }
 
   lines.push(`━━━━━━━━━━━━━━━━━━━━`);
-  lines.push(`🔒 وثيقة مالية معتمدة وموثقة إلكترونياً`);
-  lines.push(`🏷️ كود التقرير: ${metadata.reportId}`);
-  lines.push(`🔐 بصمة التوثيق: ${metadata.fingerprint.slice(0, 16)}...`);
-  lines.push(`📱 مستخرج عبر منظومة ثـري المالية`);
+  lines.push(`📅 تاريخ الإصدار: ${metadata.generatedAtFormattedAr}`);
+  lines.push(`📱 مستخرج عبر تطبيق ثـري للإدارة المالية الذكية`);
 
   return lines.join('\n');
 }

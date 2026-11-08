@@ -5,6 +5,7 @@ import {
   FileText,
   Printer,
   FileSpreadsheet,
+  Download,
   Calendar,
   Wallet as WalletIcon,
   Coins,
@@ -247,7 +248,27 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }, 4000);
   };
 
-  // Print / PDF handler (guaranteed ONE print job per user action)
+  // Direct PDF File Download / Share handler
+  const handleDownloadPdf = async (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setIsProcessing(true);
+    try {
+      await printOrShareFinancialReport(reportModel, 'pdf');
+      showFeedback('تم إنشاء وتنزيل ملف التقرير بصيغة PDF بنجاح');
+    } catch (e) {
+      console.warn('PDF download handler error:', e);
+    } finally {
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+    }
+  };
+
+  // Print handler
   const handlePrint = async (e?: React.MouseEvent | React.TouchEvent) => {
     if (e) {
       e.preventDefault();
@@ -355,15 +376,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   }> = [
     {
       type: 'detailed',
-      title: 'كشف حساب بنكي تفصيلي',
-      desc: 'كشف حساب رسمي أنيق ومفصل (مدين/دائن/رصيد) لكافة القيود المحاسبية مع التواريخ والملاحظات.',
+      title: 'كشف حساب تفصيلي (مقسم حسب المحافظ)',
+      desc: 'كشف حساب مرتب يقسم العمليات تلقائياً لكل محفظة على حدة مع أرصدتها وحركاتها لسهولة المراجعة.',
       icon: BookOpen,
       color: '#D9B978',
     },
     {
       type: 'summary',
       title: 'ملخص تنفيذي عام',
-      desc: 'مؤشرات عامة، تحليل التدفق النقدي، وتوزيع الأرصدة والعملات.',
+      desc: 'مؤشرات عامة، ملخص أرصدة كل محفظة، وتحليل التدفق النقدي والعملات.',
       icon: PieChart,
       color: '#759BC8',
     },
@@ -920,12 +941,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
           <button
             type="button"
-            onClick={handlePrint}
+            onClick={handleDownloadPdf}
             disabled={isProcessing}
             className={`flex-1 py-3.5 px-3 bg-[#D9B978] hover:bg-[#D9B978]/90 text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#D9B978]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <Printer size={16} className={isProcessing ? 'animate-spin' : ''} />
-            <span>{isProcessing ? 'جاري المعالجة...' : 'طباعة / PDF'}</span>
+            <Download size={16} className={isProcessing ? 'animate-spin' : ''} />
+            <span>{isProcessing ? 'جاري التجهيز...' : 'تنزيل PDF'}</span>
           </button>
 
           <button
@@ -935,7 +956,18 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             className={`flex-1 py-3.5 px-3 bg-[#759BC8] hover:bg-[#688DB9] text-[#0A0D10] font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#759BC8]/20 active:scale-98 transition-all ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <Share2 size={16} className={isProcessing ? 'animate-spin' : ''} />
-            <span>{isProcessing ? 'جاري التصدير...' : 'مشاركة التقرير'}</span>
+            <span>{isProcessing ? 'جاري التصدير...' : 'مشاركة PDF'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handlePrint}
+            disabled={isProcessing}
+            className={`py-3.5 px-3.5 bg-[#171D24] hover:bg-[#1E252E] text-[#F4F1EA] font-bold text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all shrink-0 ${isProcessing ? 'opacity-60 cursor-not-allowed' : ''}`}
+            title="طباعة التقرير"
+          >
+            <Printer size={16} className="text-[#D9B978]" />
+            <span className="hidden sm:inline">طباعة</span>
           </button>
 
           <button

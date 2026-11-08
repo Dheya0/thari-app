@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, ListFilter, Coins } from 'lucide-react';
-import { ReportModel, ReportLedgerEntry, ReportCurrencyLedgerGroup } from '../../services/reports/reportTypes';
+import { ReportModel, ReportLedgerEntry } from '../../services/reports/reportTypes';
 
 interface DetailedViewProps {
   model: ReportModel;
@@ -13,43 +12,122 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
     transactions,
     currencyBreakdown,
     currencyLedgers = [],
+    walletLedgers = [],
     expenseCategories,
     incomeCategories,
   } = model;
 
   const baseCurrency = scope.baseCurrency;
   const isMultiCurrency = currencyBreakdown.length > 1;
+  const hasMultipleWallets = walletLedgers.length > 1;
 
-  // View mode switcher: 'grouped' (default) vs 'unified'
-  const [viewMode, setViewMode] = useState<'grouped' | 'unified'>('grouped');
+  // View mode switcher: 'wallets' (default so reports divide by wallets for easy review), 'currencies', or 'unified'
+  const [viewMode, setViewMode] = useState<'wallets' | 'currencies' | 'unified'>('wallets');
 
-  // Helper to render a spacious, uncrowded bank statement ledger table
-  const renderLedgerTable = (
-    txList: ReportLedgerEntry[],
-    currencyCode?: string,
-    runningBalanceField: 'currencyRunningBalance' | 'runningBalance' = 'currencyRunningBalance'
-  ) => {
+  // Helper to render a spacious, uncrowded 7-column wallet ledger table
+  const renderWalletTable = (txList: ReportLedgerEntry[], sym: string) => {
     return (
-      <div className="rounded-2xl border border-slate-300 bg-white overflow-hidden shadow-xs print:overflow-visible print:border print:border-slate-300 print:rounded-none print:shadow-none">
+      <div className="rounded-xl border border-slate-300 bg-white overflow-hidden shadow-2xs print:overflow-visible print:rounded-none print:shadow-none">
         <table className="w-full table-fixed text-xs border-collapse print:text-[10.5px]">
           <thead className="print:table-header-group">
-            <tr className="bg-slate-900 text-white break-avoid border-b-2 border-[#D9B978] text-xs print:text-[10.5px] print:bg-slate-900 print:text-white">
-              <th className="py-3.5 px-2 text-center font-black w-[5%] border border-slate-700">#</th>
-              <th className="py-3.5 px-2.5 text-center font-black w-[12%] border border-slate-700">التاريخ</th>
-              <th className="py-3.5 px-3.5 text-right font-black w-[30%] border border-slate-700">البيان والتفاصيل</th>
-              <th className="py-3.5 px-3 text-right font-black w-[13%] border border-slate-700">التصنيف</th>
-              <th className="py-3.5 px-3 text-right font-black w-[13%] border border-slate-700">المحفظة</th>
-              <th className="py-3.5 px-2.5 text-left font-black w-[9%] text-rose-300 border border-slate-700">مدين (-)</th>
-              <th className="py-3.5 px-2.5 text-left font-black w-[9%] text-emerald-300 border border-slate-700">دائن (+)</th>
-              <th className="py-3.5 px-2.5 text-left font-black w-[9%] text-[#F3E5AB] border border-slate-700">
-                الرصيد
+            <tr className="bg-slate-900 text-white border-b-2 border-[#D9B978]">
+              <th className="py-3 px-2 text-center font-black w-[6%] border border-slate-700">م</th>
+              <th className="py-3 px-2.5 text-center font-black w-[14%] border border-slate-700">التاريخ</th>
+              <th className="py-3 px-3.5 text-right font-black w-[34%] border border-slate-700">البيان وتفاصيل العملية</th>
+              <th className="py-3 px-3 text-right font-black w-[14%] border border-slate-700">التصنيف</th>
+              <th className="py-3 px-2.5 text-right font-black w-[10%] text-rose-300 border border-slate-700">منصرف (-)</th>
+              <th className="py-3 px-2.5 text-right font-black w-[10%] text-emerald-300 border border-slate-700">وارد (+)</th>
+              <th className="py-3 px-2.5 text-right font-black w-[12%] text-[#F3E5AB] border border-slate-700">
+                الرصيد ({sym})
               </th>
             </tr>
           </thead>
           <tbody className="bg-white">
             {txList.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
+                <td colSpan={7} className="py-8 text-center text-slate-500 font-bold text-xs">
+                  لا توجد عمليات مسجلة في هذه المحفظة خلال الفترة المحددة
+                </td>
+              </tr>
+            ) : (
+              txList.map((t, i) => {
+                const isInflow = t.walletEntryDirection
+                  ? t.walletEntryDirection === 'inflow'
+                  : t.type === 'income';
+                const isOutflow = !isInflow;
+                const runBal = t.walletRunningBalance !== undefined
+                  ? t.walletRunningBalance
+                  : (t.currencyRunningBalance !== undefined ? t.currencyRunningBalance : t.runningBalance);
+
+                return (
+                  <tr
+                    key={t.id || i}
+                    className={`break-inside-avoid page-break-inside-avoid ${
+                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'
+                    }`}
+                  >
+                    <td className="py-3 px-2 border border-slate-200 text-center font-bold text-slate-600 text-xs align-middle">
+                      {i + 1}
+                    </td>
+                    <td className="py-3 px-2.5 border border-slate-200 font-bold text-slate-800 text-xs whitespace-nowrap text-center align-middle">
+                      {t.date}
+                    </td>
+                    <td className="py-3 px-3.5 border border-slate-200 text-slate-900 text-xs align-middle">
+                      <div className="font-bold leading-relaxed break-words text-slate-900">
+                        {t.note || t.categoryName}
+                      </div>
+                      {t.conversionNote && (
+                        <div className="text-[10px] font-bold text-amber-800 mt-1 break-words">
+                          {t.conversionNote}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 border border-slate-200 font-bold text-slate-800 text-xs align-middle break-words">
+                      {t.categoryName}
+                    </td>
+                    <td className="py-3 px-2.5 border border-slate-200 text-right font-black tabular-nums text-xs align-middle text-rose-700 whitespace-nowrap">
+                      {isOutflow ? `-${Math.round(t.originalAmount).toLocaleString('en-US')}` : '-'}
+                    </td>
+                    <td className="py-3 px-2.5 border border-slate-200 text-right font-black tabular-nums text-xs align-middle text-emerald-700 whitespace-nowrap">
+                      {isInflow ? `+${Math.round(t.originalAmount).toLocaleString('en-US')}` : '-'}
+                    </td>
+                    <td className="py-3 px-2.5 border border-slate-200 text-right font-black tabular-nums text-xs align-middle text-slate-950 bg-amber-50/50 whitespace-nowrap">
+                      {runBal !== undefined ? Math.round(runBal).toLocaleString('en-US') : '-'}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // Helper to render 8-column table when viewing unified or by-currency
+  const renderGeneralLedgerTable = (
+    txList: ReportLedgerEntry[],
+    runningBalanceField: 'currencyRunningBalance' | 'runningBalance' = 'currencyRunningBalance'
+  ) => {
+    return (
+      <div className="rounded-xl border border-slate-300 bg-white overflow-hidden shadow-2xs print:overflow-visible">
+        <table className="w-full table-fixed text-xs border-collapse print:text-[10.5px]">
+          <thead className="print:table-header-group">
+            <tr className="bg-slate-900 text-white border-b-2 border-[#D9B978]">
+              <th className="py-3 px-2 text-center font-black w-[5%] border border-slate-700">م</th>
+              <th className="py-3 px-2.5 text-center font-black w-[12%] border border-slate-700">التاريخ</th>
+              <th className="py-3 px-3.5 text-right font-black w-[28%] border border-slate-700">البيان والتفاصيل</th>
+              <th className="py-3 px-3 text-right font-black w-[13%] border border-slate-700">التصنيف</th>
+              <th className="py-3 px-3 text-right font-black w-[13%] border border-slate-700">المحفظة</th>
+              <th className="py-3 px-2.5 text-right font-black w-[9%] text-rose-300 border border-slate-700">منصرف (-)</th>
+              <th className="py-3 px-2.5 text-right font-black w-[9%] text-emerald-300 border border-slate-700">وارد (+)</th>
+              <th className="py-3 px-2.5 text-right font-black w-[11%] text-[#F3E5AB] border border-slate-700">الرصيد</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white">
+            {txList.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="py-10 text-center text-slate-400 font-bold text-xs">
                   لا توجد قيود مسجلة تطابق محددات التصفية
                 </td>
               </tr>
@@ -64,76 +142,31 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                 return (
                   <tr
                     key={t.id || i}
-                    className={`break-inside-avoid page-break-inside-avoid transition-colors ${
-                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
-                    }`}
+                    className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'}
                   >
-                    {/* Index */}
-                    <td className="py-3.5 px-2 border border-slate-200 text-center font-mono font-bold text-slate-500 text-xs align-middle">
+                    <td className="py-3 px-2 border border-slate-200 text-center font-bold text-slate-600 text-xs">
                       {t.index}
                     </td>
-
-                    {/* Date */}
-                    <td className="py-3.5 px-2.5 border border-slate-200 font-bold text-slate-800 text-xs whitespace-nowrap text-center align-middle font-mono">
+                    <td className="py-3 px-2.5 border border-slate-200 font-bold text-slate-800 text-xs text-center whitespace-nowrap">
                       {t.date}
                     </td>
-
-                    {/* Note / Statement Description */}
-                    <td className="py-3.5 px-3.5 border border-slate-200 text-slate-900 text-xs align-middle">
-                      <div className="font-bold leading-relaxed break-words text-slate-900">
-                        {t.note || t.categoryName}
-                      </div>
-                      {(t.conversionNote || (t.foreignAmount && t.exchangeRate)) && (
-                        <div className="text-[10px] font-bold text-amber-900 mt-1 break-words">
-                          {t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}
-                        </div>
-                      )}
+                    <td className="py-3 px-3.5 border border-slate-200 text-slate-900 text-xs font-bold break-words">
+                      {t.note || t.categoryName}
                     </td>
-
-                    {/* Category */}
-                    <td className="py-3.5 px-3 border border-slate-200 align-middle">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: t.categoryColor }}
-                        />
-                        <span className="font-bold text-slate-800 break-words text-xs">{t.categoryName}</span>
-                      </div>
+                    <td className="py-3 px-3 border border-slate-200 font-bold text-slate-800 text-xs break-words">
+                      {t.categoryName}
                     </td>
-
-                    {/* Wallet */}
-                    <td className="py-3.5 px-3 border border-slate-200 font-bold text-slate-700 break-words text-xs align-middle">
-                      <div>{t.walletName}</div>
-                      {!currencyCode && (
-                        <span className="text-[10px] font-mono text-slate-500">{t.currencyCode}</span>
-                      )}
+                    <td className="py-3 px-3 border border-slate-200 font-bold text-slate-700 text-xs break-words">
+                      {t.walletName} ({t.currencyCode})
                     </td>
-
-                    {/* Debit Column (مدين / منصرف) */}
-                    <td className="py-3.5 px-2.5 border border-slate-200 text-left font-mono font-black tabular-nums text-xs align-middle text-rose-700 dir-ltr whitespace-nowrap">
-                      {isExpense ? (
-                        <span>-{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                      ) : (
-                        <span className="text-slate-300 font-normal">-</span>
-                      )}
+                    <td className="py-3 px-2.5 border border-slate-200 text-right font-black text-xs text-rose-700 whitespace-nowrap">
+                      {isExpense ? `-${Math.round(t.originalAmount).toLocaleString('en-US')}` : '-'}
                     </td>
-
-                    {/* Credit Column (دائن / مقبوض) */}
-                    <td className="py-3.5 px-2.5 border border-slate-200 text-left font-mono font-black tabular-nums text-xs align-middle text-emerald-700 dir-ltr whitespace-nowrap">
-                      {isIncome ? (
-                        <span>+{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                      ) : (
-                        <span className="text-slate-300 font-normal">-</span>
-                      )}
+                    <td className="py-3 px-2.5 border border-slate-200 text-right font-black text-xs text-emerald-700 whitespace-nowrap">
+                      {isIncome ? `+${Math.round(t.originalAmount).toLocaleString('en-US')}` : '-'}
                     </td>
-
-                    {/* Running Balance Column */}
-                    <td className="py-3.5 px-2.5 border border-slate-200 text-left font-mono font-black tabular-nums text-xs align-middle text-slate-950 bg-amber-50/40 dir-ltr whitespace-nowrap">
-                      {runBal !== undefined ? (
-                        <span>{Math.round(runBal).toLocaleString()}</span>
-                      ) : (
-                        '-'
-                      )}
+                    <td className="py-3 px-2.5 border border-slate-200 text-right font-black text-xs text-slate-950 bg-amber-50/50 whitespace-nowrap">
+                      {runBal !== undefined ? Math.round(runBal).toLocaleString('en-US') : '-'}
                     </td>
                   </tr>
                 );
@@ -147,150 +180,204 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
 
   return (
     <div className="space-y-6">
-      {/* 1. Official Bank Statement Summary Metrics (Clean White & Gold) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3 print:gap-2">
-        {/* Opening Balance */}
-        <div className="bg-white border border-amber-200/80 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-amber-400/80" />
-          <span className="text-[10px] print:text-[8px] font-bold text-slate-500 uppercase block truncate">الرصيد الافتتاحي</span>
-          <p className="text-base print:text-xs font-black text-slate-900 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            {Math.round(kpis.openingBalance).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-amber-700">{baseCurrency.symbol}</span>
-          </p>
-          <span className="text-[9px] print:text-[7.5px] text-slate-400 font-medium block truncate mt-0.5">رصيد بداية الفترة المسجلة</span>
+      {/* 1. Overall KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 print:grid-cols-4 gap-3">
+        <div className="bg-slate-50 border border-slate-300 border-t-4 border-t-amber-500 rounded-xl p-3.5">
+          <div className="text-[11px] font-bold text-slate-600">الرصيد الافتتاحي العام</div>
+          <div className="text-base font-black text-slate-950 mt-1">
+            {Math.round(kpis.openingBalance).toLocaleString('en-US')} {baseCurrency.symbol}
+          </div>
         </div>
 
-        {/* Total Credits / Inflows */}
-        <div className="bg-white border border-emerald-200/90 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-emerald-500" />
-          <span className="text-[10px] print:text-[8px] font-bold text-emerald-800 uppercase block truncate">إجمالي الإيداعات (دائن)</span>
-          <p className="text-base print:text-xs font-black text-emerald-700 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            +{Math.round(kpis.totalIncome).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-slate-500">{baseCurrency.symbol}</span>
-          </p>
-          <span className="text-[9px] print:text-[7.5px] text-emerald-700/80 font-bold block truncate mt-0.5">{kpis.incomeCount} قيد إيداع</span>
+        <div className="bg-emerald-50/60 border border-emerald-200 border-t-4 border-t-emerald-600 rounded-xl p-3.5">
+          <div className="text-[11px] font-bold text-emerald-800">إجمالي المقبوضات (وارد)</div>
+          <div className="text-base font-black text-emerald-700 mt-1">
+            +{Math.round(kpis.totalIncome).toLocaleString('en-US')} {baseCurrency.symbol}
+          </div>
         </div>
 
-        {/* Total Debits / Outflows */}
-        <div className="bg-white border border-rose-200/90 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-rose-500" />
-          <span className="text-[10px] print:text-[8px] font-bold text-rose-800 uppercase block truncate">إجمالي المسحوبات (مدين)</span>
-          <p className="text-base print:text-xs font-black text-rose-700 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            -{Math.round(kpis.totalExpense).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-slate-500">{baseCurrency.symbol}</span>
-          </p>
-          <span className="text-[9px] print:text-[7.5px] text-rose-700/80 font-bold block truncate mt-0.5">{kpis.expenseCount + kpis.transferCount} قيد سحب</span>
+        <div className="bg-rose-50/60 border border-rose-200 border-t-4 border-t-rose-600 rounded-xl p-3.5">
+          <div className="text-[11px] font-bold text-rose-800">إجمالي المنصرفات (صادر)</div>
+          <div className="text-base font-black text-rose-700 mt-1">
+            -{Math.round(kpis.totalExpense).toLocaleString('en-US')} {baseCurrency.symbol}
+          </div>
         </div>
 
-        {/* Closing Balance */}
-        <div className="bg-white border border-slate-900 rounded-xl p-3.5 print:p-2.5 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 left-0 h-1 bg-[#D9B978]" />
-          <span className="text-[10px] print:text-[8px] font-bold text-slate-700 uppercase block truncate">الرصيد الختامي الحالي</span>
-          <p className="text-base print:text-xs font-black text-slate-950 dir-ltr text-right mt-1 truncate tabular-nums font-mono">
-            {Math.round(kpis.closingBalance).toLocaleString()} <span className="text-[10px] print:text-[8px] font-bold font-sans text-amber-700">{baseCurrency.symbol}</span>
-          </p>
-          <span className="text-[9px] print:text-[7.5px] text-slate-500 font-bold block truncate mt-0.5">
-            صافي الحركة: {kpis.netSavings >= 0 ? '+' : ''}{Math.round(kpis.netSavings).toLocaleString()} {baseCurrency.symbol}
-          </span>
+        <div className="bg-slate-900 text-white border border-slate-900 border-t-4 border-t-amber-400 rounded-xl p-3.5">
+          <div className="text-[11px] font-bold text-slate-300">الرصيد الختامي الموحد</div>
+          <div className="text-base font-black text-amber-400 mt-1">
+            {Math.round(kpis.closingBalance).toLocaleString('en-US')} {baseCurrency.symbol}
+          </div>
         </div>
       </div>
 
+      {/* 2. Multi-Wallet Summary Table (Shown when >1 wallet is in scope) */}
+      {hasMultipleWallets && (
+        <div className="bg-slate-50 rounded-xl border border-slate-300 p-4 space-y-2.5">
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-black text-slate-900">
+              ملخص أرصدة وحركة المحافظ المشمولة بالتقرير (كل محفظة على حدة)
+            </h4>
+            <span className="text-[11px] font-bold text-slate-600">
+              {walletLedgers.length} محافظ مالية
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-slate-300 bg-white">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-900 text-white">
+                  <th className="py-2.5 px-3 text-right font-bold border border-slate-700">اسم المحفظة</th>
+                  <th className="py-2.5 px-3 text-center font-bold border border-slate-700">العملة</th>
+                  <th className="py-2.5 px-3 text-right font-bold border border-slate-700">الرصيد الافتتاحي</th>
+                  <th className="py-2.5 px-3 text-right font-bold text-emerald-300 border border-slate-700">إجمالي الوارد (+)</th>
+                  <th className="py-2.5 px-3 text-right font-bold text-rose-300 border border-slate-700">إجمالي المنصرف (-)</th>
+                  <th className="py-2.5 px-3 text-right font-bold text-amber-300 border border-slate-700">الرصيد الختامي (=)</th>
+                  <th className="py-2.5 px-3 text-center font-bold border border-slate-700">العمليات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {walletLedgers.map((w, idx) => {
+                  const sym = w.metadata?.symbol || w.currencyCode;
+                  return (
+                    <tr key={w.walletId} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                      <td className="py-2.5 px-3 border border-slate-200 font-black text-slate-900">{w.walletName}</td>
+                      <td className="py-2.5 px-3 border border-slate-200 text-center font-bold text-slate-600">{w.currencyCode}</td>
+                      <td className="py-2.5 px-3 border border-slate-200 font-bold text-slate-800">{Math.round(w.openingBalance).toLocaleString('en-US')} {sym}</td>
+                      <td className="py-2.5 px-3 border border-slate-200 font-black text-emerald-700">+{Math.round(w.totalIncome).toLocaleString('en-US')} {sym}</td>
+                      <td className="py-2.5 px-3 border border-slate-200 font-black text-rose-700">-{Math.round(w.totalExpense).toLocaleString('en-US')} {sym}</td>
+                      <td className="py-2.5 px-3 border border-slate-200 font-black text-slate-950 bg-amber-50/60">{Math.round(w.closingBalance).toLocaleString('en-US')} {sym}</td>
+                      <td className="py-2.5 px-3 border border-slate-200 text-center font-bold text-slate-700">{w.transactions.length}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* 3. Detailed Transactions Ledger Section */}
       <div className="space-y-4">
-        <div className="flex flex-wrap justify-between items-center gap-2 break-avoid">
+        <div className="flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-amber-500 rounded-full" />
-            <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-              سجل المعاملات والقيود المحاسبية التفصيلية
+            <h3 className="text-xs font-black text-slate-900">
+              كشوف الحساب التفصيلية (مقسمة حسب المحافظ لسهولة المراجعة)
             </h3>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* View Mode Toggle when multi-currency */}
-            {isMultiCurrency && (
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-300 no-print">
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-300 no-print">
+              <button
+                type="button"
+                onClick={() => setViewMode('wallets')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  viewMode === 'wallets'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                تقسيم حسب المحافظ
+              </button>
+              {isMultiCurrency && (
                 <button
                   type="button"
-                  onClick={() => setViewMode('grouped')}
+                  onClick={() => setViewMode('currencies')}
                   className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                    viewMode === 'grouped'
+                    viewMode === 'currencies'
                       ? 'bg-slate-900 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  فصل حسب العملات
+                  حسب العملات
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('unified')}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
-                    viewMode === 'unified'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  سجل زمني موحد
-                </button>
-              </div>
-            )}
+              )}
+              <button
+                type="button"
+                onClick={() => setViewMode('unified')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  viewMode === 'unified'
+                    ? 'bg-slate-900 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                سجل موحد
+              </button>
+            </div>
 
-            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-              إجمالي {transactions.length} قيد محاسبي
+            <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-300">
+              إجمالي {transactions.length} عملية
             </span>
           </div>
         </div>
 
-        {/* Currency Grouped Mode (Default for multi-currency) */}
-        {isMultiCurrency && viewMode === 'grouped' ? (
+        {/* Mode 1 (Default): Wallet-Segregated Sections */}
+        {viewMode === 'wallets' && walletLedgers.length > 0 ? (
           <div className="space-y-6">
-            {currencyLedgers.map((group) => {
-              const netPos = group.netAmount >= 0;
+            {walletLedgers.map((wGroup) => {
+              const sym = wGroup.metadata?.symbol || wGroup.currencyCode;
               return (
-                <div key={group.currencyCode} className="space-y-2 break-inside-avoid">
-                  {/* Currency Group Header & Math Strip */}
-                  <div className="bg-slate-100/90 print:bg-slate-50 p-3 print:p-2 rounded-xl border border-slate-300 flex flex-wrap justify-between items-center gap-2 print:gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-900 text-amber-400 font-mono font-black text-xs print:text-[9.5px]">
-                        {group.currencyCode}
-                      </span>
-                      <span className="text-xs print:text-[10px] font-black text-slate-900">
-                        {group.metadata.nameAr}
-                      </span>
-                      <span className="text-[10px] print:text-[8px] text-slate-500 font-bold">
-                        ({group.transactions.length} حركة مسجلة)
-                      </span>
+                <div key={wGroup.walletId} className="space-y-2 break-inside-avoid">
+                  {/* 5-Column Wallet Summary Header */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 bg-slate-100 border border-slate-300 rounded-xl overflow-hidden text-xs">
+                    <div className="p-3 bg-slate-200/80 border-b sm:border-b-0 sm:border-l border-slate-300 col-span-2 sm:col-span-1">
+                      <div className="text-[10px] font-bold text-slate-600">المحفظة والعملة</div>
+                      <div className="font-black text-slate-950 text-xs mt-0.5">
+                        {wGroup.walletName} ({wGroup.currencyCode})
+                      </div>
                     </div>
-
-                    {/* Exact Accounting Arithmetic Bar for this Currency */}
-                    <div className="flex items-center gap-2 sm:gap-3 print:gap-2 text-[11px] print:text-[8px] font-mono tabular-nums bg-white px-2.5 py-1 print:py-0.5 rounded-lg border border-slate-200">
-                      <div>
-                        <span className="text-slate-400 text-[10px] print:text-[7.5px] font-sans">افتتاحي: </span>
-                        <span className="font-bold text-slate-700">{Math.round(group.openingBalance).toLocaleString()}</span>
+                    <div className="p-3 border-b sm:border-b-0 border-l border-slate-300">
+                      <div className="text-[10px] font-bold text-slate-500">الرصيد الافتتاحي</div>
+                      <div className="font-black text-slate-900 mt-0.5">
+                        {Math.round(wGroup.openingBalance).toLocaleString('en-US')} {sym}
                       </div>
-                      <div className="text-emerald-700 font-bold">
-                        <span className="text-[10px] print:text-[7.5px] font-sans">+ وارد: </span>
-                        <span>+{Math.round(group.totalIncome).toLocaleString()}</span>
+                    </div>
+                    <div className="p-3 border-b sm:border-b-0 sm:border-l border-slate-300">
+                      <div className="text-[10px] font-bold text-emerald-800">إجمالي الوارد (+)</div>
+                      <div className="font-black text-emerald-700 mt-0.5">
+                        +{Math.round(wGroup.totalIncome).toLocaleString('en-US')} {sym}
                       </div>
-                      <div className="text-rose-700 font-bold">
-                        <span className="text-[10px] print:text-[7.5px] font-sans">- منصرف: </span>
-                        <span>-{Math.round(group.totalExpense).toLocaleString()}</span>
+                    </div>
+                    <div className="p-3 border-l border-slate-300">
+                      <div className="text-[10px] font-bold text-rose-800">إجمالي المنصرف (-)</div>
+                      <div className="font-black text-rose-700 mt-0.5">
+                        -{Math.round(wGroup.totalExpense).toLocaleString('en-US')} {sym}
                       </div>
-                      <div className="border-r border-slate-200 pr-2">
-                        <span className="text-slate-400 text-[10px] print:text-[7.5px] font-sans">= ختامي: </span>
-                        <span className="font-black text-slate-950">{Math.round(group.closingBalance).toLocaleString()} {group.metadata.symbol}</span>
+                    </div>
+                    <div className="p-3 bg-amber-50/80">
+                      <div className="text-[10px] font-bold text-amber-900">الرصيد الختامي (=)</div>
+                      <div className="font-black text-slate-950 mt-0.5">
+                        {Math.round(wGroup.closingBalance).toLocaleString('en-US')} {sym}
                       </div>
                     </div>
                   </div>
 
-                  {/* Currency Ledger Table with Independent Native Running Balance */}
-                  {renderLedgerTable(group.transactions, group.currencyCode, 'currencyRunningBalance')}
+                  {/* Wallet Transactions Table */}
+                  {renderWalletTable(wGroup.transactions, sym)}
                 </div>
               );
             })}
           </div>
+        ) : viewMode === 'currencies' && currencyLedgers.length > 0 ? (
+          <div className="space-y-6">
+            {currencyLedgers.map((group) => (
+              <div key={group.currencyCode} className="space-y-2 break-inside-avoid">
+                <div className="bg-slate-100 p-3 rounded-xl border border-slate-300 flex flex-wrap justify-between items-center gap-2 text-xs">
+                  <div className="font-black text-slate-900">
+                    {group.metadata.nameAr} ({group.currencyCode}) • {group.transactions.length} عملية
+                  </div>
+                  <div className="font-bold text-slate-800">
+                    افتتاحي: {Math.round(group.openingBalance).toLocaleString('en-US')} | وارد: +{Math.round(group.totalIncome).toLocaleString('en-US')} | منصرف: -{Math.round(group.totalExpense).toLocaleString('en-US')} | الختامي: {Math.round(group.closingBalance).toLocaleString('en-US')} {group.metadata.symbol}
+                  </div>
+                </div>
+                {renderGeneralLedgerTable(group.transactions, 'currencyRunningBalance')}
+              </div>
+            ))}
+          </div>
         ) : (
-          /* Single Currency Mode or Unified Chronological View */
           <div>
-            {renderLedgerTable(
+            {renderGeneralLedgerTable(
               transactions,
-              isMultiCurrency ? baseCurrency.code : (currencyBreakdown[0]?.code || baseCurrency.code),
               isMultiCurrency ? 'runningBalance' : 'currencyRunningBalance'
             )}
           </div>
@@ -298,40 +385,44 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
       </div>
 
       {/* 4. Categorical Breakdown Summary Box */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 print:grid-cols-2 gap-4 break-inside-avoid">
-        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-          <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-200">
-            <span className="text-[10.5px] font-black text-rose-800 uppercase">ملخص بنود الإنفاق في هذا الكشف</span>
-            <span className="text-[9px] font-bold text-slate-500">{expenseCategories.length} بنود</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 break-inside-avoid">
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-300">
+          <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-slate-200">
+            <span className="text-xs font-black text-rose-800">ملخص بنود الإنفاق في هذا الكشف</span>
+            <span className="text-[11px] font-bold text-slate-600">{expenseCategories.length} بنود</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {expenseCategories.slice(0, 5).map(cat => (
               <div key={cat.id} className="flex justify-between text-xs font-bold">
-                <span className="text-slate-800 truncate">{cat.name} ({cat.transactionCount})</span>
-                <span className="text-slate-950 dir-ltr tabular-nums font-mono">
-                  {Math.round(cat.totalAmount).toLocaleString()} <span className="font-sans">{baseCurrency.symbol}</span>{' '}
-                  <span className="text-slate-400 font-normal text-[9.5px]">({Math.round(cat.percentageOfTotal)}%)</span>
+                <span className="text-slate-800">{cat.name} ({cat.transactionCount})</span>
+                <span className="text-slate-950">
+                  {Math.round(cat.totalAmount).toLocaleString('en-US')} {baseCurrency.symbol} ({Math.round(cat.percentageOfTotal)}%)
                 </span>
               </div>
             ))}
+            {expenseCategories.length === 0 && (
+              <div className="text-xs text-slate-400 text-center py-2">لا توجد مصروفات مسجلة</div>
+            )}
           </div>
         </div>
 
-        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-          <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-slate-200">
-            <span className="text-[10.5px] font-black text-emerald-800 uppercase">ملخص مصادر الدخل في هذا الكشف</span>
-            <span className="text-[9px] font-bold text-slate-500">{incomeCategories.length} بنود</span>
+        <div className="bg-slate-50 p-4 rounded-xl border border-slate-300">
+          <div className="flex justify-between items-center mb-2.5 pb-2 border-b border-slate-200">
+            <span className="text-xs font-black text-emerald-800">ملخص مصادر الدخل في هذا الكشف</span>
+            <span className="text-[11px] font-bold text-slate-600">{incomeCategories.length} بنود</span>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {incomeCategories.slice(0, 5).map(cat => (
               <div key={cat.id} className="flex justify-between text-xs font-bold">
-                <span className="text-slate-800 truncate">{cat.name} ({cat.transactionCount})</span>
-                <span className="text-slate-950 dir-ltr tabular-nums font-mono">
-                  {Math.round(cat.totalAmount).toLocaleString()} <span className="font-sans">{baseCurrency.symbol}</span>{' '}
-                  <span className="text-slate-400 font-normal text-[9.5px]">({Math.round(cat.percentageOfTotal)}%)</span>
+                <span className="text-slate-800">{cat.name} ({cat.transactionCount})</span>
+                <span className="text-slate-950">
+                  {Math.round(cat.totalAmount).toLocaleString('en-US')} {baseCurrency.symbol} ({Math.round(cat.percentageOfTotal)}%)
                 </span>
               </div>
             ))}
+            {incomeCategories.length === 0 && (
+              <div className="text-xs text-slate-400 text-center py-2">لا توجد إيرادات مسجلة</div>
+            )}
           </div>
         </div>
       </div>

@@ -1,4 +1,12 @@
-import { ReportModel, ReportType, ReportLedgerEntry, ReportBudgetSummary, ReportDebtItem, ReportGoalItem } from './reportTypes';
+import {
+  ReportModel,
+  ReportType,
+  ReportLedgerEntry,
+  ReportBudgetSummary,
+  ReportDebtItem,
+  ReportGoalItem,
+  ReportWalletLedgerGroup,
+} from './reportTypes';
 
 /**
  * Escapes text for safe inclusion into HTML strings
@@ -18,21 +26,11 @@ function formatNum(val?: number | null): string {
 }
 
 /**
- * Formats a currency amount safely for RTL rendering in html2canvas without glyph collision
- */
-function renderAmountHTML(amount: number, symbol: string, sign = '', color = '#0f172a', isBold = true): string {
-  return `
-    <span style="display: inline-block; white-space: nowrap; color: ${color}; font-weight: ${isBold ? '900' : '700'};">
-      <span dir="ltr" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; display: inline-block;">${sign}${formatNum(amount)}</span>
-      <span style="font-size: 8px; font-weight: 700; color: #64748b; margin-right: 2px;">${esc(symbol)}</span>
-    </span>
-  `;
-}
-
-/**
- * Builds a clean, bulletproof printable HTML document styled for A4 PDF rendering.
- * Uses strict Table layouts with fixed heights, integer pixel font sizes, and zero flex/float
- * to guarantee 100% crisp typography with zero character squashing and flawless table alignment.
+ * Builds a clean, spacious, wallet-segregated printable HTML document styled for A4 PDF rendering.
+ * - Zero QR codes, zero cryptographic hashes, zero English technical boilerplate.
+ * - Every metric and value is placed in its own block <div> or <td> cell (no sibling inline <span> tags)
+ *   so html2canvas and browser print engines render Arabic words and lines with 100% clarity and zero overlap.
+ * - Divides multi-wallet reports by Wallet (قسم مستقل لكل محفظة) for effortless auditing and review.
  */
 export function buildPrintableReportHTML(model: ReportModel): string {
   const {
@@ -44,6 +42,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     currencyBreakdown = [],
     expenseCategories = [],
     walletSummaries = [],
+    walletLedgers = [],
     transactions = [],
     budgets = [],
     debts,
@@ -53,75 +52,62 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const baseSymbol = scope.baseCurrency?.symbol || 'SAR';
   const baseCode = scope.baseCurrency?.code || 'SAR';
 
-  const typeTitles: Record<ReportType, { ar: string; en: string }> = {
-    summary: { ar: 'الملخص المالي التنفيذي العام', en: 'Executive Financial Summary' },
-    detailed: { ar: 'كشف حساب العمليات والقيود التفصيلي', en: 'Official Statement of Account & Ledger' },
-    category: { ar: 'تقرير تحليل الميزانية ومطابقة الإنفاق الفعلي', en: 'Budget & Category Performance' },
-    wealth: { ar: 'تقرير صافي الثروة وتوزيع المحافظ والعملات', en: 'Wealth & Multi-Currency Portfolio' },
-    debts: { ar: 'كشف الذمم والديون والالتزامات المالية', en: 'Debts & Liabilities Statement' },
-    savings_goals: { ar: 'تقرير الأهداف المالية ومتابعة المدخرات', en: 'Goals & Savings Progress Report' },
+  const typeTitles: Record<ReportType, string> = {
+    summary: 'الملخص المالي التنفيذي الشامل',
+    detailed: 'كشف حساب العمليات والقيود التفصيلي (مقسم حسب المحافظ)',
+    category: 'تقرير الميزانية ومطابقة الإنفاق الفعلي',
+    wealth: 'تقرير صافي الثروة وتوزيع المحافظ والعملات',
+    debts: 'كشف الديون والالتزامات المالية',
+    savings_goals: 'تقرير الأهداف المالية ومتابعة المدخرات',
   };
 
-  const titleInfo = typeTitles[reportType] || typeTitles.summary;
+  const reportTitleAr = typeTitles[reportType] || typeTitles.summary;
 
-  const formattedRange = (scope.startDate && scope.endDate)
-    ? `${scope.startDate} إلى ${scope.endDate}`
-    : 'كافة الفترات المسجلة';
+  const periodText = scope.periodLabelAr || (
+    scope.startDate && scope.endDate
+      ? `من ${scope.startDate} إلى ${scope.endDate}`
+      : 'كافة الفترات المسجلة'
+  );
 
-  // --- Visual Brand Logo ---
-  const renderBrandLogo = (size = 36) => `
-    <div style="width: ${size}px; height: ${size}px; border-radius: 8px; background: #090d16; border: 1.5px solid #1e293b; display: inline-block; vertical-align: middle; text-align: center; line-height: ${size}px;">
-      <svg width="${Math.round(size * 0.65)}" height="${Math.round(size * 0.65)}" viewBox="0 0 100 100" fill="none" style="vertical-align: middle; display: inline-block;">
-        <defs>
-          <linearGradient id="thariGoldLogo" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#fbbf24"/>
-            <stop offset="50%" stop-color="#d97706"/>
-            <stop offset="100%" stop-color="#b45309"/>
-          </linearGradient>
-        </defs>
-        <rect x="15" y="15" width="70" height="70" rx="18" fill="url(#thariGoldLogo)" opacity="0.95"/>
-        <path d="M35 50L45 60L65 40" stroke="#090d16" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </div>
-  `;
+  const walletsScopeText = (scope.selectedWallets && scope.selectedWallets.length > 0)
+    ? (scope.isAllWallets
+        ? `كافة المحافظ المالية (${scope.selectedWallets.length} محافظ)`
+        : scope.selectedWallets.map(w => w.name).join(' ، '))
+    : (scope.walletNameAr || 'كافة المحافظ المالية');
+
+  const currenciesScopeText = (scope.currenciesInScope && scope.currenciesInScope.length > 0)
+    ? scope.currenciesInScope.map(c => `${c.nameAr} (${c.code})`).join(' ، ')
+    : baseCode;
 
   // --- Main Header (Page 1) ---
   const renderMainHeader = (pageNum: number, totalPages: number) => `
-    <div style="margin-bottom: 12px;">
-      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 8px; table-layout: fixed;">
+    <div style="margin-bottom: 14px;">
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #0f172a; padding-bottom: 10px; table-layout: fixed;">
         <tr>
-          <!-- Right: Logo & Clear Report Title -->
-          <td style="text-align: right; vertical-align: middle; width: 62%;">
-            <table style="border-collapse: collapse;">
+          <td style="width: 64%; text-align: right; vertical-align: middle; padding: 0 0 10px 10px;">
+            <div style="font-size: 12px; font-weight: 700; color: #b45309; line-height: 18px; margin-bottom: 3px;">
+              تطبيق ثَـــري للإدارة المالية الذكية
+            </div>
+            <div style="font-size: 18px; font-weight: 800; color: #0f172a; line-height: 26px;">
+              ${esc(reportTitleAr)}
+            </div>
+          </td>
+          <td style="width: 36%; text-align: left; vertical-align: middle; padding: 0 0 10px 0;">
+            <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">
               <tr>
-                <td style="vertical-align: middle; padding-left: 12px;">
-                  ${renderBrandLogo(40)}
-                </td>
-                <td style="text-align: right; vertical-align: middle;">
-                  <div style="font-size: 11px; font-weight: 800; color: #b45309; line-height: 16px; margin-bottom: 2px;">
-                    تطبيق ثَـــري للإدارة المالية الذكية
+                <td style="padding: 8px 12px; text-align: right;">
+                  <div style="font-size: 11px; font-weight: 700; color: #0f172a; line-height: 17px;">
+                    الحساب: ${esc(account.name)}
                   </div>
-                  <div style="font-size: 17px; font-weight: 900; color: #0f172a; line-height: 24px;">
-                    ${esc(titleInfo.ar)}
+                  <div style="font-size: 10px; font-weight: 500; color: #475569; line-height: 16px; margin-top: 2px;">
+                    تاريخ الإصدار: ${esc(metadata.generatedAtFormattedAr)}
+                  </div>
+                  <div style="font-size: 10px; font-weight: 700; color: #b45309; line-height: 15px; margin-top: 2px;">
+                    صفحة ${pageNum} من ${totalPages}
                   </div>
                 </td>
               </tr>
             </table>
-          </td>
-
-          <!-- Left: Account & Date Info (No QR / No Hash) -->
-          <td style="text-align: left; vertical-align: middle; width: 38%;">
-            <div style="display: inline-block; text-align: right; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px;">
-              <div style="font-size: 10px; font-weight: 800; color: #0f172a; line-height: 16px;">
-                الحساب: <span style="color: #b45309;">${esc(account.name)}</span>
-              </div>
-              <div style="font-size: 9px; font-weight: 700; color: #475569; line-height: 15px; margin-top: 2px;">
-                تاريخ الإصدار: ${esc(metadata.generatedAtFormattedAr)}
-              </div>
-              <div style="font-size: 8.5px; font-weight: 800; color: #64748b; line-height: 14px; margin-top: 1px;">
-                صفحة ${pageNum} من ${totalPages}
-              </div>
-            </div>
           </td>
         </tr>
       </table>
@@ -130,141 +116,219 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 
   // --- Running Header (Pages 2+) ---
   const renderRunningHeader = (pageNum: number, totalPages: number) => `
-    <div style="border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 10px;">
-      <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+    <div style="margin-bottom: 12px;">
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px; table-layout: fixed;">
         <tr>
-          <td style="text-align: right; vertical-align: middle; width: 65%;">
-            ${renderBrandLogo(24)}
-            <span style="font-size: 12px; font-weight: 900; color: #0f172a; vertical-align: middle; margin-right: 6px;">ثَـــري</span>
-            <span style="color: #cbd5e1; margin: 0 6px; vertical-align: middle;">|</span>
-            <span style="font-size: 11px; font-weight: 800; color: #334155; vertical-align: middle;">${esc(titleInfo.ar)}</span>
-            <span style="font-size: 9.5px; color: #64748b; vertical-align: middle; margin-right: 4px;">(تابع)</span>
+          <td style="width: 68%; text-align: right; vertical-align: middle; padding-bottom: 6px;">
+            <div style="font-size: 13px; font-weight: 800; color: #0f172a; line-height: 20px;">
+              ثَـــري • ${esc(reportTitleAr)} (تابع)
+            </div>
           </td>
-          <td style="text-align: left; vertical-align: middle; font-size: 9.5px; color: #475569; width: 35%;">
-            <span class="badge-account" style="padding: 3px 8px; font-size: 9px;">الحساب: <b>${esc(account.name)}</b></span>
-            <span class="badge-page" style="padding: 3px 8px; font-size: 9px; margin-right: 4px;">صفحة ${pageNum} من ${totalPages}</span>
+          <td style="width: 32%; text-align: left; vertical-align: middle; padding-bottom: 6px;">
+            <div style="font-size: 10.5px; font-weight: 700; color: #334155; line-height: 18px;">
+              الحساب: ${esc(account.name)} • صفحة ${pageNum} من ${totalPages}
+            </div>
           </td>
         </tr>
       </table>
     </div>
   `;
 
-  // --- Scope Grid ---
-  const renderScopeGrid = () => {
-    const periodVal = scope.periodLabelAr
-      ? (formattedRange !== 'كافة الفترات المسجلة' ? `${scope.periodLabelAr} (${formattedRange})` : scope.periodLabelAr)
-      : formattedRange;
+  // --- Scope Grid (Page 1) ---
+  const renderScopeGrid = () => `
+    <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border: 1px solid #cbd5e1; margin-bottom: 12px; table-layout: fixed;">
+      <tr>
+        <td style="width: 30%; padding: 8px 10px; text-align: right; vertical-align: top; border-left: 1px solid #cbd5e1;">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748b; line-height: 15px; margin-bottom: 3px;">
+            نطاق المحافظ المشمولة
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #0f172a; line-height: 17px;">
+            ${esc(walletsScopeText)}
+          </div>
+        </td>
+        <td style="width: 26%; padding: 8px 10px; text-align: right; vertical-align: top; border-left: 1px solid #cbd5e1;">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748b; line-height: 15px; margin-bottom: 3px;">
+            العملات المعتمدة
+          </div>
+          <div style="font-size: 10.5px; font-weight: 700; color: #065f46; line-height: 17px;">
+            ${esc(currenciesScopeText)}
+          </div>
+        </td>
+        <td style="width: 24%; padding: 8px 10px; text-align: right; vertical-align: top; border-left: 1px solid #cbd5e1;">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748b; line-height: 15px; margin-bottom: 3px;">
+            الفترة الزمنية
+          </div>
+          <div style="font-size: 10.5px; font-weight: 700; color: #0f172a; line-height: 17px;">
+            ${esc(periodText)}
+          </div>
+        </td>
+        <td style="width: 20%; padding: 8px 10px; text-align: right; vertical-align: top;">
+          <div style="font-size: 9.5px; font-weight: 700; color: #64748b; line-height: 15px; margin-bottom: 3px;">
+            إجمالي العمليات
+          </div>
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a; line-height: 17px;">
+            ${transactions.length} عملية مسجلة
+          </div>
+        </td>
+      </tr>
+    </table>
+  `;
 
-    const currencyVal = scope.currencyFilter
-      ? (scope.currencyMetadata?.nameAr || scope.currencyMetadata?.code || baseCode)
-      : `متعدد العملات (${scope.baseCurrency?.nameAr || baseCode})`;
+  // --- Overall KPI Row (Page 1) ---
+  const renderOverallKpiRow = () => `
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 14px; table-layout: fixed;">
+      <tr>
+        <td style="width: 25%; padding: 0 0 0 6px;">
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-top: 3px solid #d97706; padding: 8px 10px; text-align: right;">
+            <div style="font-size: 9.5px; font-weight: 700; color: #475569; line-height: 15px; margin-bottom: 3px;">
+              الرصيد الافتتاحي العام
+            </div>
+            <div style="font-size: 13px; font-weight: 800; color: #0f172a; line-height: 19px;">
+              ${formatNum(kpis.openingBalance)} ${esc(baseSymbol)}
+            </div>
+          </div>
+        </td>
+        <td style="width: 25%; padding: 0 3px;">
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-top: 3px solid #16a34a; padding: 8px 10px; text-align: right;">
+            <div style="font-size: 9.5px; font-weight: 700; color: #166534; line-height: 15px; margin-bottom: 3px;">
+              إجمالي المقبوضات (الوارد)
+            </div>
+            <div style="font-size: 13px; font-weight: 800; color: #15803d; line-height: 19px;">
+              +${formatNum(kpis.totalIncome)} ${esc(baseSymbol)}
+            </div>
+          </div>
+        </td>
+        <td style="width: 25%; padding: 0 3px;">
+          <div style="background: #fff1f2; border: 1px solid #fecdd3; border-top: 3px solid #e11d48; padding: 8px 10px; text-align: right;">
+            <div style="font-size: 9.5px; font-weight: 700; color: #9f1239; line-height: 15px; margin-bottom: 3px;">
+              إجمالي المنصرفات (الصادر)
+            </div>
+            <div style="font-size: 13px; font-weight: 800; color: #be123c; line-height: 19px;">
+              -${formatNum(kpis.totalExpense)} ${esc(baseSymbol)}
+            </div>
+          </div>
+        </td>
+        <td style="width: 25%; padding: 0 6px 0 0;">
+          <div style="background: #0f172a; border: 1px solid #0f172a; border-top: 3px solid #fbbf24; padding: 8px 10px; text-align: right;">
+            <div style="font-size: 9.5px; font-weight: 700; color: #cbd5e1; line-height: 15px; margin-bottom: 3px;">
+              الرصيد الختامي الموحد
+            </div>
+            <div style="font-size: 13px; font-weight: 800; color: #fbbf24; line-height: 19px;">
+              ${formatNum(kpis.closingBalance)} ${esc(baseSymbol)}
+            </div>
+          </div>
+        </td>
+      </tr>
+    </table>
+  `;
 
-    const walletBadgesHTML = (scope.selectedWallets && scope.selectedWallets.length > 0)
-      ? scope.selectedWallets.map(w => `
-          <span style="display: inline-block; padding: 1px 5px; font-size: 7.5px; font-weight: 800; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; color: #0f172a; margin-left: 3px; margin-top: 2px;">
-            <span style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: ${w.color || '#d97706'}; vertical-align: middle; margin-left: 2px;"></span>
-            ${esc(w.name)} (${esc(w.currencyCode)})
-          </span>
-        `).join('')
-      : esc(scope.walletNameAr || 'كافة المحافظ المالية');
-
-    const currenciesBadgesHTML = (scope.currenciesInScope && scope.currenciesInScope.length > 0)
-      ? scope.currenciesInScope.map(c => `
-          <span style="display: inline-block; padding: 1px 4px; font-size: 7.5px; font-weight: 800; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; color: #065f46; margin-left: 2px; margin-top: 2px;">
-            ${esc(c.code)}
-          </span>
-        `).join('')
-      : esc(currencyVal);
-
+  // --- Multi-Wallet Overview Summary Table (Shows each wallet's Opening, Inflow, Outflow, Closing) ---
+  const renderWalletsOverviewTable = (groups: ReportWalletLedgerGroup[]) => {
+    if (!groups || groups.length === 0) return '';
     return `
-      <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; table-layout: fixed;">
-        <tr>
-          <td style="width: 28%; padding: 5px 7px; text-align: right; vertical-align: top; border-left: 1px solid #e2e8f0;">
-            <div style="font-size: 8px; font-weight: 700; color: #64748b; line-height: 12px; margin-bottom: 2px;">نطاق المحافظ المحددة</div>
-            <div>${walletBadgesHTML}</div>
-          </td>
-          <td style="width: 24%; padding: 5px 7px; text-align: right; vertical-align: top; border-left: 1px solid #e2e8f0;">
-            <div style="font-size: 8px; font-weight: 700; color: #64748b; line-height: 12px; margin-bottom: 2px;">العملات قيد التقرير</div>
-            <div>${currenciesBadgesHTML}</div>
-            <div style="font-size: 7.5px; color: #94a3b8; margin-top: 2px;">تقييم موحد بـ: <b>${esc(scope.baseCurrency?.code || baseCode)}</b></div>
-          </td>
-          <td style="width: 26%; padding: 5px 7px; text-align: right; vertical-align: top; border-left: 1px solid #e2e8f0;">
-            <div style="font-size: 8px; font-weight: 700; color: #64748b; line-height: 12px; margin-bottom: 2px;">النطاق الزمني والفترة</div>
-            <div style="font-size: 9px; font-weight: 800; color: #0f172a; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(periodVal)}</div>
-          </td>
-          <td style="width: 22%; padding: 5px 7px; text-align: right; vertical-align: top;">
-            <div style="font-size: 8px; font-weight: 700; color: #64748b; line-height: 12px; margin-bottom: 2px;">إجمالي القيود</div>
-            <div style="font-size: 9px; font-weight: 800; color: #0f172a; line-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${transactions.length} حركة محاسبية</div>
-          </td>
-        </tr>
-      </table>
+      <div style="margin-bottom: 14px;">
+        <div style="font-size: 12px; font-weight: 800; color: #0f172a; line-height: 20px; margin-bottom: 6px;">
+          ملخص أرصدة وحركة المحافظ المالية (تفصيل كل محفظة على حدة لسهولة المراجعة)
+        </div>
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width: 22%; text-align: right;">اسم المحفظة</th>
+              <th style="width: 10%; text-align: center;">العملة</th>
+              <th style="width: 15%; text-align: right;">الرصيد الافتتاحي</th>
+              <th style="width: 15%; text-align: right; color: #86efac;">إجمالي الوارد (+)</th>
+              <th style="width: 15%; text-align: right; color: #fca5a5;">إجمالي المنصرف (-)</th>
+              <th style="width: 15%; text-align: right; color: #fde68a;">الرصيد الختامي (=)</th>
+              <th style="width: 8%; text-align: center;">العمليات</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${groups.map(w => {
+              const sym = w.metadata?.symbol || w.currencyCode;
+              return `
+                <tr>
+                  <td style="text-align: right; font-weight: 800; color: #0f172a;">${esc(w.walletName)}</td>
+                  <td style="text-align: center; font-weight: 700; color: #475569;">${esc(w.currencyCode)}</td>
+                  <td style="text-align: right; font-weight: 700; color: #334155;">${formatNum(w.openingBalance)} ${esc(sym)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #15803d;">+${formatNum(w.totalIncome)} ${esc(sym)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #be123c;">-${formatNum(w.totalExpense)} ${esc(sym)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #0f172a; background: #fffbeb;">${formatNum(w.closingBalance)} ${esc(sym)}</td>
+                  <td style="text-align: center; font-weight: 700; color: #475569;">${w.transactions.length}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
     `;
   };
 
-  // --- Official Verification Seal (Removed per user request to eliminate clutter) ---
-  const renderOfficialSeal = () => ``;
-
   // --- Page Footer ---
   const renderPageFooter = (pageNum: number, totalPages: number) => `
-    <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #cbd5e1; padding-top: 6px; margin-top: 6px; table-layout: fixed;">
+    <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #cbd5e1; padding-top: 6px; margin-top: 8px; table-layout: fixed;">
       <tr>
-        <td style="text-align: right; vertical-align: middle; font-size: 9px; font-weight: 700; color: #64748b; line-height: 14px; width: 70%;">
-          <span>تطبيق ثـري للإدارة المالية الذكية • ${esc(titleInfo.ar)}</span>
+        <td style="text-align: right; vertical-align: middle; font-size: 9.5px; font-weight: 700; color: #64748b; line-height: 16px; width: 70%;">
+          تطبيق ثـري للإدارة المالية الذكية • ${esc(reportTitleAr)}
         </td>
-        <td style="text-align: left; vertical-align: middle; font-size: 9px; font-weight: 900; color: #0f172a; line-height: 14px; width: 30%;">
+        <td style="text-align: left; vertical-align: middle; font-size: 9.5px; font-weight: 800; color: #0f172a; line-height: 16px; width: 30%;">
           صفحة ${pageNum} من ${totalPages}
         </td>
       </tr>
     </table>
   `;
 
-  // --- 8-Column Bank Statement Ledger Table Header (Per Currency) ---
-  const renderDetailedTableHeader7Col = (sym: string) => `
+  // --- 7-Column Wallet Statement Table Header (Spacious & Uncrowded) ---
+  const renderWalletLedgerTableHeader = (sym: string) => `
     <thead>
       <tr style="border-bottom: 2px solid #d97706;">
-        <th style="width: 5%; text-align: center; background: #0f172a; color: #ffffff; padding: 8px 6px; font-size: 10.5px;">#</th>
-        <th style="width: 12%; text-align: center; background: #0f172a; color: #ffffff; padding: 8px 6px; font-size: 10.5px;">التاريخ</th>
-        <th style="width: 27%; text-align: right; background: #0f172a; color: #ffffff; padding: 8px 10px; font-size: 10.5px;">البيان / تفاصيل القيد</th>
-        <th style="width: 12%; text-align: right; background: #0f172a; color: #ffffff; padding: 8px 8px; font-size: 10.5px;">التصنيف</th>
-        <th style="width: 11%; text-align: right; background: #0f172a; color: #ffffff; padding: 8px 8px; font-size: 10.5px;">المحفظة</th>
-        <th style="width: 11%; text-align: left; background: #0f172a; color: #fca5a5; padding: 8px 8px; font-size: 10.5px;">مدين (-)</th>
-        <th style="width: 11%; text-align: left; background: #0f172a; color: #86efac; padding: 8px 8px; font-size: 10.5px;">دائن (+)</th>
-        <th style="width: 11%; text-align: left; background: #0f172a; color: #fde68a; padding: 8px 8px; font-size: 10.5px;">الرصيد (${esc(sym)})</th>
+        <th style="width: 6%; text-align: center; background: #0f172a; color: #ffffff; padding: 9px 6px; font-size: 11px;">م</th>
+        <th style="width: 14%; text-align: center; background: #0f172a; color: #ffffff; padding: 9px 6px; font-size: 11px;">التاريخ</th>
+        <th style="width: 34%; text-align: right; background: #0f172a; color: #ffffff; padding: 9px 10px; font-size: 11px;">البيان وتفاصيل العملية</th>
+        <th style="width: 14%; text-align: right; background: #0f172a; color: #ffffff; padding: 9px 8px; font-size: 11px;">التصنيف</th>
+        <th style="width: 10%; text-align: right; background: #0f172a; color: #fca5a5; padding: 9px 8px; font-size: 11px;">منصرف (-)</th>
+        <th style="width: 10%; text-align: right; background: #0f172a; color: #86efac; padding: 9px 8px; font-size: 11px;">وارد (+)</th>
+        <th style="width: 12%; text-align: right; background: #0f172a; color: #fde68a; padding: 9px 8px; font-size: 11px;">الرصيد (${esc(sym)})</th>
       </tr>
     </thead>
   `;
 
-  const renderDetailedTableRow7Col = (tx: ReportLedgerEntry, idx: number, sym: string) => {
-    const isIncome = tx.type === 'income';
-    const isExpense = tx.type === 'expense' || tx.type === 'transfer';
-    const effectiveBal = tx.currencyRunningBalance !== undefined ? tx.currencyRunningBalance : tx.runningBalance;
+  const renderWalletLedgerTableRow = (tx: ReportLedgerEntry, idx: number) => {
+    const isInflow = tx.walletEntryDirection
+      ? tx.walletEntryDirection === 'inflow'
+      : tx.type === 'income';
+    const isOutflow = !isInflow;
+    const effectiveBal = tx.walletRunningBalance !== undefined
+      ? tx.walletRunningBalance
+      : (tx.currencyRunningBalance !== undefined ? tx.currencyRunningBalance : tx.runningBalance);
 
     return `
       <tr>
-        <td style="text-align: center; color: #64748b; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 10px; padding: 8px 6px; font-weight: 700;">${idx + 1}</td>
-        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 10px; color: #334155; white-space: nowrap; padding: 8px 6px; font-weight: 600;">${esc(tx.date)}</td>
-        <td style="text-align: right; color: #0f172a; padding: 8px 10px;" title="${esc(tx.note || tx.categoryName)}">
-          <div style="font-size: 10.5px; line-height: 16px; word-break: break-word; overflow-wrap: break-word; font-weight: 700;">${esc(tx.note || tx.categoryName)}</div>
-          ${tx.conversionNote ? `<div style="font-size: 9px; color: #b45309; line-height: 13px; margin-top: 3px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
+        <td style="text-align: center; color: #475569; font-size: 10.5px; padding: 8px 6px; font-weight: 700;">
+          ${idx + 1}
         </td>
-        <td style="text-align: right; font-weight: 700; color: #1e293b; font-size: 10px; padding: 8px 8px;">
-          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 4px;"></span>
-          <span style="vertical-align: middle;">${esc(tx.categoryName)}</span>
+        <td style="text-align: center; font-size: 10.5px; color: #1e293b; white-space: nowrap; padding: 8px 6px; font-weight: 700;">
+          ${esc(tx.date)}
         </td>
-        <td style="text-align: right; color: #475569; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 8px; font-weight: 600;">${esc(tx.walletName)}</td>
-        
-        <!-- Debit Column (مدين / منصرف) -->
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #be123c; white-space: nowrap; font-size: 10.5px; padding: 8px 8px;">
-          ${isExpense ? `-${formatNum(tx.originalAmount)}` : `<span style="color: #cbd5e1; font-weight: normal;">-</span>`}
+        <td style="text-align: right; color: #0f172a; padding: 8px 10px;">
+          <div style="font-size: 11px; line-height: 18px; font-weight: 700; color: #0f172a;">
+            ${esc(tx.note || tx.categoryName)}
+          </div>
+          ${tx.conversionNote ? `
+            <div style="font-size: 9.5px; color: #b45309; line-height: 15px; margin-top: 2px; font-weight: 600;">
+              ${esc(tx.conversionNote)}
+            </div>
+          ` : ''}
         </td>
-
-        <!-- Credit Column (دائن / وارد) -->
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #15803d; white-space: nowrap; font-size: 10.5px; padding: 8px 8px;">
-          ${isIncome ? `+${formatNum(tx.originalAmount)}` : `<span style="color: #cbd5e1; font-weight: normal;">-</span>`}
+        <td style="text-align: right; font-weight: 700; color: #334155; font-size: 10.5px; padding: 8px 8px;">
+          ${esc(tx.categoryName)}
         </td>
-
-        <!-- Running Balance Column -->
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; font-size: 10.5px; background: #fffdf5; padding: 8px 8px;">
+        <td style="text-align: right; font-weight: 800; color: #be123c; white-space: nowrap; font-size: 11px; padding: 8px 8px;">
+          ${isOutflow ? `-${formatNum(tx.originalAmount)}` : '-'}
+        </td>
+        <td style="text-align: right; font-weight: 800; color: #15803d; white-space: nowrap; font-size: 11px; padding: 8px 8px;">
+          ${isInflow ? `+${formatNum(tx.originalAmount)}` : '-'}
+        </td>
+        <td style="text-align: right; font-weight: 800; color: #0f172a; white-space: nowrap; font-size: 11px; background: #fffbeb; padding: 8px 8px;">
           ${effectiveBal !== undefined ? formatNum(effectiveBal) : '-'}
         </td>
       </tr>
@@ -274,12 +338,15 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const pagesHTML: string[] = [];
 
   // ==========================================
-  // 1. Detailed Ledger Report (Currency-Segregated with Native Running Balances)
+  // 1. Detailed Ledger Report (Divided by Wallet for Easy Review)
   // ==========================================
   if (reportType === 'detailed') {
-    const effectiveGroups = (model.currencyLedgers && model.currencyLedgers.length > 0)
-      ? model.currencyLedgers
+    const effectiveWalletGroups: ReportWalletLedgerGroup[] = (walletLedgers && walletLedgers.length > 0)
+      ? walletLedgers
       : [{
+          walletId: 'all',
+          walletName: scope.walletNameAr || 'كافة المحافظ',
+          walletColor: '#d97706',
           currencyCode: baseCode,
           metadata: scope.baseCurrency,
           openingBalance: kpis.openingBalance,
@@ -287,35 +354,40 @@ export function buildPrintableReportHTML(model: ReportModel): string {
           totalExpense: kpis.totalExpense,
           netAmount: kpis.netSavings,
           closingBalance: kpis.closingBalance,
-          transactions: transactions
+          convertedClosingToBase: kpis.closingBalance,
+          transactions: transactions,
         }];
 
-    // Flatten into discrete printable segments with page-budgeting
-    interface PrintLedgerSection {
-      groupCode: string;
-      groupName: string;
+    interface PrintWalletSection {
+      walletId: string;
+      walletName: string;
+      currencyCode: string;
       sym: string;
       openingBal: number;
       income: number;
       expense: number;
       closingBal: number;
+      totalWalletTxs: number;
       isContinuation: boolean;
       chunk: ReportLedgerEntry[];
       startIndex: number;
     }
 
-    const sectionsByPage: PrintLedgerSection[][] = [];
-    let currentPageSections: PrintLedgerSection[] = [];
-    let currentPageWeight = 0;
-    const PAGE_1_MAX_WEIGHT = 10; // Spacious height budget for Page 1 without crowding
-    const PAGE_N_MAX_WEIGHT = 14; // Spacious capacity on continuation pages
+    const sectionsByPage: PrintWalletSection[][] = [];
+    let currentPageSections: PrintWalletSection[] = [];
 
-    effectiveGroups.forEach(group => {
-      const gTx = group.transactions || [];
-      const sym = group.metadata?.symbol || group.currencyCode;
+    // Calculate how much space Page 1 has after Scope, KPIs, and (if multi-wallet) the Wallets Overview table
+    const overviewTableWeight = effectiveWalletGroups.length > 1 ? (effectiveWalletGroups.length + 2) : 0;
+    let currentPageWeight = overviewTableWeight;
+    const PAGE_1_MAX_WEIGHT = 11;
+    const PAGE_N_MAX_WEIGHT = 14;
+
+    effectiveWalletGroups.forEach(wGroup => {
+      const wTxs = wGroup.transactions || [];
+      const sym = wGroup.metadata?.symbol || wGroup.currencyCode;
       let txIdx = 0;
 
-      if (gTx.length === 0) {
+      if (wTxs.length === 0) {
         const currentMax = sectionsByPage.length === 0 ? PAGE_1_MAX_WEIGHT : PAGE_N_MAX_WEIGHT;
         if (currentPageWeight + 3 > currentMax && currentPageSections.length > 0) {
           sectionsByPage.push(currentPageSections);
@@ -323,55 +395,60 @@ export function buildPrintableReportHTML(model: ReportModel): string {
           currentPageWeight = 0;
         }
         currentPageSections.push({
-          groupCode: group.currencyCode,
-          groupName: group.metadata?.nameAr || group.currencyCode,
+          walletId: wGroup.walletId,
+          walletName: wGroup.walletName,
+          currencyCode: wGroup.currencyCode,
           sym,
-          openingBal: group.openingBalance,
-          income: group.totalIncome,
-          expense: group.totalExpense,
-          closingBal: group.closingBalance,
+          openingBal: wGroup.openingBalance,
+          income: wGroup.totalIncome,
+          expense: wGroup.totalExpense,
+          closingBal: wGroup.closingBalance,
+          totalWalletTxs: 0,
           isContinuation: false,
           chunk: [],
-          startIndex: 0
+          startIndex: 0,
         });
         currentPageWeight += 3;
         return;
       }
 
-      let isFirstChunkOfGroup = true;
-      while (txIdx < gTx.length) {
+      let isFirstChunkOfWallet = true;
+      while (txIdx < wTxs.length) {
         const currentMax = sectionsByPage.length === 0 ? PAGE_1_MAX_WEIGHT : PAGE_N_MAX_WEIGHT;
         const availableSpace = currentMax - currentPageWeight;
 
-        // If we can't fit even header + 3 rows, push page
+        // If we cannot fit the wallet header + at least 2 rows on the current page, start a new page
         if (availableSpace < 4 && currentPageSections.length > 0) {
           sectionsByPage.push(currentPageSections);
           currentPageSections = [];
           currentPageWeight = 0;
         }
 
-        const effectiveAvailable = sectionsByPage.length === 0 ? PAGE_1_MAX_WEIGHT - currentPageWeight : PAGE_N_MAX_WEIGHT - currentPageWeight;
-        const rowsToTake = Math.min(Math.max(3, effectiveAvailable - 2), gTx.length - txIdx);
-        const chunk = gTx.slice(txIdx, txIdx + rowsToTake);
+        const effectiveMax = sectionsByPage.length === 0 ? PAGE_1_MAX_WEIGHT : PAGE_N_MAX_WEIGHT;
+        const effectiveAvailable = effectiveMax - currentPageWeight;
+        const rowsToTake = Math.min(Math.max(2, effectiveAvailable - 2), wTxs.length - txIdx);
+        const chunk = wTxs.slice(txIdx, txIdx + rowsToTake);
 
         currentPageSections.push({
-          groupCode: group.currencyCode,
-          groupName: group.metadata?.nameAr || group.currencyCode,
+          walletId: wGroup.walletId,
+          walletName: wGroup.walletName,
+          currencyCode: wGroup.currencyCode,
           sym,
-          openingBal: group.openingBalance,
-          income: group.totalIncome,
-          expense: group.totalExpense,
-          closingBal: group.closingBalance,
-          isContinuation: !isFirstChunkOfGroup,
+          openingBal: wGroup.openingBalance,
+          income: wGroup.totalIncome,
+          expense: wGroup.totalExpense,
+          closingBal: wGroup.closingBalance,
+          totalWalletTxs: wTxs.length,
+          isContinuation: !isFirstChunkOfWallet,
           chunk,
-          startIndex: txIdx
+          startIndex: txIdx,
         });
 
-        currentPageWeight += (chunk.length + 2);
+        currentPageWeight += (chunk.length + 2.5);
         txIdx += rowsToTake;
-        isFirstChunkOfGroup = false;
+        isFirstChunkOfWallet = false;
 
-        if (currentPageWeight >= (sectionsByPage.length === 0 ? PAGE_1_MAX_WEIGHT : PAGE_N_MAX_WEIGHT)) {
+        if (currentPageWeight >= effectiveMax) {
           sectionsByPage.push(currentPageSections);
           currentPageSections = [];
           currentPageWeight = 0;
@@ -388,160 +465,68 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     sectionsByPage.forEach((pageSections, pIdx) => {
       const pageNum = pIdx + 1;
       const isFirst = pageNum === 1;
-      const isLast = pageNum === totalPages;
 
-      const topHeader = isFirst ? renderMainHeader(pageNum, totalPages) : renderRunningHeader(pageNum, totalPages);
-      let topElements = '';
+      const topHeader = isFirst
+        ? renderMainHeader(pageNum, totalPages)
+        : renderRunningHeader(pageNum, totalPages);
 
-      if (isFirst) {
-        topElements = `
+      const topElements = isFirst
+        ? `
           ${renderScopeGrid()}
-          
-          <!-- Unified KPI Valuation Row -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 6px; table-layout: fixed;">
-            <tr>
-              <td style="width: 25%; padding: 0 3px 0 0;">
-                <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: #166534; line-height: 12px; margin-bottom: 2px;">إجمالي المقبوضات (الوارد)</div>
-                  <div style="font-size: 11.5px; font-weight: 900; color: #15803d; line-height: 15px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    +${formatNum(kpis.totalIncome)} <span style="font-size: 8px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 25%; padding: 0 3px;">
-                <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: #9f1239; line-height: 12px; margin-bottom: 2px;">إجمالي المنصرفات (المصروف)</div>
-                  <div style="font-size: 11.5px; font-weight: 900; color: #be123c; line-height: 15px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    -${formatNum(kpis.totalExpense)} <span style="font-size: 8px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 25%; padding: 0 3px;">
-                <div style="background: ${kpis.netSavings >= 0 ? '#f0fdf4' : '#fff1f2'}; border: 1.5px solid ${kpis.netSavings >= 0 ? '#bbf7d0' : '#fecdd3'}; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: ${kpis.netSavings >= 0 ? '#166534' : '#9f1239'}; line-height: 12px; margin-bottom: 2px;">صافي حركة الفترة</div>
-                  <div style="font-size: 11.5px; font-weight: 900; color: ${kpis.netSavings >= 0 ? '#15803d' : '#be123c'}; line-height: 15px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${kpis.netSavings >= 0 ? '+' : ''}${formatNum(kpis.netSavings)} <span style="font-size: 8px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 25%; padding: 0 0 0 3px;">
-                <div style="background: #0f172a; border: 1.5px solid #1e293b; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: #94a3b8; line-height: 12px; margin-bottom: 2px;">الرصيد الختامي الموحد</div>
-                  <div style="font-size: 11.5px; font-weight: 900; color: #fbbf24; line-height: 15px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${formatNum(kpis.closingBalance)} <span style="font-size: 8px; font-weight: bold; color: #cbd5e1;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </table>
+          ${renderOverallKpiRow()}
+          ${effectiveWalletGroups.length > 1 ? renderWalletsOverviewTable(effectiveWalletGroups) : ''}
+        `
+        : '';
 
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed;">
-            <tr>
-              <td style="text-align: right; vertical-align: middle;">
-                <span style="display: inline-block; width: 3px; height: 10px; background: #d97706; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                <span style="font-size: 10px; font-weight: 800; color: #0f172a; vertical-align: middle;">سجل القيود والمعاملات المحاسبية (مفصل ومصنف حسب العملات)</span>
-              </td>
-              <td style="text-align: left; vertical-align: middle; font-size: 8px; font-weight: bold; color: #64748b;">
-                ${effectiveGroups.length > 1 ? `${effectiveGroups.length} عملات مسجلة` : `${transactions.length} قيد`}
-              </td>
-            </tr>
-          </table>
-        `;
-      } else {
-        topElements = `
-          <table style="width: 100%; border-collapse: collapse; margin: 3px 0; table-layout: fixed;">
-            <tr>
-              <td style="text-align: right; vertical-align: middle;">
-                <span style="display: inline-block; width: 3px; height: 10px; background: #d97706; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                <span style="font-size: 10px; font-weight: 800; color: #0f172a; vertical-align: middle;">سجل القيود والمعاملات (تابع - صفحة ${pageNum} من ${totalPages})</span>
-              </td>
-            </tr>
-          </table>
-        `;
-      }
-
-      // Render each section for this page
       const sectionsHTML = pageSections.map(sec => {
-        const headerHTML = `
-          <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; margin: 5px 0 3px 0; table-layout: fixed;">
+        const walletBannerTitle = sec.isContinuation
+          ? `محفظة: ${esc(sec.walletName)} (${esc(sec.currencyCode)}) - تابع كشف المحفظة`
+          : `كشف حساب محفظة: ${esc(sec.walletName)} (${esc(sec.currencyCode)}) • ${sec.totalWalletTxs} عملية`;
+
+        // 5-Column Wallet Summary Banner (Each metric in its own <td> cell to prevent any text collision)
+        const walletHeaderHTML = `
+          <table style="width: 100%; border-collapse: collapse; background: #f1f5f9; border: 1.5px solid #94a3b8; margin: 10px 0 4px 0; table-layout: fixed;">
             <tr>
-              <td style="padding: 4px 7px; text-align: right; width: 40%;">
-                <span style="display: inline-block; padding: 1.5px 6px; font-size: 8px; font-weight: 900; font-family: 'Plus Jakarta Sans', Arial, sans-serif; background: #0f172a; color: #fbbf24; border-radius: 4px; vertical-align: middle;">${esc(sec.groupCode)}</span>
-                <span style="font-size: 9px; font-weight: 800; color: #0f172a; margin-right: 4px; vertical-align: middle;">${esc(sec.groupName)}</span>
-                ${sec.isContinuation ? '<span style="font-size: 7.5px; color: #64748b; vertical-align: middle;">(تابع)</span>' : ''}
+              <td style="width: 32%; padding: 7px 10px; text-align: right; vertical-align: middle; border-left: 1px solid #cbd5e1; background: #e2e8f0;">
+                <div style="font-size: 9px; font-weight: 700; color: #475569; line-height: 14px;">اسم المحفظة والعملة</div>
+                <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; line-height: 18px;">${walletBannerTitle}</div>
               </td>
-              <td style="padding: 4px 7px; text-align: left; width: 60%; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px; direction: ltr;">
-                <span style="color: #64748b;">افتتاحي:</span> <b>${formatNum(sec.openingBal)}</b> |
-                <span style="color: #166534;">+وارد:</span> <b>+${formatNum(sec.income)}</b> |
-                <span style="color: #9f1239;">-منصرف:</span> <b>-${formatNum(sec.expense)}</b> |
-                <span style="color: #0f172a; font-weight: 900;">=ختامي: <b>${formatNum(sec.closingBal)} ${esc(sec.sym)}</b></span>
+              <td style="width: 17%; padding: 7px 8px; text-align: right; vertical-align: middle; border-left: 1px solid #cbd5e1;">
+                <div style="font-size: 9px; font-weight: 700; color: #64748b; line-height: 14px;">الرصيد الافتتاحي</div>
+                <div style="font-size: 11px; font-weight: 800; color: #0f172a; line-height: 17px;">${formatNum(sec.openingBal)} ${esc(sec.sym)}</div>
+              </td>
+              <td style="width: 17%; padding: 7px 8px; text-align: right; vertical-align: middle; border-left: 1px solid #cbd5e1;">
+                <div style="font-size: 9px; font-weight: 700; color: #166534; line-height: 14px;">إجمالي الوارد (+)</div>
+                <div style="font-size: 11px; font-weight: 800; color: #15803d; line-height: 17px;">+${formatNum(sec.income)} ${esc(sec.sym)}</div>
+              </td>
+              <td style="width: 17%; padding: 7px 8px; text-align: right; vertical-align: middle; border-left: 1px solid #cbd5e1;">
+                <div style="font-size: 9px; font-weight: 700; color: #9f1239; line-height: 14px;">إجمالي المنصرف (-)</div>
+                <div style="font-size: 11px; font-weight: 800; color: #be123c; line-height: 17px;">-${formatNum(sec.expense)} ${esc(sec.sym)}</div>
+              </td>
+              <td style="width: 17%; padding: 7px 8px; text-align: right; vertical-align: middle; background: #fffbeb;">
+                <div style="font-size: 9px; font-weight: 700; color: #92400e; line-height: 14px;">الرصيد الختامي (=)</div>
+                <div style="font-size: 11.5px; font-weight: 800; color: #0f172a; line-height: 17px;">${formatNum(sec.closingBal)} ${esc(sec.sym)}</div>
               </td>
             </tr>
           </table>
         `;
 
         const rowsHTML = sec.chunk.map((tx, idx) =>
-          renderDetailedTableRow7Col(tx, sec.startIndex + idx, sec.sym)
+          renderWalletLedgerTableRow(tx, sec.startIndex + idx)
         ).join('');
 
         return `
-          <div style="margin-bottom: 6px;">
-            ${headerHTML}
+          <div style="margin-bottom: 12px;">
+            ${walletHeaderHTML}
             <table class="report-table">
-              ${renderDetailedTableHeader7Col(sec.sym)}
+              ${renderWalletLedgerTableHeader(sec.sym)}
               <tbody>
-                ${rowsHTML || `<tr><td colspan="8" style="text-align: center; padding: 12px; color: #94a3b8;">لا توجد قيود مسجلة بهذه العملة</td></tr>`}
+                ${rowsHTML || `<tr><td colspan="7" style="text-align: center; padding: 14px; color: #64748b; font-weight: 700;">لا توجد عمليات مسجلة في هذه المحفظة خلال الفترة المحددة</td></tr>`}
               </tbody>
             </table>
           </div>
         `;
       }).join('');
-
-      // If last page and multi-currency: render unified valuation matrix
-      let multiCurrencySummaryHTML = '';
-      if (isLast && currencyBreakdown.length > 1) {
-        multiCurrencySummaryHTML = `
-          <div style="margin-top: 6px;">
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 3px; table-layout: fixed;">
-              <tr>
-                <td style="text-align: right; vertical-align: middle;">
-                  <span style="display: inline-block; width: 3px; height: 9px; background: #0f172a; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                  <span style="font-size: 9px; font-weight: 800; color: #0f172a; vertical-align: middle;">جدول مطابقة العملات الأجنبية والتقييم الموحد (${esc(baseCode)})</span>
-                </td>
-              </tr>
-            </table>
-            <table class="report-table" style="margin-bottom: 4px;">
-              <thead>
-                <tr>
-                  <th style="text-align: right;">العملة</th>
-                  <th style="width: 75px; text-align: left;">الافتتاحي</th>
-                  <th style="width: 75px; text-align: left;">+ الوارد</th>
-                  <th style="width: 75px; text-align: left;">- المنصرف</th>
-                  <th style="width: 75px; text-align: left;">= الصافي</th>
-                  <th style="width: 80px; text-align: left;">الختامي</th>
-                  <th style="width: 95px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${currencyBreakdown.map(cb => `
-                  <tr>
-                    <td style="text-align: right; font-weight: 700;">
-                      <span style="display: inline-block; padding: 1px 4px; font-size: 7px; font-weight: 800; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 3px; margin-left: 2px;">${esc(cb.code)}</span>
-                      ${esc(cb.metadata?.nameAr || cb.code)}
-                    </td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700;">${formatNum(cb.openingBalance)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; color: #15803d; font-weight: 800;">+${formatNum(cb.income)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; color: #be123c; font-weight: 800;">-${formatNum(cb.expense)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800;">${cb.net >= 0 ? '+' : ''}${formatNum(cb.net)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; background: #fffdf5;">${formatNum(cb.closingBalance)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #d97706;">${formatNum(cb.convertedClosingToBase || cb.convertedNetToBase)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        `;
-      }
 
       const pageContent = `
         <div class="report-page">
@@ -549,11 +534,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
             ${topHeader}
             ${topElements}
             ${sectionsHTML}
-            ${multiCurrencySummaryHTML}
           </div>
-
           <div class="page-footer-container">
-            ${isLast ? renderOfficialSeal() : ''}
             ${renderPageFooter(pageNum, totalPages)}
           </div>
         </div>
@@ -572,16 +554,13 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     const totalRemainingBudget = budgetList.reduce((sum, b) => sum + (b.remainingAmount || 0), 0);
     const budgetUtilizationRate = totalBudgeted > 0 ? (kpis.totalExpense / totalBudgeted) * 100 : 0;
 
-    const bCap = 20;
+    const bCap = 14;
     const bChunks: ReportBudgetSummary[][] = [];
-
     if (budgetList.length <= bCap) {
       bChunks.push(budgetList);
     } else {
-      let cur = 0;
-      while (cur < budgetList.length) {
-        bChunks.push(budgetList.slice(cur, cur + bCap));
-        cur += bCap;
+      for (let i = 0; i < budgetList.length; i += bCap) {
+        bChunks.push(budgetList.slice(i, i + bCap));
       }
     }
 
@@ -590,84 +569,52 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     bChunks.forEach((chunk, pIdx) => {
       const pageNum = pIdx + 1;
       const isFirst = pageNum === 1;
-      const isLast = pageNum === totalPages;
-
       const topHeader = isFirst ? renderMainHeader(pageNum, totalPages) : renderRunningHeader(pageNum, totalPages);
 
-      let topElements = '';
-      if (isFirst) {
-        topElements = `
-          ${renderScopeGrid()}
-          
-          <!-- Budget KPI Matrix -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed;">
-            <tr>
-              <td style="width: 25%; padding: 0 3px 0 0;">
-                <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: #475569; line-height: 13px; margin-bottom: 2px;">الميزانية المعتمدة</div>
-                  <div style="font-size: 12px; font-weight: 900; color: #0f172a; line-height: 16px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${formatNum(totalBudgeted)} <span style="font-size: 8px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 25%; padding: 0 3px;">
-                <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: #9f1239; line-height: 13px; margin-bottom: 2px;">الإنفاق الفعلي الإجمالي</div>
-                  <div style="font-size: 12px; font-weight: 900; color: #be123c; line-height: 16px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    -${formatNum(kpis.totalExpense)} <span style="font-size: 8px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 25%; padding: 0 3px;">
-                <div style="background: ${totalRemainingBudget >= 0 ? '#f0fdf4' : '#fff1f2'}; border: 1.5px solid ${totalRemainingBudget >= 0 ? '#bbf7d0' : '#fecdd3'}; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: ${totalRemainingBudget >= 0 ? '#166534' : '#9f1239'}; line-height: 13px; margin-bottom: 2px;">المتبقي من الميزانية</div>
-                  <div style="font-size: 12px; font-weight: 900; color: ${totalRemainingBudget >= 0 ? '#15803d' : '#be123c'}; line-height: 16px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${totalRemainingBudget >= 0 ? '+' : ''}${formatNum(totalRemainingBudget)} <span style="font-size: 8px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 25%; padding: 0 0 0 3px;">
-                <div style="background: #0f172a; border: 1.5px solid #1e293b; border-radius: 8px; padding: 6px 4px; text-align: center;">
-                  <div style="font-size: 8px; font-weight: 700; color: #94a3b8; line-height: 13px; margin-bottom: 2px;">معدل استهلاك الميزانية</div>
-                  <div style="font-size: 12px; font-weight: 900; color: ${budgetUtilizationRate > 100 ? '#f87171' : '#fbbf24'}; line-height: 16px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${budgetUtilizationRate.toFixed(1)}%
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </table>
-        `;
-      }
-
-      const rowsHTML = chunk.map((b) => {
-        const isOver = b.isOverBudget;
-        const statusColor = isOver ? '#be123c' : b.percentageUsed > 80 ? '#d97706' : '#15803d';
-        const statusBg = isOver ? '#fff1f2' : b.percentageUsed > 80 ? '#fffbeb' : '#f0fdf4';
-
-        return `
+      const topElements = isFirst ? `
+        ${renderScopeGrid()}
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed;">
           <tr>
-            <td style="text-align: right; font-weight: 700;">
-              <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${b.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 3px;"></span>
-              <span style="vertical-align: middle;">${esc(b.categoryName)}</span>
+            <td style="width: 25%; padding: 0 0 0 6px;">
+              <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #475569; line-height: 15px;">الميزانية المعتمدة</div>
+                <div style="font-size: 13px; font-weight: 800; color: #0f172a; line-height: 19px; margin-top: 2px;">${formatNum(totalBudgeted)} ${esc(baseSymbol)}</div>
+              </div>
             </td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700;">${formatNum(b.budgetAmount)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #be123c;">${formatNum(b.spentAmount)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: ${b.remainingAmount < 0 ? '#be123c' : '#15803d'};">
-              ${b.remainingAmount < 0 ? '-' : '+'}${formatNum(Math.abs(b.remainingAmount))}
+            <td style="width: 25%; padding: 0 3px;">
+              <div style="background: #fff1f2; border: 1px solid #fecdd3; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #9f1239; line-height: 15px;">الإنفاق الفعلي</div>
+                <div style="font-size: 13px; font-weight: 800; color: #be123c; line-height: 19px; margin-top: 2px;">-${formatNum(kpis.totalExpense)} ${esc(baseSymbol)}</div>
+              </div>
             </td>
-            <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-weight: 800;">
-              ${b.percentageUsed.toFixed(1)}%
+            <td style="width: 25%; padding: 0 3px;">
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #166534; line-height: 15px;">المتبقي من الميزانية</div>
+                <div style="font-size: 13px; font-weight: 800; color: #15803d; line-height: 19px; margin-top: 2px;">${formatNum(totalRemainingBudget)} ${esc(baseSymbol)}</div>
+              </div>
             </td>
-            <td style="text-align: center;">
-              <span style="display: inline-block; padding: 1px 6px; font-size: 7.5px; font-weight: 800; border-radius: 4px; background: ${statusBg}; color: ${statusColor}; border: 1px solid ${statusColor}40;">
-                ${esc(b.statusLabelAr)}
-              </span>
+            <td style="width: 25%; padding: 0 6px 0 0;">
+              <div style="background: #0f172a; border: 1px solid #0f172a; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #cbd5e1; line-height: 15px;">نسبة الاستهلاك</div>
+                <div style="font-size: 13px; font-weight: 800; color: #fbbf24; line-height: 19px; margin-top: 2px;">${budgetUtilizationRate.toFixed(1)}%</div>
+              </div>
             </td>
           </tr>
-        `;
-      }).join('');
+        </table>
+      ` : '';
 
-      const pageContent = `
+      const rowsHTML = chunk.map((b) => `
+        <tr>
+          <td style="text-align: right; font-weight: 800; color: #0f172a;">${esc(b.categoryName)}</td>
+          <td style="text-align: right; font-weight: 700;">${formatNum(b.budgetAmount)} ${esc(baseSymbol)}</td>
+          <td style="text-align: right; font-weight: 800; color: #be123c;">${formatNum(b.spentAmount)} ${esc(baseSymbol)}</td>
+          <td style="text-align: right; font-weight: 800; color: ${b.remainingAmount < 0 ? '#be123c' : '#15803d'};">${formatNum(b.remainingAmount)} ${esc(baseSymbol)}</td>
+          <td style="text-align: center; font-weight: 800;">${b.percentageUsed.toFixed(1)}%</td>
+          <td style="text-align: center; font-weight: 700; color: ${b.isOverBudget ? '#be123c' : '#15803d'};">${esc(b.statusLabelAr)}</td>
+        </tr>
+      `).join('');
+
+      pagesHTML.push(`
         <div class="report-page">
           <div style="width: 100%;">
             ${topHeader}
@@ -675,28 +622,24 @@ export function buildPrintableReportHTML(model: ReportModel): string {
             <table class="report-table">
               <thead>
                 <tr>
-                  <th style="text-align: right;">التصنيف المالي</th>
-                  <th style="width: 95px; text-align: left;">الميزانية المعتمدة (${esc(baseSymbol)})</th>
-                  <th style="width: 95px; text-align: left;">الإنفاق الفعلي (${esc(baseSymbol)})</th>
-                  <th style="width: 95px; text-align: left;">المتبقي (${esc(baseSymbol)})</th>
-                  <th style="width: 75px; text-align: center;">نسبة الاستهلاك</th>
-                  <th style="width: 80px; text-align: center;">الحالة</th>
+                  <th style="width: 24%; text-align: right;">التصنيف المالي</th>
+                  <th style="width: 17%; text-align: right;">الميزانية المعتمدة</th>
+                  <th style="width: 17%; text-align: right;">الإنفاق الفعلي</th>
+                  <th style="width: 17%; text-align: right;">المتبقي</th>
+                  <th style="width: 11%; text-align: center;">الاستهلاك</th>
+                  <th style="width: 14%; text-align: center;">الحالة</th>
                 </tr>
               </thead>
               <tbody>
-                ${rowsHTML || `<tr><td colspan="6" style="text-align: center; padding: 14px; color: #94a3b8;">لا توجد ميزانيات مسجلة</td></tr>`}
+                ${rowsHTML || `<tr><td colspan="6" style="text-align: center; padding: 16px; color: #64748b;">لا توجد ميزانيات مسجلة</td></tr>`}
               </tbody>
             </table>
           </div>
-
           <div class="page-footer-container">
-            ${isLast ? renderOfficialSeal() : ''}
             ${renderPageFooter(pageNum, totalPages)}
           </div>
         </div>
-      `;
-
-      pagesHTML.push(pageContent);
+      `);
     });
   }
 
@@ -705,16 +648,13 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   // ==========================================
   else if (reportType === 'debts') {
     const debtItems: ReportDebtItem[] = debts?.items || [];
-    const dCap = 18;
+    const dCap = 14;
     const dChunks: ReportDebtItem[][] = [];
-
     if (debtItems.length <= dCap) {
       dChunks.push(debtItems);
     } else {
-      let cur = 0;
-      while (cur < debtItems.length) {
-        dChunks.push(debtItems.slice(cur, cur + dCap));
-        cur += dCap;
+      for (let i = 0; i < debtItems.length; i += dCap) {
+        dChunks.push(debtItems.slice(i, i + dCap));
       }
     }
 
@@ -723,71 +663,47 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     dChunks.forEach((chunk, pIdx) => {
       const pageNum = pIdx + 1;
       const isFirst = pageNum === 1;
-      const isLast = pageNum === totalPages;
-
       const topHeader = isFirst ? renderMainHeader(pageNum, totalPages) : renderRunningHeader(pageNum, totalPages);
 
-      let topElements = '';
-      if (isFirst) {
-        topElements = `
-          ${renderScopeGrid()}
-          
-          <!-- Debt KPI Matrix -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed;">
-            <tr>
-              <td style="width: 33.33%; padding: 0 3px 0 0;">
-                <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #166534; line-height: 13px; margin-bottom: 2px;">مستحقات لك (ديون لي)</div>
-                  <div style="font-size: 13px; font-weight: 900; color: #15803d; line-height: 17px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    +${formatNum(debts?.totalReceivable)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 33.33%; padding: 0 3px;">
-                <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #9f1239; line-height: 13px; margin-bottom: 2px;">التزامات عليك (ديون علي)</div>
-                  <div style="font-size: 13px; font-weight: 900; color: #be123c; line-height: 17px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    -${formatNum(debts?.totalPayable)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 33.33%; padding: 0 0 0 3px;">
-                <div style="background: #0f172a; border: 1.5px solid #1e293b; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #94a3b8; line-height: 13px; margin-bottom: 2px;">صافي المركز الائتماني</div>
-                  <div style="font-size: 13px; font-weight: 900; color: ${(debts?.netDebtPosition || 0) >= 0 ? '#86efac' : '#f87171'}; line-height: 17px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${(debts?.netDebtPosition || 0) >= 0 ? '+' : ''}${formatNum(debts?.netDebtPosition)} <span style="font-size: 8.5px; font-weight: bold; color: #cbd5e1;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </table>
-        `;
-      }
-
-      const rowsHTML = chunk.map((d) => {
-        const isToMe = d.type === 'to_me';
-        const typeColor = isToMe ? '#15803d' : '#be123c';
-        const typeBg = isToMe ? '#f0fdf4' : '#fff1f2';
-
-        return `
+      const topElements = isFirst ? `
+        ${renderScopeGrid()}
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed;">
           <tr>
-            <td style="text-align: right; font-weight: 700;">${esc(d.personName)}</td>
-            <td style="text-align: center;">
-              <span style="display: inline-block; padding: 1px 5px; font-size: 7.5px; font-weight: 800; border-radius: 4px; background: ${typeBg}; color: ${typeColor}; border: 1px solid ${typeColor}40;">
-                ${esc(d.typeLabelAr)}
-              </span>
+            <td style="width: 33.33%; padding: 0 0 0 6px;">
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #166534; line-height: 15px;">مستحقات لك (ديون لي)</div>
+                <div style="font-size: 13px; font-weight: 800; color: #15803d; line-height: 19px; margin-top: 2px;">+${formatNum(debts?.totalReceivable)} ${esc(baseSymbol)}</div>
+              </div>
             </td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700;">${formatNum(d.originalAmount)} ${esc(d.currency)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700; color: #15803d;">${formatNum(d.paidAmount)} ${esc(d.currency)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: ${typeColor};">${formatNum(d.remainingAmount)} ${esc(d.currency)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a;">${formatNum(d.convertedRemaining)}</td>
-            <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px;">${esc(d.dueDate || '-')}</td>
-            <td style="text-align: center; font-size: 8px; font-weight: bold;">${esc(d.statusLabelAr)}</td>
+            <td style="width: 33.33%; padding: 0 3px;">
+              <div style="background: #fff1f2; border: 1px solid #fecdd3; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #9f1239; line-height: 15px;">التزامات عليك (ديون علي)</div>
+                <div style="font-size: 13px; font-weight: 800; color: #be123c; line-height: 19px; margin-top: 2px;">-${formatNum(debts?.totalPayable)} ${esc(baseSymbol)}</div>
+              </div>
+            </td>
+            <td style="width: 33.33%; padding: 0 6px 0 0;">
+              <div style="background: #0f172a; border: 1px solid #0f172a; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #cbd5e1; line-height: 15px;">صافي موقف الديون</div>
+                <div style="font-size: 13px; font-weight: 800; color: #fbbf24; line-height: 19px; margin-top: 2px;">${formatNum(debts?.netDebtPosition)} ${esc(baseSymbol)}</div>
+              </div>
+            </td>
           </tr>
-        `;
-      }).join('');
+        </table>
+      ` : '';
 
-      const pageContent = `
+      const rowsHTML = chunk.map((d) => `
+        <tr>
+          <td style="text-align: right; font-weight: 800; color: #0f172a;">${esc(d.personName)}</td>
+          <td style="text-align: center; font-weight: 700; color: ${d.type === 'to_me' ? '#15803d' : '#be123c'};">${esc(d.typeLabelAr)}</td>
+          <td style="text-align: right; font-weight: 700;">${formatNum(d.originalAmount)} ${esc(d.currency)}</td>
+          <td style="text-align: right; font-weight: 700; color: #15803d;">${formatNum(d.paidAmount)} ${esc(d.currency)}</td>
+          <td style="text-align: right; font-weight: 800; color: #be123c;">${formatNum(d.remainingAmount)} ${esc(d.currency)}</td>
+          <td style="text-align: center; font-size: 10px;">${esc(d.dueDate || '-')}</td>
+          <td style="text-align: center; font-weight: 700;">${esc(d.statusLabelAr)}</td>
+        </tr>
+      `).join('');
+
+      pagesHTML.push(`
         <div class="report-page">
           <div style="width: 100%;">
             ${topHeader}
@@ -795,30 +711,25 @@ export function buildPrintableReportHTML(model: ReportModel): string {
             <table class="report-table">
               <thead>
                 <tr>
-                  <th style="text-align: right;">الطرف / الاسم</th>
-                  <th style="width: 70px; text-align: center;">نوع الدين</th>
-                  <th style="width: 85px; text-align: left;">المبلغ الأصلي</th>
-                  <th style="width: 80px; text-align: left;">المسدد</th>
-                  <th style="width: 85px; text-align: left;">المتبقي بالعملة</th>
-                  <th style="width: 90px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
-                  <th style="width: 75px; text-align: center;">الاستحقاق</th>
-                  <th style="width: 65px; text-align: center;">الحالة</th>
+                  <th style="width: 22%; text-align: right;">الطرف / الاسم</th>
+                  <th style="width: 14%; text-align: center;">نوع الدين</th>
+                  <th style="width: 16%; text-align: right;">المبلغ الأصلي</th>
+                  <th style="width: 15%; text-align: right;">المسدد</th>
+                  <th style="width: 15%; text-align: right;">المتبقي</th>
+                  <th style="width: 9%; text-align: center;">الاستحقاق</th>
+                  <th style="width: 9%; text-align: center;">الحالة</th>
                 </tr>
               </thead>
               <tbody>
-                ${rowsHTML || `<tr><td colspan="8" style="text-align: center; padding: 14px; color: #94a3b8;">لا توجد ديون أو التزامات مسجلة</td></tr>`}
+                ${rowsHTML || `<tr><td colspan="7" style="text-align: center; padding: 16px; color: #64748b;">لا توجد ديون مسجلة</td></tr>`}
               </tbody>
             </table>
           </div>
-
           <div class="page-footer-container">
-            ${isLast ? renderOfficialSeal() : ''}
             ${renderPageFooter(pageNum, totalPages)}
           </div>
         </div>
-      `;
-
-      pagesHTML.push(pageContent);
+      `);
     });
   }
 
@@ -827,16 +738,13 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   // ==========================================
   else if (reportType === 'savings_goals') {
     const goalItems: ReportGoalItem[] = goals?.items || [];
-    const gCap = 18;
+    const gCap = 14;
     const gChunks: ReportGoalItem[][] = [];
-
     if (goalItems.length <= gCap) {
       gChunks.push(goalItems);
     } else {
-      let cur = 0;
-      while (cur < goalItems.length) {
-        gChunks.push(goalItems.slice(cur, cur + gCap));
-        cur += gCap;
+      for (let i = 0; i < goalItems.length; i += gCap) {
+        gChunks.push(goalItems.slice(i, i + gCap));
       }
     }
 
@@ -845,69 +753,47 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     gChunks.forEach((chunk, pIdx) => {
       const pageNum = pIdx + 1;
       const isFirst = pageNum === 1;
-      const isLast = pageNum === totalPages;
-
       const topHeader = isFirst ? renderMainHeader(pageNum, totalPages) : renderRunningHeader(pageNum, totalPages);
 
-      let topElements = '';
-      if (isFirst) {
-        topElements = `
-          ${renderScopeGrid()}
-          
-          <!-- Goals KPI Matrix -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed;">
-            <tr>
-              <td style="width: 33.33%; padding: 0 3px 0 0;">
-                <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #166534; line-height: 13px; margin-bottom: 2px;">إجمالي المبالغ المحققة</div>
-                  <div style="font-size: 13px; font-weight: 900; color: #15803d; line-height: 17px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${formatNum(goals?.totalSavedAmount)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 33.33%; padding: 0 3px;">
-                <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #475569; line-height: 13px; margin-bottom: 2px;">إجمالي المستهدف المالي</div>
-                  <div style="font-size: 13px; font-weight: 900; color: #0f172a; line-height: 17px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${formatNum(goals?.totalTargetAmount)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                </div>
-              </td>
-              <td style="width: 33.33%; padding: 0 0 0 3px;">
-                <div style="background: #0f172a; border: 1.5px solid #1e293b; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #94a3b8; line-height: 13px; margin-bottom: 2px;">نسبة الإنجاز الإجمالية</div>
-                  <div style="font-size: 13px; font-weight: 900; color: #fbbf24; line-height: 17px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${(goals?.overallProgressPercent || 0).toFixed(1)}%
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </table>
-        `;
-      }
-
-      const rowsHTML = chunk.map((g) => {
-        return `
+      const topElements = isFirst ? `
+        ${renderScopeGrid()}
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed;">
           <tr>
-            <td style="text-align: right; font-weight: 700;">
-              <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${g.color || '#d97706'}; vertical-align: middle; margin-left: 3px;"></span>
-              <span style="vertical-align: middle;">${esc(g.name)}</span>
+            <td style="width: 33.33%; padding: 0 0 0 6px;">
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #166534; line-height: 15px;">إجمالي المدخر الفعلي</div>
+                <div style="font-size: 13px; font-weight: 800; color: #15803d; line-height: 19px; margin-top: 2px;">${formatNum(goals?.totalSavedAmount)} ${esc(baseSymbol)}</div>
+              </div>
             </td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700;">${formatNum(g.convertedTarget)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #15803d;">${formatNum(g.convertedCurrent)}</td>
-            <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700; color: #475569;">${formatNum(g.remainingAmount)}</td>
-            <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-weight: 900; color: #0f172a;">${g.progressPercent.toFixed(1)}%</td>
-            <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px;">${esc(g.deadline || '-')}</td>
-            <td style="text-align: center;">
-              <span style="display: inline-block; padding: 1px 6px; font-size: 7.5px; font-weight: 800; border-radius: 4px; background: ${g.isCompleted ? '#f0fdf4' : '#fffbeb'}; color: ${g.isCompleted ? '#15803d' : '#d97706'};">
-                ${g.isCompleted ? 'مكتمل' : 'قيد الإنجاز'}
-              </span>
+            <td style="width: 33.33%; padding: 0 3px;">
+              <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #475569; line-height: 15px;">إجمالي المستهدف المالي</div>
+                <div style="font-size: 13px; font-weight: 800; color: #0f172a; line-height: 19px; margin-top: 2px;">${formatNum(goals?.totalTargetAmount)} ${esc(baseSymbol)}</div>
+              </div>
+            </td>
+            <td style="width: 33.33%; padding: 0 6px 0 0;">
+              <div style="background: #0f172a; border: 1px solid #0f172a; padding: 8px 10px; text-align: right;">
+                <div style="font-size: 9.5px; font-weight: 700; color: #cbd5e1; line-height: 15px;">نسبة الإنجاز العامة</div>
+                <div style="font-size: 13px; font-weight: 800; color: #fbbf24; line-height: 19px; margin-top: 2px;">${(goals?.overallProgressPercent || 0).toFixed(1)}%</div>
+              </div>
             </td>
           </tr>
-        `;
-      }).join('');
+        </table>
+      ` : '';
 
-      const pageContent = `
+      const rowsHTML = chunk.map((g) => `
+        <tr>
+          <td style="text-align: right; font-weight: 800; color: #0f172a;">${esc(g.name)}</td>
+          <td style="text-align: right; font-weight: 700;">${formatNum(g.convertedTarget)} ${esc(baseSymbol)}</td>
+          <td style="text-align: right; font-weight: 800; color: #15803d;">${formatNum(g.convertedCurrent)} ${esc(baseSymbol)}</td>
+          <td style="text-align: right; font-weight: 700;">${formatNum(g.remainingAmount)} ${esc(baseSymbol)}</td>
+          <td style="text-align: center; font-weight: 800;">${g.progressPercent.toFixed(1)}%</td>
+          <td style="text-align: center; font-size: 10px;">${esc(g.deadline || '-')}</td>
+          <td style="text-align: center; font-weight: 700; color: ${g.isCompleted ? '#15803d' : '#b45309'};">${g.isCompleted ? 'مكتمل' : 'قيد الإنجاز'}</td>
+        </tr>
+      `).join('');
+
+      pagesHTML.push(`
         <div class="report-page">
           <div style="width: 100%;">
             ${topHeader}
@@ -915,29 +801,25 @@ export function buildPrintableReportHTML(model: ReportModel): string {
             <table class="report-table">
               <thead>
                 <tr>
-                  <th style="text-align: right;">اسم الهدف المالي</th>
-                  <th style="width: 95px; text-align: left;">المستهدف (${esc(baseSymbol)})</th>
-                  <th style="width: 95px; text-align: left;">المدخر الحالي (${esc(baseSymbol)})</th>
-                  <th style="width: 95px; text-align: left;">المتبقي للهدف (${esc(baseSymbol)})</th>
-                  <th style="width: 75px; text-align: center;">نسبة الإنجاز</th>
-                  <th style="width: 75px; text-align: center;">تاريخ الهدف</th>
-                  <th style="width: 75px; text-align: center;">الحالة</th>
+                  <th style="width: 24%; text-align: right;">اسم الهدف المالي</th>
+                  <th style="width: 16%; text-align: right;">المستهدف</th>
+                  <th style="width: 16%; text-align: right;">المدخر الحالي</th>
+                  <th style="width: 16%; text-align: right;">المتبقي</th>
+                  <th style="width: 10%; text-align: center;">الإنجاز</th>
+                  <th style="width: 9%; text-align: center;">التاريخ</th>
+                  <th style="width: 9%; text-align: center;">الحالة</th>
                 </tr>
               </thead>
               <tbody>
-                ${rowsHTML || `<tr><td colspan="7" style="text-align: center; padding: 14px; color: #94a3b8;">لا توجد أهداف مالية مسجلة</td></tr>`}
+                ${rowsHTML || `<tr><td colspan="7" style="text-align: center; padding: 16px; color: #64748b;">لا توجد أهداف مسجلة</td></tr>`}
               </tbody>
             </table>
           </div>
-
           <div class="page-footer-container">
-            ${isLast ? renderOfficialSeal() : ''}
             ${renderPageFooter(pageNum, totalPages)}
           </div>
         </div>
-      `;
-
-      pagesHTML.push(pageContent);
+      `);
     });
   }
 
@@ -945,305 +827,138 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   // 5. Wealth & Multi-Currency Portfolio
   // ==========================================
   else if (reportType === 'wealth') {
-    const pageContent = `
+    pagesHTML.push(`
       <div class="report-page">
         <div style="width: 100%;">
           ${renderMainHeader(1, 1)}
           ${renderScopeGrid()}
-          
-          <!-- Wealth KPI Banner -->
-          <table style="width: 100%; border-collapse: collapse; background: #0f172a; border-radius: 8px; margin-bottom: 8px; color: #ffffff; table-layout: fixed;">
-            <tr>
-              <td style="width: 60%; padding: 8px 12px; text-align: right; vertical-align: middle;">
-                <div style="font-size: 8.5px; color: #94a3b8; margin-bottom: 1px;">إجمالي صافي الثروة والأصول (Net Worth)</div>
-                <div style="font-size: 16px; font-weight: 900; color: #fbbf24; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; text-align: right;">
-                  ${formatNum(kpis.closingBalance)} <span style="font-size: 9px; font-weight: bold; color: #cbd5e1;">${esc(baseSymbol)}</span>
-                </div>
-              </td>
-              <td style="width: 40%; padding: 8px 12px; text-align: left; vertical-align: middle; border-right: 1px solid #334155;">
-                <div style="font-size: 8.5px; color: #94a3b8; margin-bottom: 1px;">عدد المحافظ المالية</div>
-                <div style="font-size: 13px; font-weight: 800; color: #ffffff;">${walletSummaries.length} محافظ نقدية</div>
-              </td>
-            </tr>
-          </table>
+          ${renderOverallKpiRow()}
+          ${renderWalletsOverviewTable(walletLedgers)}
 
-          <!-- Wallets Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed;">
-            <tr>
-              <td style="text-align: right; vertical-align: middle;">
-                <span style="display: inline-block; width: 3px; height: 10px; background: #d97706; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                <span style="font-size: 10.5px; font-weight: 800; color: #0f172a; vertical-align: middle;">توزيع الأرصدة والمحافظ النقدية</span>
-              </td>
-            </tr>
-          </table>
-          <table class="report-table" style="margin-bottom: 8px;">
-            <thead>
-              <tr>
-                <th style="text-align: right;">اسم المحفظة</th>
-                <th style="width: 70px; text-align: center;">العملة</th>
-                <th style="width: 110px; text-align: left;">الرصيد بالعملة الفعلية</th>
-                <th style="width: 120px; text-align: left;">المعادل بـ (${esc(baseSymbol)})</th>
-                <th style="width: 80px; text-align: center;">الحصة من الثروة</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${walletSummaries.map((w) => `
-                <tr>
-                  <td style="text-align: right; font-weight: 700;">
-                    <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${w.color || '#2563eb'}; vertical-align: middle; margin-left: 3px;"></span>
-                    <span style="vertical-align: middle;">${esc(w.name)}</span>
-                  </td>
-                  <td style="text-align: center; font-weight: 800; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">${esc(w.currencyCode)}</td>
-                  <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800;">${formatNum(w.rawBalance)}</td>
-                  <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a;">${formatNum(w.convertedBalance)}</td>
-                  <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-weight: 800;">${w.percentageOfTotalWealth.toFixed(1)}%</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <!-- Multi-Currency Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed;">
-            <tr>
-              <td style="text-align: right; vertical-align: middle;">
-                <span style="display: inline-block; width: 3px; height: 10px; background: #2563eb; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                <span style="font-size: 10.5px; font-weight: 800; color: #0f172a; vertical-align: middle;">توزيع السيولة حسب العملات الأجنبية</span>
-              </td>
-            </tr>
-          </table>
+          <div style="font-size: 12px; font-weight: 800; color: #0f172a; line-height: 20px; margin: 12px 0 6px 0;">
+            توزيع السيولة والأرصدة حسب العملات
+          </div>
           <table class="report-table">
             <thead>
               <tr>
-                <th style="text-align: right;">العملة</th>
-                <th style="width: 60px; text-align: center;">الرمز</th>
-                <th style="width: 70px; text-align: center;">عدد الحركات</th>
-                <th style="width: 90px; text-align: left;">إجمالي الوارد</th>
-                <th style="width: 90px; text-align: left;">إجمالي المنصرف</th>
-                <th style="width: 95px; text-align: left;">الصافي بالعملة</th>
-                <th style="width: 105px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
+                <th style="width: 22%; text-align: right;">العملة</th>
+                <th style="width: 10%; text-align: center;">الرمز</th>
+                <th style="width: 14%; text-align: right;">الرصيد الافتتاحي</th>
+                <th style="width: 14%; text-align: right; color: #86efac;">إجمالي الوارد (+)</th>
+                <th style="width: 14%; text-align: right; color: #fca5a5;">إجمالي المنصرف (-)</th>
+                <th style="width: 14%; text-align: right; color: #fde68a;">الرصيد الختامي</th>
+                <th style="width: 12%; text-align: right;">المعادل (${esc(baseSymbol)})</th>
               </tr>
             </thead>
             <tbody>
               ${currencyBreakdown.map((cb) => `
                 <tr>
-                  <td style="text-align: right; font-weight: 700;">${esc(cb.metadata?.nameAr || cb.code)}</td>
-                  <td style="text-align: center; font-weight: 800; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">${esc(cb.code)}</td>
-                  <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">${cb.transactionCount}</td>
-                  <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; color: #15803d;">+${formatNum(cb.income)}</td>
-                  <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; color: #be123c;">-${formatNum(cb.expense)}</td>
-                  <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800;">${formatNum(cb.net)}</td>
-                  <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #d97706;">${formatNum(cb.convertedNetToBase)}</td>
+                  <td style="text-align: right; font-weight: 800;">${esc(cb.metadata?.nameAr || cb.code)}</td>
+                  <td style="text-align: center; font-weight: 700;">${esc(cb.code)}</td>
+                  <td style="text-align: right; font-weight: 700;">${formatNum(cb.openingBalance)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #15803d;">+${formatNum(cb.income)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #be123c;">-${formatNum(cb.expense)}</td>
+                  <td style="text-align: right; font-weight: 800; background: #fffbeb;">${formatNum(cb.closingBalance)}</td>
+                  <td style="text-align: right; font-weight: 800; color: #b45309;">${formatNum(cb.convertedClosingToBase || cb.convertedNetToBase)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         </div>
-
         <div class="page-footer-container">
-          ${renderOfficialSeal()}
           ${renderPageFooter(1, 1)}
         </div>
       </div>
-    `;
-    pagesHTML.push(pageContent);
+    `);
   }
 
   // ==========================================
-  // 6. Executive Financial Summary Report
+  // 6. Executive Financial Summary Report (Includes Wallet-by-Wallet Breakdown)
   // ==========================================
   else {
-    const isSurplus = kpis.netSavings >= 0;
-    const topExpenses = expenseCategories.slice(0, 5);
+    const topExpenses = expenseCategories.slice(0, 6);
 
-    const pageContent = `
+    pagesHTML.push(`
       <div class="report-page">
         <div style="width: 100%;">
           ${renderMainHeader(1, 1)}
           ${renderScopeGrid()}
-          
-          <!-- Executive KPI Grid -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed;">
-            <tr>
-              <td style="width: 33.33%; padding: 0 3px 0 0;">
-                <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #166534; line-height: 13px; margin-bottom: 2px;">إجمالي المقبوضات (الوارد)</div>
-                  <div style="font-size: 13.5px; font-weight: 900; color: #15803d; line-height: 18px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    +${formatNum(kpis.totalIncome)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                  <div style="font-size: 8px; color: #15803d; margin-top: 2px; line-height: 12px;">${kpis.incomeCount} قيد وارد</div>
-                </div>
-              </td>
-              <td style="width: 33.33%; padding: 0 3px;">
-                <div style="background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #9f1239; line-height: 13px; margin-bottom: 2px;">إجمالي المنصرفات (الصادر)</div>
-                  <div style="font-size: 13.5px; font-weight: 900; color: #be123c; line-height: 18px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    -${formatNum(kpis.totalExpense)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                  <div style="font-size: 8px; color: #be123c; margin-top: 2px; line-height: 12px;">${kpis.expenseCount} قيد منصرف</div>
-                </div>
-              </td>
-              <td style="width: 33.33%; padding: 0 0 0 3px;">
-                <div style="background: ${isSurplus ? '#f0fdf4' : '#fff1f2'}; border: 1.5px solid ${isSurplus ? '#bbf7d0' : '#fecdd3'}; border-radius: 8px; padding: 8px 4px; text-align: center;">
-                  <div style="font-size: 8.5px; font-weight: 700; color: ${isSurplus ? '#166534' : '#9f1239'}; line-height: 13px; margin-bottom: 2px;">${isSurplus ? 'صافي الفائض الدوري' : 'صافي العجز الدوري'}</div>
-                  <div style="font-size: 13.5px; font-weight: 900; color: ${isSurplus ? '#15803d' : '#be123c'}; line-height: 18px; direction: ltr; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
-                    ${isSurplus ? '+' : ''}${formatNum(kpis.netSavings)} <span style="font-size: 8.5px; font-weight: bold; color: #64748b;">${esc(baseSymbol)}</span>
-                  </div>
-                  <div style="font-size: 8px; color: #64748b; margin-top: 2px; line-height: 12px;">معدل الادخار: ${kpis.savingsRatePercent}%</div>
-                </div>
-              </td>
-            </tr>
-          </table>
+          ${renderOverallKpiRow()}
 
-          <!-- Opening & Closing Balances (Nested Table Layout - No Float) -->
-          <table style="width: 100%; border-collapse: collapse; background: #0f172a; border-radius: 8px; margin-bottom: 8px; color: #ffffff; table-layout: fixed;">
-            <tr>
-              <td style="width: 50%; padding: 6px 12px; border-left: 1px solid #334155;">
-                <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-                  <tr>
-                    <td style="text-align: right; color: #94a3b8; font-size: 8.5px; padding: 0; border: none; background: transparent; width: 45%;">الرصيد الافتتاحي:</td>
-                    <td style="text-align: left; font-size: 10.5px; font-weight: 900; color: #fde047; padding: 0; border: none; background: transparent; white-space: nowrap; width: 55%;">
-                      <span dir="ltr" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif;">${formatNum(kpis.openingBalance)}</span> <span style="font-size: 8px; color: #cbd5e1;">${esc(baseSymbol)}</span>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-              <td style="width: 50%; padding: 6px 12px;">
-                <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-                  <tr>
-                    <td style="text-align: right; color: #94a3b8; font-size: 8.5px; padding: 0; border: none; background: transparent; width: 45%;">الرصيد الختامي:</td>
-                    <td style="text-align: left; font-size: 10.5px; font-weight: 900; color: #86efac; padding: 0; border: none; background: transparent; white-space: nowrap; width: 55%;">
-                      <span dir="ltr" style="font-family: 'Plus Jakarta Sans', Arial, sans-serif;">${formatNum(kpis.closingBalance)}</span> <span style="font-size: 8px; color: #cbd5e1;">${esc(baseSymbol)}</span>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
+          <!-- Wallet-by-Wallet Breakdown Table for Easy Review -->
+          ${renderWalletsOverviewTable(walletLedgers)}
 
           <!-- Multi-Currency Matrix -->
           ${currencyBreakdown.length > 0 ? `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed;">
-              <tr>
-                <td style="text-align: right; vertical-align: middle;">
-                  <span style="display: inline-block; width: 3px; height: 10px; background: #d97706; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                  <span style="font-size: 10.5px; font-weight: 800; color: #0f172a; vertical-align: middle;">مصفوفة توزيع العملات الأجنبية والأرصدة</span>
-                </td>
-              </tr>
-            </table>
-            <table class="report-table" style="margin-bottom: 8px;">
+            <div style="font-size: 12px; font-weight: 800; color: #0f172a; line-height: 20px; margin: 10px 0 6px 0;">
+              ملخص الأرصدة والعمليات حسب العملات
+            </div>
+            <table class="report-table" style="margin-bottom: 12px;">
               <thead>
                 <tr>
-                  <th style="text-align: right;">العملة</th>
-                  <th style="width: 75px; text-align: left;">الافتتاحي</th>
-                  <th style="width: 75px; text-align: left;">+ المقبوضات</th>
-                  <th style="width: 75px; text-align: left;">- المنصرفات</th>
-                  <th style="width: 75px; text-align: left;">= الصافي</th>
-                  <th style="width: 80px; text-align: left;">الختامي</th>
-                  <th style="width: 85px; text-align: left;">المعادل (${esc(baseSymbol)})</th>
+                  <th style="width: 22%; text-align: right;">العملة</th>
+                  <th style="width: 15%; text-align: right;">الرصيد الافتتاحي</th>
+                  <th style="width: 16%; text-align: right; color: #86efac;">+ المقبوضات</th>
+                  <th style="width: 16%; text-align: right; color: #fca5a5;">- المنصرفات</th>
+                  <th style="width: 15%; text-align: right;">= الصافي</th>
+                  <th style="width: 16%; text-align: right; color: #fde68a;">الرصيد الختامي</th>
                 </tr>
               </thead>
               <tbody>
                 ${currencyBreakdown.map((cb) => `
                   <tr>
-                    <td style="text-align: right; font-weight: 700;">
-                      <span style="display: inline-block; padding: 1px 4px; font-size: 7.5px; font-weight: 800; font-family: 'Plus Jakarta Sans', Arial, sans-serif; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; color: #334155; margin-left: 2px;">${esc(cb.code)}</span>
-                      <span>${esc(cb.metadata?.nameAr || cb.code)}</span>
-                    </td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 700; color: #334155;">${formatNum(cb.openingBalance)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; color: #15803d; font-weight: 800;">+${formatNum(cb.income)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; color: #be123c; font-weight: 800;">-${formatNum(cb.expense)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800;">${cb.net >= 0 ? '+' : ''}${formatNum(cb.net)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; background: #fffbeb;">${formatNum(cb.closingBalance)}</td>
-                    <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #d97706;">${formatNum(cb.convertedClosingToBase || cb.convertedNetToBase)}</td>
+                    <td style="text-align: right; font-weight: 800;">${esc(cb.metadata?.nameAr || cb.code)} (${esc(cb.code)})</td>
+                    <td style="text-align: right; font-weight: 700;">${formatNum(cb.openingBalance)} ${esc(cb.metadata?.symbol || '')}</td>
+                    <td style="text-align: right; font-weight: 800; color: #15803d;">+${formatNum(cb.income)} ${esc(cb.metadata?.symbol || '')}</td>
+                    <td style="text-align: right; font-weight: 800; color: #be123c;">-${formatNum(cb.expense)} ${esc(cb.metadata?.symbol || '')}</td>
+                    <td style="text-align: right; font-weight: 800;">${cb.net >= 0 ? '+' : ''}${formatNum(cb.net)} ${esc(cb.metadata?.symbol || '')}</td>
+                    <td style="text-align: right; font-weight: 800; background: #fffbeb;">${formatNum(cb.closingBalance)} ${esc(cb.metadata?.symbol || '')}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
           ` : ''}
 
-          <!-- Two Column Breakdown -->
-          <table style="width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 6px;">
-            <tr>
-              <!-- Top Expenses -->
-              <td style="width: 50%; vertical-align: top; padding: 0 4px 0 0;">
-                <div style="font-size: 10px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">
-                  <span style="display: inline-block; width: 3px; height: 10px; background: #be123c; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                  أبرز بنود المنصرفات
-                </div>
-                <table class="report-table">
-                  <thead>
-                    <tr>
-                      <th style="text-align: right;">التصنيف</th>
-                      <th style="width: 75px; text-align: left;">المبلغ</th>
-                      <th style="width: 45px; text-align: center;">النسبة</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${topExpenses.map((c) => `
-                      <tr>
-                        <td style="text-align: right; font-weight: 700;">
-                          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${c.color || '#be123c'}; vertical-align: middle; margin-left: 3px;"></span>
-                          <span style="vertical-align: middle;">${esc(c.name)}</span>
-                        </td>
-                        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #be123c;">${formatNum(c.totalAmount)}</td>
-                        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px;">${Math.round(c.percentageOfTotal || 0)}%</td>
-                      </tr>
-                    `).join('')}
-                    ${topExpenses.length === 0 ? `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 8px;">لا توجد منصرفات</td></tr>` : ''}
-                  </tbody>
-                </table>
-              </td>
-
-              <!-- Wallets Distribution -->
-              <td style="width: 50%; vertical-align: top; padding: 0 0 0 4px;">
-                <div style="font-size: 10px; font-weight: 800; color: #0f172a; margin-bottom: 4px;">
-                  <span style="display: inline-block; width: 3px; height: 10px; background: #2563eb; border-radius: 2px; vertical-align: middle; margin-left: 4px;"></span>
-                  توزيع أرصدة المحافظ
-                </div>
-                <table class="report-table">
-                  <thead>
-                    <tr>
-                      <th style="text-align: right;">المحفظة</th>
-                      <th style="width: 75px; text-align: left;">الرصيد</th>
-                      <th style="width: 45px; text-align: center;">النسبة</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${walletSummaries.slice(0, 5).map((w) => `
-                      <tr>
-                        <td style="text-align: right; font-weight: 700;">
-                          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${w.color || '#2563eb'}; vertical-align: middle; margin-left: 3px;"></span>
-                          <span style="vertical-align: middle;">${esc(w.name)}</span>
-                        </td>
-                        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #0f172a;">${formatNum(w.convertedBalance)}</td>
-                        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8px;">${Math.round(w.percentageOfTotalWealth || 0)}%</td>
-                      </tr>
-                    `).join('')}
-                    ${walletSummaries.length === 0 ? `<tr><td colspan="3" style="text-align: center; color: #94a3b8; padding: 8px;">لا توجد محافظ</td></tr>` : ''}
-                  </tbody>
-                </table>
-              </td>
-            </tr>
+          <!-- Top Expense Categories Table -->
+          <div style="font-size: 12px; font-weight: 800; color: #0f172a; line-height: 20px; margin: 10px 0 6px 0;">
+            أبرز بنود وتصنيفات المصروفات
+          </div>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th style="width: 45%; text-align: right;">اسم التصنيف</th>
+                <th style="width: 20%; text-align: center;">عدد العمليات</th>
+                <th style="width: 20%; text-align: right;">إجمالي المبلغ</th>
+                <th style="width: 15%; text-align: center;">النسبة</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${topExpenses.map((c) => `
+                <tr>
+                  <td style="text-align: right; font-weight: 800;">${esc(c.name)}</td>
+                  <td style="text-align: center; font-weight: 700;">${c.transactionCount}</td>
+                  <td style="text-align: right; font-weight: 800; color: #be123c;">${formatNum(c.totalAmount)} ${esc(baseSymbol)}</td>
+                  <td style="text-align: center; font-weight: 700;">${Math.round(c.percentageOfTotal || 0)}%</td>
+                </tr>
+              `).join('')}
+              ${topExpenses.length === 0 ? `<tr><td colspan="4" style="text-align: center; color: #64748b; padding: 12px;">لا توجد مصروفات مسجلة</td></tr>` : ''}
+            </tbody>
           </table>
         </div>
 
         <div class="page-footer-container">
-          ${renderOfficialSeal()}
           ${renderPageFooter(1, 1)}
         </div>
       </div>
-    `;
-    pagesHTML.push(pageContent);
+    `);
   }
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
   <meta charset="UTF-8">
-  <title>تقرير ثري المالي - ${esc(metadata.reportId)}</title>
+  <title>تقرير ثري المالي</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&family=Readex+Pro:wght@400;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap');
-
     @page {
       size: A4 portrait;
       margin: 0;
@@ -1253,28 +968,31 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    body, .report-page, .report-page * {
-      font-family: 'Tajawal', 'Readex Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Almarai", Tahoma, sans-serif !important;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+    html, body, .report-page, .report-page * {
+      font-family: 'Tajawal', 'Readex Pro', 'Segoe UI', Tahoma, Arial, sans-serif !important;
       letter-spacing: 0px !important;
+      word-spacing: 1px !important;
+      -webkit-font-smoothing: antialiased;
     }
-    body {
-      background: #f1f5f9;
+    html, body {
+      background: #ffffff;
       color: #0f172a;
       direction: rtl;
       margin: 0;
       padding: 0;
-      font-size: 9px;
+      width: 794px;
+      font-size: 11px;
+      line-height: 18px;
     }
     .report-page {
       width: 794px;
       min-height: 1122px;
       height: 1122px;
       max-height: 1122px;
-      padding: 24px 28px 20px 28px;
-      margin: 0 auto 12px auto;
+      padding: 28px 32px 24px 32px;
+      margin: 0 auto;
       background: #ffffff;
+      color: #0f172a;
       box-sizing: border-box;
       position: relative;
       overflow: hidden;
@@ -1290,13 +1008,14 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     }
     .page-footer-container {
       position: absolute;
-      bottom: 20px;
-      left: 28px;
-      right: 28px;
+      bottom: 22px;
+      left: 32px;
+      right: 32px;
     }
     @media print {
-      body {
-        background: #ffffff;
+      html, body {
+        width: 100% !important;
+        background: #ffffff !important;
       }
       .report-page {
         width: 100% !important;
@@ -1305,7 +1024,7 @@ export function buildPrintableReportHTML(model: ReportModel): string {
         height: auto !important;
         max-height: none !important;
         overflow: visible !important;
-        padding: 6mm 6mm !important;
+        padding: 8mm 8mm !important;
         margin: 0 !important;
         border: none !important;
         box-shadow: none !important;
@@ -1318,35 +1037,14 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       }
       .page-footer-container {
         position: static !important;
-        margin-top: 8px !important;
+        margin-top: 12px !important;
       }
-    }
-    .badge-account {
-      font-size: 8px;
-      font-weight: bold;
-      color: #334155;
-      background: #f8fafc;
-      padding: 2px 7px;
-      border-radius: 4px;
-      border: 1px solid #cbd5e1;
-      display: inline-block;
-      line-height: 13px;
-    }
-    .badge-page {
-      font-size: 8px;
-      font-weight: 800;
-      color: #ffffff;
-      background: #0f172a;
-      padding: 2px 7px;
-      border-radius: 4px;
-      display: inline-block;
-      line-height: 13px;
     }
     table.report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10.5px;
-      line-height: 17px;
+      font-size: 11px;
+      line-height: 18px;
       margin-bottom: 10px;
       table-layout: fixed;
     }
@@ -1357,10 +1055,10 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       background-color: #0f172a;
       color: #ffffff;
       font-weight: 800;
-      font-size: 10.5px;
-      line-height: 16px;
-      padding: 8px 8px;
-      border: 1px solid #1e293b;
+      font-size: 11px;
+      line-height: 18px;
+      padding: 9px 8px;
+      border: 1px solid #334155;
       white-space: nowrap;
     }
     table.report-table td {
@@ -1369,20 +1067,12 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       color: #0f172a;
       vertical-align: middle;
       font-size: 10.5px;
-      line-height: 17px;
+      line-height: 18px;
       word-break: break-word;
       white-space: normal;
     }
     table.report-table tbody tr:nth-child(even) td {
       background-color: #f8fafc;
-    }
-    table.report-table tfoot td {
-      background-color: #0f172a;
-      border-top: 1.5px solid #0f172a;
-      font-weight: 900;
-      font-size: 10.5px;
-      line-height: 17px;
-      padding: 8px 8px;
     }
   </style>
 </head>
@@ -1402,10 +1092,11 @@ export function printHtmlViaIframe(htmlContent: string): Promise<boolean> {
       iframe.style.position = 'fixed';
       iframe.style.right = '0';
       iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.width = '794px';
+      iframe.style.height = '1122px';
       iframe.style.border = 'none';
       iframe.style.visibility = 'hidden';
+      iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
 
       const doc = iframe.contentWindow?.document;
@@ -1432,7 +1123,7 @@ export function printHtmlViaIframe(htmlContent: string): Promise<boolean> {
               iframe.parentNode.removeChild(iframe);
             }
             resolve(true);
-          }, 1000);
+          }, 1200);
         }, 350);
       };
 
@@ -1450,51 +1141,54 @@ export function printHtmlViaIframe(htmlContent: string): Promise<boolean> {
 
 /**
  * Generates a high-fidelity paginated A4 PDF Blob from ReportModel.
- * Attaches the container with absolute coordinates at top: 0, left: 0 with zIndex: -1000,
- * ensuring the browser's hardware rasterizer fully computes Arabic font glyphs,
- * preventing any line squashing or text collision.
+ * Renders inside an isolated 794px A4 iframe so mobile screen widths (375px) and dark-mode app styles
+ * never squash columns or interfere with Arabic typography.
  */
 export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob> {
   const htmlContent = buildPrintableReportHTML(model);
-  const container = document.createElement('div');
-  container.id = 'thari-pdf-container-' + Date.now();
-  container.style.position = 'absolute';
-  container.style.top = '0';
-  container.style.left = '0';
-  container.style.zIndex = '-9999';
-  container.style.opacity = '1';
-  container.style.visibility = 'visible';
-  container.style.pointerEvents = 'none';
-  container.style.width = '794px';
-  container.style.backgroundColor = '#ffffff';
-  container.style.direction = 'rtl';
-  container.innerHTML = htmlContent;
-  document.body.appendChild(container);
+
+  const iframe = document.createElement('iframe');
+  iframe.id = 'thari-pdf-iframe-' + Date.now();
+  iframe.style.position = 'fixed';
+  iframe.style.top = '0';
+  iframe.style.left = '-9999px';
+  iframe.style.width = '794px';
+  iframe.style.height = '1122px';
+  iframe.style.border = 'none';
+  iframe.style.backgroundColor = '#ffffff';
+  iframe.style.zIndex = '-9999';
+  iframe.style.pointerEvents = 'none';
+  document.body.appendChild(iframe);
 
   try {
-    // Wait for fonts & images layout
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) {
+      throw new Error('Could not initialize PDF rendering frame');
+    }
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+
+    // Wait for fonts in both parent document and iframe document
     if (document.fonts && document.fonts.ready) {
       try {
         await document.fonts.ready;
       } catch (e) {
-        console.warn('Fonts ready check error:', e);
+        console.warn('Parent fonts ready check error:', e);
+      }
+    }
+    if ((iframeDoc as any).fonts && (iframeDoc as any).fonts.ready) {
+      try {
+        await (iframeDoc as any).fonts.ready;
+      } catch (e) {
+        console.warn('Iframe fonts ready check error:', e);
       }
     }
 
-    const images = Array.from(container.querySelectorAll('img'));
-    await Promise.all(
-      images.map((img) => {
-        if (img.complete) return Promise.resolve();
-        return new Promise((res) => {
-          img.onload = res;
-          img.onerror = res;
-        });
-      })
-    );
+    await new Promise((resolve) => setTimeout(resolve, 350));
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const pageElements = Array.from(container.querySelectorAll('.report-page')) as HTMLElement[];
+    const pageElements = Array.from(iframeDoc.querySelectorAll('.report-page')) as HTMLElement[];
     const html2canvas = (await import('html2canvas')).default;
     const { jsPDF } = await import('jspdf');
 
@@ -1508,7 +1202,7 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
     const pdfWidth = 210;
     const pdfHeight = 297;
 
-    const elementsToRender = pageElements.length > 0 ? pageElements : [container];
+    const elementsToRender = pageElements.length > 0 ? pageElements : [iframeDoc.body];
 
     for (let i = 0; i < elementsToRender.length; i++) {
       const el = elementsToRender[i];
@@ -1520,12 +1214,13 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
         width: 794,
         height: 1122,
         windowWidth: 794,
+        windowHeight: 1122,
         backgroundColor: '#ffffff',
         scrollX: 0,
         scrollY: 0,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgData = canvas.toDataURL('image/jpeg', 0.96);
 
       if (i > 0) {
         pdf.addPage('a4', 'portrait');
@@ -1539,8 +1234,8 @@ export async function generatePdfBlobFromModel(model: ReportModel): Promise<Blob
 
     return pdf.output('blob');
   } finally {
-    if (container.parentNode) {
-      container.parentNode.removeChild(container);
+    if (iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
     }
   }
 }

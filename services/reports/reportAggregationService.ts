@@ -29,6 +29,7 @@ import {
   ReportQueryParams,
   ReportScopeInfo,
   ReportSelectedWalletItem,
+  ReportWalletLedgerGroup,
   ReportWalletSummary,
 } from './reportTypes';
 
@@ -596,6 +597,156 @@ export function buildReportModel(context: AggregationContext): ReportModel {
   // Sort currencyLedgers so currency with most transactions appears first
   currencyLedgers.sort((a, b) => b.transactions.length - a.transactions.length);
 
+  // 11B. Wallet-Segregated Ledgers with Dedicated Per-Wallet Running Balances
+  // Each selected wallet gets its own independent statement (Opening, Inflows, Outflows, Closing, and Transactions)
+  const walletLedgers: ReportWalletLedgerGroup[] = selectedWallets.map((w) => {
+    const wCurr = normalizeCurrencyCode(w.currencyCode);
+    const wMeta = getCurrencyMetadata(wCurr);
+
+    // 1) Calculate exact opening balance for this wallet prior to startDate
+    let wOpening = Number(w.openingBalance) || 0;
+    priorTransactions.forEach((pt) => {
+      const rawAmt = Number(pt.amount) || 0;
+      if (rawAmt === 0) return;
+      const amt = Math.abs(rawAmt);
+      const ptCurr = normalizeCurrencyCode(pt.currency);
+
+      if (pt.walletId === w.id) {
+        const isCross = ptCurr !== wCurr && pt.type !== 'transfer';
+        const effectiveAmt = isCross
+          ? (pt.convertedAmountInWalletCurrency || convertCurrency(amt, ptCurr, wCurr, exchangeRates))
+          : amt;
+
+        if (pt.type === 'income') {
+          wOpening = safeAdd(wOpening, effectiveAmt);
+        } else if (pt.type === 'expense' || pt.type === 'transfer_to_goal' || pt.type === 'transfer') {
+          wOpening = safeSub(wOpening, effectiveAmt);
+        }
+      }
+
+      if (pt.type === 'transfer' && pt.destinationWalletId === w.id && pt.walletId !== w.id) {
+        const receivedAmt = (pt.destinationAmount !== undefined && pt.destinationAmount !== null && Number(pt.destinationAmount) > 0)
+          ? Number(pt.destinationAmount)
+          : (ptCurr === wCurr ? amt : convertCurrency(amt, ptCurr, wCurr, exchangeRates));
+        wOpening = safeAdd(wOpening, receivedAmt);
+      }
+    });
+
+    // 2) Filter active transactions affecting this wallet (as source or transfer destination)
+    const walletActiveTxs = activeTransactions.filter(
+      (t) => t.walletId === w.id || (t.type === 'transfer' && t.destinationWalletId === w.id)
+    );
+
+    // Sort ascending for chronological running balance calculation
+    const ascWalletTxs = [...walletActiveTxs].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    let wRunBal = wOpening;
+    let wTotalIncome = 0;
+    let wTotalExpense = 0;
+
+    const walletEntriesAsc: ReportLedgerEntry[] = ascWalletTxs.map((t, idx) => {
+      const rawAmt = Number(t.amount) || 0;
+      const amt = Math.abs(rawAmt);
+      const tCurr = normalizeCurrencyCode(t.currency);
+      const isIncomingTransfer = t.type === 'transfer' && t.destinationWalletId === w.id && t.walletId !== w.id;
+
+      if (isIncomingTransfer) {
+        const receivedAmt = (t.destinationAmount !== undefined && t.destinationAmount !== null && Number(t.destinationAmount) > 0)
+          ? Number(t.destinationAmount)
+          : (tCurr === wCurr ? amt : convertCurrency(amt, tCurr, wCurr, exchangeRates));
+
+        wTotalIncome = safeAdd(wTotalIncome, receivedAmt);
+        wRunBal = safeAdd(wRunBal, receivedAmt);
+
+        const srcWallet = wallets.find((sw) => sw.id === t.walletId);
+        const baseEntry = createLedgerEntry(t, idx, wRunBal, undefined);
+        return {
+          ...baseEntry,
+          index: idx + 1,
+          walletId: w.id,
+          walletName: w.name,
+          walletCurrencyCode: wCurr,
+          originalAmount: receivedAmt,
+          currencyCode: wCurr,
+          currencySymbol: wMeta.symbol,
+          categoryName: 'تحويل وارد',
+          categoryColor: '#10b981',
+          typeLabelAr: 'تحويل وارد',
+          note: t.note
+            ? `${t.note} (تحويل وارد من ${srcWallet?.name || 'محفظة أخرى'})`
+            : `تحويل وارد من ${srcWallet?.name || 'محفظة أخرى'}`,
+          currencyRunningBalance: wRunBal,
+          walletRunningBalance: wRunBal,
+          walletEntryDirection: 'inflow',
+        };
+      }
+
+      // Source wallet transaction
+      const isCross = tCurr !== wCurr && t.type !== 'transfer';
+      const effectiveWalletAmt = isCross
+        ? (t.convertedAmountInWalletCurrency || convertCurrency(amt, tCurr, wCurr, exchangeRates))
+        : amt;
+
+      const isInflow = t.type === 'income';
+      if (isInflow) {
+        wTotalIncome = safeAdd(wTotalIncome, effectiveWalletAmt);
+        wRunBal = safeAdd(wRunBal, effectiveWalletAmt);
+      } else {
+        wTotalExpense = safeAdd(wTotalExpense, effectiveWalletAmt);
+        wRunBal = safeSub(wRunBal, effectiveWalletAmt);
+      }
+
+      const baseEntry = createLedgerEntry(t, idx, wRunBal, undefined);
+      const destWallet = t.type === 'transfer' && t.destinationWalletId
+        ? wallets.find((dw) => dw.id === t.destinationWalletId)
+        : undefined;
+
+      const enrichedNote = t.type === 'transfer' && destWallet
+        ? (t.note ? `${t.note} (تحويل صادر إلى ${destWallet.name})` : `تحويل صادر إلى ${destWallet.name}`)
+        : baseEntry.note;
+
+      const crossNote = isCross
+        ? `أصل المبلغ: ${amt.toLocaleString()} ${tCurr}${baseEntry.conversionNote ? ' • ' + baseEntry.conversionNote : ''}`
+        : baseEntry.conversionNote;
+
+      return {
+        ...baseEntry,
+        index: idx + 1,
+        originalAmount: effectiveWalletAmt,
+        currencyCode: wCurr,
+        currencySymbol: wMeta.symbol,
+        note: enrichedNote,
+        conversionNote: crossNote,
+        currencyRunningBalance: wRunBal,
+        walletRunningBalance: wRunBal,
+        walletEntryDirection: isInflow ? 'inflow' : 'outflow',
+      };
+    });
+
+    const wNet = safeSub(wTotalIncome, wTotalExpense);
+    const wClosing = safeAdd(wOpening, wNet);
+    const convertedClosing = wCurr === targetCurrencyCode
+      ? wClosing
+      : convertCurrency(wClosing, wCurr, targetCurrencyCode, exchangeRates);
+
+    return {
+      walletId: w.id,
+      walletName: w.name,
+      walletColor: w.color || '#d97706',
+      currencyCode: wCurr,
+      metadata: wMeta,
+      openingBalance: wOpening,
+      totalIncome: wTotalIncome,
+      totalExpense: wTotalExpense,
+      netAmount: wNet,
+      closingBalance: wClosing,
+      convertedClosingToBase: convertedClosing,
+      transactions: [...walletEntriesAsc].reverse(),
+    };
+  });
+
   // 12. KPIs Object
   const kpis: ReportKPIs = {
     totalIncome: unifiedIncome,
@@ -867,6 +1018,7 @@ export function buildReportModel(context: AggregationContext): ReportModel {
     transactions: transactionsList,
     ledger: transactionsList,
     currencyLedgers,
+    walletLedgers,
     budgets: budgetSummaries,
     debts: debtsSummary,
     goals: goalsSummary,
