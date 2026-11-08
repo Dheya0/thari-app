@@ -269,14 +269,24 @@ const Analytics: React.FC<AnalyticsProps> = ({
               اختر دمج كافة المحافظ معاً أو تصفية التحليلات حسب محفظة أو عملة محددة
             </p>
           </div>
-          <button 
-            type="button"
-            onClick={handleExportCSV}
-            className="flex items-center gap-1.5 py-2.5 px-3.5 bg-[#171D24] border border-white/10 text-slate-200 rounded-xl text-xs font-bold transition-all active:scale-95 hover:border-[#8EB9A7]/50 cursor-pointer shrink-0"
-          >
-            <Download size={14} className="text-[#8EB9A7]" />
-            <span>تصدير CSV</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              type="button"
+              onClick={() => handleTriggerPrint('detailed')}
+              className="flex items-center gap-1.5 py-2.5 px-3.5 bg-[#D9B978] hover:bg-[#c9a764] text-slate-950 rounded-xl text-xs font-black transition-all active:scale-95 cursor-pointer shadow-sm"
+            >
+              <Printer size={14} />
+              <span>تنزيل تقرير PDF</span>
+            </button>
+            <button 
+              type="button"
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 py-2.5 px-3.5 bg-[#171D24] border border-white/10 text-slate-200 rounded-xl text-xs font-bold transition-all active:scale-95 hover:border-[#8EB9A7]/50 cursor-pointer"
+            >
+              <Download size={14} className="text-[#8EB9A7]" />
+              <span>تصدير CSV</span>
+            </button>
+          </div>
         </div>
 
         {/* Mode Selector Tabs */}

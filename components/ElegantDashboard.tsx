@@ -8,8 +8,6 @@ import {
   ChevronRight,
   ArrowUp, 
   ArrowDown,
-  Edit2,
-  Trash2,
   Eye,
   EyeOff,
   Wallet as WalletIcon,
@@ -18,13 +16,10 @@ import {
   X,
   ChevronDown,
   HandCoins,
-  PieChart,
-  PiggyBank,
   TrendingUp,
-  Repeat,
-  Scale,
   Plus,
   History,
+  FileDown,
   Settings as SettingsIcon
 } from 'lucide-react';
 import { Wallet, Transaction, Category, Currency, Debt } from '../types';
@@ -71,8 +66,8 @@ interface ElegantDashboardProps {
   onOpenBudgets?: () => void;
   onOpenForecast?: () => void;
   onOpenRecurring?: () => void;
-  onOpenZakat?: () => void;
   onOpenSettings?: () => void;
+  onOpenReports?: () => void;
 }
 
 export const getGreeting = (lang: 'ar' | 'en' = 'ar'): { text: string; sub: string } => {
@@ -117,12 +112,8 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
   language = 'ar',
   showSeparateCurrencies = false,
   onToggleSeparateCurrencies,
-  onOpenGoals,
-  onOpenBudgets,
-  onOpenForecast,
-  onOpenRecurring,
-  onOpenZakat,
-  onOpenSettings
+  onOpenSettings,
+  onOpenReports
 }) => {
   const lang = language || 'ar';
   const t = getTranslation(lang);
@@ -301,7 +292,21 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-slate-300 font-bold bg-[#171D24] border border-white/10 px-3 py-1.5 rounded-xl">
+          {onOpenReports && (
+            <button
+              type="button"
+              onClick={() => {
+                NativeHaptics.selection().catch(() => {});
+                onOpenReports();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/40 text-[#D9B978] text-xs font-black transition-all active:scale-95 cursor-pointer"
+              title={isEn ? 'Download Financial Report (PDF / Excel)' : 'تنزيل وتحميل التقارير المالية (PDF / Excel)'}
+            >
+              <FileDown size={14} strokeWidth={2.5} />
+              <span>{isEn ? 'Download Report' : 'تنزيل تقرير'}</span>
+            </button>
+          )}
+          <span className="text-xs text-slate-300 font-bold bg-[#171D24] border border-white/10 px-3 py-1.5 rounded-xl hidden xs:inline-block">
             {new Intl.DateTimeFormat(isEn ? 'en-US' : 'ar-SA', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date())}
           </span>
         </div>
@@ -665,263 +670,59 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
       </motion.section>
 
       {/* ─────────────────────────────────────────────────────────────
-          3. PRIMARY OPERATIONS: PROMINENT ACTION BUTTONS WITH CLEAR ICONS
+          3. PRIMARY OPERATIONS: CLEAN & DIRECT ACTION BAR
       ───────────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs sm:text-sm font-black text-slate-200 flex items-center gap-2">
-            <Plus size={16} className="text-[#D9B978]" strokeWidth={2.5} />
-            <span>{isEn ? 'Quick Financial Operations' : 'العمليات المالية السريعة'}</span>
-          </h2>
-          <span className="text-[11px] text-slate-400 font-bold">
-            {isEn ? 'Tap to record immediately' : 'اختر نوع العملية للتسجيل الفوري'}
+      <section className="grid grid-cols-3 gap-2.5 sm:gap-3.5">
+        {/* Expense Button */}
+        <button
+          type="button"
+          onClick={() => {
+            NativeHaptics.selection().catch(() => {});
+            onOpenNewTransaction('expense');
+          }}
+          className="flex items-center justify-center gap-2 sm:gap-2.5 py-3.5 px-3 rounded-2xl bg-[#141A21] hover:bg-[#C98387]/15 border border-[#C98387]/30 hover:border-[#C98387] text-white transition-all duration-150 active:scale-95 group cursor-pointer"
+        >
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#C98387]/15 border border-[#C98387]/30 flex items-center justify-center text-[#C98387] shrink-0">
+            <ArrowDownLeft size={18} strokeWidth={2.5} />
+          </div>
+          <span className="text-xs sm:text-sm font-black text-[#F4F1EA] group-hover:text-[#C98387] truncate">
+            {isEn ? 'Expense' : 'مصروف'}
           </span>
-        </div>
+        </button>
 
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-          {/* Expense Button */}
-          <button
-            type="button"
-            onClick={() => {
-              NativeHaptics.selection().catch(() => {});
-              onOpenNewTransaction('expense');
-            }}
-            className="flex flex-col sm:flex-row items-center sm:justify-start gap-2.5 sm:gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-[#171D24] hover:bg-[#C98387]/15 border border-[#C98387]/35 hover:border-[#C98387] text-white transition-all duration-150 active:scale-95 group shadow-md cursor-pointer text-center sm:text-start"
-          >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#C98387]/20 border border-[#C98387]/40 flex items-center justify-center text-[#C98387] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-              <ArrowDownLeft size={22} strokeWidth={2.5} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#C98387] block truncate">
-                {isEn ? 'Record Expense' : 'تسجيل مصروف'}
-              </span>
-              <span className="text-[10px] sm:text-xs text-slate-400 hidden xs:block truncate mt-0.5">
-                {isEn ? 'Deduct from wallet' : 'خصم من المحفظة'}
-              </span>
-            </div>
-          </button>
-
-          {/* Income Button */}
-          <button
-            type="button"
-            onClick={() => {
-              NativeHaptics.selection().catch(() => {});
-              onOpenNewTransaction('income');
-            }}
-            className="flex flex-col sm:flex-row items-center sm:justify-start gap-2.5 sm:gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-[#171D24] hover:bg-[#8EB9A7]/15 border border-[#8EB9A7]/35 hover:border-[#8EB9A7] text-white transition-all duration-150 active:scale-95 group shadow-md cursor-pointer text-center sm:text-start"
-          >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#8EB9A7]/20 border border-[#8EB9A7]/40 flex items-center justify-center text-[#8EB9A7] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-              <ArrowUpRight size={22} strokeWidth={2.5} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#8EB9A7] block truncate">
-                {isEn ? 'Record Income' : 'تسجيل دخل'}
-              </span>
-              <span className="text-[10px] sm:text-xs text-slate-400 hidden xs:block truncate mt-0.5">
-                {isEn ? 'Add to wallet' : 'إيداع في المحفظة'}
-              </span>
-            </div>
-          </button>
-
-          {/* Transfer Button */}
-          <button
-            type="button"
-            onClick={() => {
-              NativeHaptics.selection().catch(() => {});
-              onOpenNewTransaction('transfer');
-            }}
-            className="flex flex-col sm:flex-row items-center sm:justify-start gap-2.5 sm:gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-[#171D24] hover:bg-[#759BC8]/15 border border-[#759BC8]/35 hover:border-[#759BC8] text-white transition-all duration-150 active:scale-95 group shadow-md cursor-pointer text-center sm:text-start"
-          >
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-[#759BC8]/20 border border-[#759BC8]/40 flex items-center justify-center text-[#759BC8] shrink-0 group-hover:scale-105 transition-transform shadow-xs">
-              <ArrowLeftRight size={22} strokeWidth={2.5} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#759BC8] block truncate">
-                {isEn ? 'Transfer Funds' : 'تحويل محفظة'}
-              </span>
-              <span className="text-[10px] sm:text-xs text-slate-400 hidden xs:block truncate mt-0.5">
-                {isEn ? 'Between wallets' : 'نقل وصرف عملات'}
-              </span>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* ─────────────────────────────────────────────────────────────
-          4. IMPORTANT OPTIONS & TOOLS GRID (الخيارات والأدوات المهمة)
-      ───────────────────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs sm:text-sm font-black text-slate-200 flex items-center gap-2">
-            <Layers size={16} className="text-[#D9B978]" strokeWidth={2.3} />
-            <span>{isEn ? 'Important Options & Financial Tools' : 'الخيارات والأدوات المهمة'}</span>
-          </h2>
-          <span className="text-[11px] text-slate-400 font-bold">
-            {isEn ? 'Direct access' : 'وصول سريع ومباشر'}
+        {/* Income Button */}
+        <button
+          type="button"
+          onClick={() => {
+            NativeHaptics.selection().catch(() => {});
+            onOpenNewTransaction('income');
+          }}
+          className="flex items-center justify-center gap-2 sm:gap-2.5 py-3.5 px-3 rounded-2xl bg-[#141A21] hover:bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 hover:border-[#8EB9A7] text-white transition-all duration-150 active:scale-95 group cursor-pointer"
+        >
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 flex items-center justify-center text-[#8EB9A7] shrink-0">
+            <ArrowUpRight size={18} strokeWidth={2.5} />
+          </div>
+          <span className="text-xs sm:text-sm font-black text-[#F4F1EA] group-hover:text-[#8EB9A7] truncate">
+            {isEn ? 'Income' : 'دخل'}
           </span>
-        </div>
+        </button>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
-          {/* Option 1: Debts Manager */}
-          <button
-            type="button"
-            onClick={() => {
-              NativeHaptics.selection().catch(() => {});
-              onOpenDebts('all');
-            }}
-            className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#D9B978]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] shrink-0 group-hover:scale-105 transition-transform">
-                <HandCoins size={20} strokeWidth={2.2} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#D9B978] block truncate">
-                  {isEn ? 'Debts & Dues' : 'الديون والالتزامات'}
-                </span>
-                <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
-                  {isEn ? 'Track & settle debts' : 'ديون لك وعليك والسداد'}
-                </span>
-              </div>
-            </div>
-            {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" />}
-          </button>
-
-          {/* Option 2: Monthly Budgets */}
-          {onOpenBudgets && (
-            <button
-              type="button"
-              onClick={() => {
-                NativeHaptics.selection().catch(() => {});
-                onOpenBudgets();
-              }}
-              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#759BC8]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#759BC8]/15 border border-[#759BC8]/30 flex items-center justify-center text-[#759BC8] shrink-0 group-hover:scale-105 transition-transform">
-                  <PieChart size={20} strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#759BC8] block truncate">
-                    {isEn ? 'Monthly Budgets' : 'الميزانية الشهرية'}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
-                    {isEn ? 'Spending limits' : 'سقوف الصرف والتنبيهات'}
-                  </span>
-                </div>
-              </div>
-              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#759BC8] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#759BC8] shrink-0" />}
-            </button>
-          )}
-
-          {/* Option 3: Savings Goals */}
-          {onOpenGoals && (
-            <button
-              type="button"
-              onClick={() => {
-                NativeHaptics.selection().catch(() => {});
-                onOpenGoals();
-              }}
-              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#8EB9A7]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 flex items-center justify-center text-[#8EB9A7] shrink-0 group-hover:scale-105 transition-transform">
-                  <PiggyBank size={20} strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#8EB9A7] block truncate">
-                    {isEn ? 'Savings Goals' : 'الأهداف والادخار'}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
-                    {isEn ? 'Target funds' : 'خطط التوفير والطوارئ'}
-                  </span>
-                </div>
-              </div>
-              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" />}
-            </button>
-          )}
-
-          {/* Option 4: Cashflow & Planning */}
-          {onOpenForecast && (
-            <button
-              type="button"
-              onClick={() => {
-                NativeHaptics.selection().catch(() => {});
-                onOpenForecast();
-              }}
-              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#D9B978]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#D9B978]/15 border border-[#D9B978]/30 flex items-center justify-center text-[#D9B978] shrink-0 group-hover:scale-105 transition-transform">
-                  <TrendingUp size={20} strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#D9B978] block truncate">
-                    {isEn ? 'Cashflow Planning' : 'التخطيط والسيولة'}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
-                    {isEn ? 'Future forecast' : 'توقعات الرصيد المستقبلي'}
-                  </span>
-                </div>
-              </div>
-              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#D9B978] shrink-0" />}
-            </button>
-          )}
-
-          {/* Option 5: Recurring Rules */}
-          {onOpenRecurring && (
-            <button
-              type="button"
-              onClick={() => {
-                NativeHaptics.selection().catch(() => {});
-                onOpenRecurring();
-              }}
-              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-[#8EB9A7]/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#8EB9A7]/15 border border-[#8EB9A7]/30 flex items-center justify-center text-[#8EB9A7] shrink-0 group-hover:scale-105 transition-transform">
-                  <Repeat size={20} strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-[#8EB9A7] block truncate">
-                    {isEn ? 'Recurring Rules' : 'العمليات الدورية'}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
-                    {isEn ? 'Automated bills' : 'رواتب والتزامات مجدولة'}
-                  </span>
-                </div>
-              </div>
-              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-[#8EB9A7] shrink-0" />}
-            </button>
-          )}
-
-          {/* Option 6: Zakat Calculator */}
-          {onOpenZakat && (
-            <button
-              type="button"
-              onClick={() => {
-                NativeHaptics.selection().catch(() => {});
-                onOpenZakat();
-              }}
-              className="flex items-center justify-between p-3.5 sm:p-4 rounded-2xl bg-[#141A21] hover:bg-[#1B232D] border border-white/10 hover:border-emerald-400/50 text-start transition-all duration-150 active:scale-[0.98] group cursor-pointer shadow-sm"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 group-hover:scale-105 transition-transform">
-                  <Scale size={20} strokeWidth={2.2} />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-xs sm:text-sm font-black text-white group-hover:text-emerald-400 block truncate">
-                    {isEn ? 'Zakat Calculator' : 'حاسبة الزكاة'}
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate mt-0.5">
-                    {isEn ? 'Sharia calculation' : 'حساب النصاب والزكاة'}
-                  </span>
-                </div>
-              </div>
-              {isEn ? <ChevronRight size={15} className="text-slate-500 group-hover:text-emerald-400 shrink-0" /> : <ChevronLeft size={15} className="text-slate-500 group-hover:text-emerald-400 shrink-0" />}
-            </button>
-          )}
-        </div>
+        {/* Transfer Button */}
+        <button
+          type="button"
+          onClick={() => {
+            NativeHaptics.selection().catch(() => {});
+            onOpenNewTransaction('transfer');
+          }}
+          className="flex items-center justify-center gap-2 sm:gap-2.5 py-3.5 px-3 rounded-2xl bg-[#141A21] hover:bg-[#759BC8]/15 border border-[#759BC8]/30 hover:border-[#759BC8] text-white transition-all duration-150 active:scale-95 group cursor-pointer"
+        >
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#759BC8]/15 border border-[#759BC8]/30 flex items-center justify-center text-[#759BC8] shrink-0">
+            <ArrowLeftRight size={18} strokeWidth={2.5} />
+          </div>
+          <span className="text-xs sm:text-sm font-black text-[#F4F1EA] group-hover:text-[#759BC8] truncate">
+            {isEn ? 'Transfer' : 'تحويل'}
+          </span>
+        </button>
       </section>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -1168,44 +969,20 @@ export const ElegantDashboard: React.FC<ElegantDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0 ms-2">
-                      <div className="text-end font-numeric">
-                        <span className={`text-sm sm:text-base font-black ${
-                          isIncome 
-                            ? 'text-[#8EB9A7]' 
-                            : isExpense 
-                            ? 'text-[#C98387]' 
-                            : 'text-[#759BC8]'
-                        }`}>
-                          {isIncome ? '+' : isExpense ? '-' : ''}
-                          {formatFinancialNumber(tx.amount)}
-                        </span>
-                        <span className="text-xs text-slate-300 ms-1 font-bold">
-                          {tx.currency || currency.symbol}
-                        </span>
-                      </div>
-
-                      {/* Explicit Edit / Delete Quick Buttons for Clear Visibility */}
-                      <div className="flex items-center gap-1 ps-1 border-s border-white/10" onClick={e => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => onEditTransaction(tx)}
-                          className="p-2 rounded-xl bg-white/[0.04] hover:bg-[#D9B978]/20 text-slate-300 hover:text-[#D9B978] transition-colors active:scale-90 cursor-pointer"
-                          title={isEn ? 'Edit' : 'تعديل'}
-                          aria-label={isEn ? 'Edit' : 'تعديل'}
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteTransaction(tx.id)}
-                          className="p-2 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 transition-colors active:scale-90 cursor-pointer"
-                          title={isEn ? 'Delete' : 'حذف'}
-                          aria-label={isEn ? 'Delete' : 'حذف'}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                    <div className="text-end font-numeric shrink-0 ms-3">
+                      <span className={`text-sm sm:text-base font-black ${
+                        isIncome 
+                          ? 'text-[#8EB9A7]' 
+                          : isExpense 
+                          ? 'text-[#C98387]' 
+                          : 'text-[#759BC8]'
+                      }`}>
+                        {isIncome ? '+' : isExpense ? '-' : ''}
+                        {formatFinancialNumber(tx.amount)}
+                      </span>
+                      <span className="text-xs text-slate-300 ms-1 font-bold">
+                        {tx.currency || currency.symbol}
+                      </span>
                     </div>
                   </div>
                 </SwipeableRow>

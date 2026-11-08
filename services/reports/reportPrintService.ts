@@ -87,61 +87,41 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 
   // --- Main Header (Page 1) ---
   const renderMainHeader = (pageNum: number, totalPages: number) => `
-    <div style="margin-bottom: 8px;">
-      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 6px; table-layout: fixed;">
+    <div style="margin-bottom: 12px;">
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 8px; table-layout: fixed;">
         <tr>
-          <!-- Right: Logo & Branding -->
-          <td style="text-align: right; vertical-align: middle; width: 55%;">
+          <!-- Right: Logo & Clear Report Title -->
+          <td style="text-align: right; vertical-align: middle; width: 62%;">
             <table style="border-collapse: collapse;">
               <tr>
-                <td style="vertical-align: middle; padding-left: 10px;">
-                  ${renderBrandLogo(38)}
+                <td style="vertical-align: middle; padding-left: 12px;">
+                  ${renderBrandLogo(40)}
                 </td>
                 <td style="text-align: right; vertical-align: middle;">
-                  <div style="font-size: 18px; font-weight: 900; color: #0f172a; line-height: 22px;">
-                    ثَـــري <span style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 11px; font-weight: 900; color: #d97706; margin-right: 4px;">THARI</span>
+                  <div style="font-size: 11px; font-weight: 800; color: #b45309; line-height: 16px; margin-bottom: 2px;">
+                    تطبيق ثَـــري للإدارة المالية الذكية
                   </div>
-                  <div style="font-size: 9.5px; font-weight: 700; color: #64748b; line-height: 15px; margin-top: 1px;">
-                    منظومة إدارة الأصول والميزانيات المالية المعتمدة
+                  <div style="font-size: 17px; font-weight: 900; color: #0f172a; line-height: 24px;">
+                    ${esc(titleInfo.ar)}
                   </div>
                 </td>
               </tr>
             </table>
           </td>
 
-          <!-- Left: Report ID & Meta -->
-          <td style="text-align: left; vertical-align: middle; width: 45%;">
-            <table style="border-collapse: collapse; margin-right: auto; margin-left: 0;">
-              <tr>
-                <td style="text-align: left; vertical-align: middle; padding-left: 8px; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 8.5px; color: #475569; line-height: 14px;">
-                  <div style="font-weight: 900; font-size: 9.5px; color: #0f172a;">${esc(metadata.reportId)}</div>
-                  <div style="color: #64748b;">بصمة: ${esc(metadata.fingerprint.slice(0, 14))}...</div>
-                  <div style="color: #94a3b8;">${esc(metadata.generatedAtFormattedAr)} • ${esc(metadata.generatedTimeFormattedAr)}</div>
-                </td>
-                <td style="vertical-align: middle;">
-                  ${
-                    metadata.qrDataUrl
-                      ? `<img src="${metadata.qrDataUrl}" width="44" height="44" style="border-radius: 4px; border: 1px solid #cbd5e1; display: block;" alt="QR" />`
-                      : `<div style="width: 44px; height: 44px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; text-align: center; font-size: 8px; font-weight: bold; color: #64748b; line-height: 44px;">توثيق</div>`
-                  }
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-
-      <!-- Title Sub-Bar -->
-      <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-        <tr>
-          <td style="text-align: right; vertical-align: middle; width: 65%;">
-            <span style="display: inline-block; width: 6px; height: 6px; background: #d97706; border-radius: 50%; vertical-align: middle; margin-left: 6px;"></span>
-            <span style="font-size: 12.5px; font-weight: 900; color: #0f172a; vertical-align: middle;">${esc(titleInfo.ar)}</span>
-            <span style="font-size: 9.5px; font-weight: 700; color: #94a3b8; font-family: 'Plus Jakarta Sans', Arial, sans-serif; vertical-align: middle; margin-right: 6px;">${esc(titleInfo.en)}</span>
-          </td>
-          <td style="text-align: left; vertical-align: middle; width: 35%;">
-            <span class="badge-account">حساب: <b>${esc(account.name)}</b></span>
-            <span class="badge-page">صفحة ${pageNum} من ${totalPages}</span>
+          <!-- Left: Account & Date Info (No QR / No Hash) -->
+          <td style="text-align: left; vertical-align: middle; width: 38%;">
+            <div style="display: inline-block; text-align: right; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 12px;">
+              <div style="font-size: 10px; font-weight: 800; color: #0f172a; line-height: 16px;">
+                الحساب: <span style="color: #b45309;">${esc(account.name)}</span>
+              </div>
+              <div style="font-size: 9px; font-weight: 700; color: #475569; line-height: 15px; margin-top: 2px;">
+                تاريخ الإصدار: ${esc(metadata.generatedAtFormattedAr)}
+              </div>
+              <div style="font-size: 8.5px; font-weight: 800; color: #64748b; line-height: 14px; margin-top: 1px;">
+                صفحة ${pageNum} من ${totalPages}
+              </div>
+            </div>
           </td>
         </tr>
       </table>
@@ -150,22 +130,19 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 
   // --- Running Header (Pages 2+) ---
   const renderRunningHeader = (pageNum: number, totalPages: number) => `
-    <div style="border-bottom: 1.5px solid #cbd5e1; padding-bottom: 6px; margin-bottom: 8px;">
+    <div style="border-bottom: 1.5px solid #cbd5e1; padding-bottom: 8px; margin-bottom: 10px;">
       <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
         <tr>
-          <td style="text-align: right; vertical-align: middle; width: 60%;">
-            ${renderBrandLogo(22)}
-            <span style="font-size: 11px; font-weight: 900; color: #0f172a; vertical-align: middle; margin-right: 4px;">ثَـــري</span>
-            <span style="font-size: 9px; font-weight: 900; color: #d97706; font-family: 'Plus Jakarta Sans', Arial, sans-serif; vertical-align: middle;">THARI</span>
-            <span style="color: #cbd5e1; margin: 0 4px; vertical-align: middle;">|</span>
-            <span style="font-size: 10.5px; font-weight: 800; color: #334155; vertical-align: middle;">${esc(titleInfo.ar)}</span>
-            <span style="font-size: 8.5px; color: #64748b; vertical-align: middle;">(تابع)</span>
+          <td style="text-align: right; vertical-align: middle; width: 65%;">
+            ${renderBrandLogo(24)}
+            <span style="font-size: 12px; font-weight: 900; color: #0f172a; vertical-align: middle; margin-right: 6px;">ثَـــري</span>
+            <span style="color: #cbd5e1; margin: 0 6px; vertical-align: middle;">|</span>
+            <span style="font-size: 11px; font-weight: 800; color: #334155; vertical-align: middle;">${esc(titleInfo.ar)}</span>
+            <span style="font-size: 9.5px; color: #64748b; vertical-align: middle; margin-right: 4px;">(تابع)</span>
           </td>
-          <td style="text-align: left; vertical-align: middle; font-size: 8.5px; color: #64748b; width: 40%;">
-            <span style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-weight: bold; color: #0f172a;">${esc(metadata.reportId)}</span>
-            <span style="color: #cbd5e1; margin: 0 4px;">•</span>
-            <span class="badge-account" style="padding: 2px 5px; font-size: 8px;">حساب: <b>${esc(account.name)}</b></span>
-            <span class="badge-page" style="padding: 2px 5px; font-size: 8px;">صفحة ${pageNum} من ${totalPages}</span>
+          <td style="text-align: left; vertical-align: middle; font-size: 9.5px; color: #475569; width: 35%;">
+            <span class="badge-account" style="padding: 3px 8px; font-size: 9px;">الحساب: <b>${esc(account.name)}</b></span>
+            <span class="badge-page" style="padding: 3px 8px; font-size: 9px; margin-right: 4px;">صفحة ${pageNum} من ${totalPages}</span>
           </td>
         </tr>
       </table>
@@ -224,41 +201,17 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     `;
   };
 
-  // --- Official Verification Seal ---
-  const renderOfficialSeal = () => `
-    <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 6px; margin-bottom: 4px; table-layout: fixed;">
-      <tr>
-        <td style="text-align: right; vertical-align: middle; padding: 5px 8px; width: 65%;">
-          <table style="border-collapse: collapse;">
-            <tr>
-              <td style="vertical-align: middle; padding-left: 6px;">
-                <div style="width: 22px; height: 22px; border: 1.5px solid #d97706; border-radius: 50%; text-align: center; line-height: 20px; font-size: 11px; font-weight: 900; color: #d97706; background: #fffbeb;">✓</div>
-              </td>
-              <td style="vertical-align: middle; text-align: right;">
-                <div style="font-weight: 800; color: #0f172a; font-size: 8.5px; line-height: 13px;">تم التوليد إلكترونياً وبشكل مشفر وموثق عبر تطبيق ثـري المالي</div>
-                <div style="font-size: 7.5px; color: #64748b; line-height: 12px; margin-top: 1px;">جميع الحقوق محفوظة © ${new Date().getFullYear()} • بصمة التحقق: ${esc(metadata.fingerprint.slice(0, 24))}...</div>
-              </td>
-            </tr>
-          </table>
-        </td>
-        <td style="text-align: left; vertical-align: middle; padding: 5px 8px; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 7.5px; color: #475569; direction: ltr; line-height: 12px; width: 35%;">
-          DOCUMENT AUTHENTICITY VALIDATED<br>
-          SECURE AUDITED LEDGER #${esc(metadata.reportId)}
-        </td>
-      </tr>
-    </table>
-  `;
+  // --- Official Verification Seal (Removed per user request to eliminate clutter) ---
+  const renderOfficialSeal = () => ``;
 
   // --- Page Footer ---
   const renderPageFooter = (pageNum: number, totalPages: number) => `
-    <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #e2e8f0; padding-top: 3px; margin-top: 3px; table-layout: fixed;">
+    <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #cbd5e1; padding-top: 6px; margin-top: 6px; table-layout: fixed;">
       <tr>
-        <td style="text-align: right; vertical-align: middle; font-size: 8px; color: #94a3b8; line-height: 12px; width: 70%;">
-          <span>تطبيق ثـري المالي • ${esc(titleInfo.ar)}</span>
-          <span style="color: #cbd5e1; margin: 0 4px;">•</span>
-          <span>بصمة التوثيق: ${esc(metadata.fingerprint.slice(0, 16))}...</span>
+        <td style="text-align: right; vertical-align: middle; font-size: 9px; font-weight: 700; color: #64748b; line-height: 14px; width: 70%;">
+          <span>تطبيق ثـري للإدارة المالية الذكية • ${esc(titleInfo.ar)}</span>
         </td>
-        <td style="text-align: left; vertical-align: middle; font-size: 8px; font-weight: 900; color: #0f172a; line-height: 12px; width: 30%;">
+        <td style="text-align: left; vertical-align: middle; font-size: 9px; font-weight: 900; color: #0f172a; line-height: 14px; width: 30%;">
           صفحة ${pageNum} من ${totalPages}
         </td>
       </tr>
@@ -269,14 +222,14 @@ export function buildPrintableReportHTML(model: ReportModel): string {
   const renderDetailedTableHeader7Col = (sym: string) => `
     <thead>
       <tr style="border-bottom: 2px solid #d97706;">
-        <th style="width: 4%; text-align: center; background: #0f172a; color: #ffffff; padding: 7px 5px; font-size: 10px;">#</th>
-        <th style="width: 11%; text-align: center; background: #0f172a; color: #ffffff; padding: 7px 6px; font-size: 10px;">التاريخ</th>
-        <th style="width: 29%; text-align: right; background: #0f172a; color: #ffffff; padding: 7px 8px; font-size: 10px;">البيان / تفاصيل القيد</th>
-        <th style="width: 12%; text-align: right; background: #0f172a; color: #ffffff; padding: 7px 6px; font-size: 10px;">التصنيف</th>
-        <th style="width: 10%; text-align: right; background: #0f172a; color: #ffffff; padding: 7px 6px; font-size: 10px;">المحفظة</th>
-        <th style="width: 11%; text-align: left; background: #0f172a; color: #fca5a5; padding: 7px 6px; font-size: 10px;">مدين (-)</th>
-        <th style="width: 11%; text-align: left; background: #0f172a; color: #86efac; padding: 7px 6px; font-size: 10px;">دائن (+)</th>
-        <th style="width: 12%; text-align: left; background: #0f172a; color: #fde68a; padding: 7px 6px; font-size: 10px;">الرصيد (${esc(sym)})</th>
+        <th style="width: 5%; text-align: center; background: #0f172a; color: #ffffff; padding: 8px 6px; font-size: 10.5px;">#</th>
+        <th style="width: 12%; text-align: center; background: #0f172a; color: #ffffff; padding: 8px 6px; font-size: 10.5px;">التاريخ</th>
+        <th style="width: 27%; text-align: right; background: #0f172a; color: #ffffff; padding: 8px 10px; font-size: 10.5px;">البيان / تفاصيل القيد</th>
+        <th style="width: 12%; text-align: right; background: #0f172a; color: #ffffff; padding: 8px 8px; font-size: 10.5px;">التصنيف</th>
+        <th style="width: 11%; text-align: right; background: #0f172a; color: #ffffff; padding: 8px 8px; font-size: 10.5px;">المحفظة</th>
+        <th style="width: 11%; text-align: left; background: #0f172a; color: #fca5a5; padding: 8px 8px; font-size: 10.5px;">مدين (-)</th>
+        <th style="width: 11%; text-align: left; background: #0f172a; color: #86efac; padding: 8px 8px; font-size: 10.5px;">دائن (+)</th>
+        <th style="width: 11%; text-align: left; background: #0f172a; color: #fde68a; padding: 8px 8px; font-size: 10.5px;">الرصيد (${esc(sym)})</th>
       </tr>
     </thead>
   `;
@@ -288,30 +241,30 @@ export function buildPrintableReportHTML(model: ReportModel): string {
 
     return `
       <tr>
-        <td style="text-align: center; color: #64748b; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 9.5px; padding: 6px 4px;">${idx + 1}</td>
-        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 9.5px; color: #334155; white-space: nowrap; padding: 6px 4px;">${esc(tx.date)}</td>
-        <td style="text-align: right; color: #0f172a; padding: 6px 8px;" title="${esc(tx.note || tx.categoryName)}">
-          <div style="font-size: 10px; line-height: 15px; word-break: break-word; overflow-wrap: break-word; font-weight: 600;">${esc(tx.note || tx.categoryName)}</div>
-          ${tx.conversionNote ? `<div style="font-size: 8.5px; color: #b45309; line-height: 12px; margin-top: 2px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
+        <td style="text-align: center; color: #64748b; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 10px; padding: 8px 6px; font-weight: 700;">${idx + 1}</td>
+        <td style="text-align: center; font-family: 'Plus Jakarta Sans', Arial, sans-serif; font-size: 10px; color: #334155; white-space: nowrap; padding: 8px 6px; font-weight: 600;">${esc(tx.date)}</td>
+        <td style="text-align: right; color: #0f172a; padding: 8px 10px;" title="${esc(tx.note || tx.categoryName)}">
+          <div style="font-size: 10.5px; line-height: 16px; word-break: break-word; overflow-wrap: break-word; font-weight: 700;">${esc(tx.note || tx.categoryName)}</div>
+          ${tx.conversionNote ? `<div style="font-size: 9px; color: #b45309; line-height: 13px; margin-top: 3px;">💱 ${esc(tx.conversionNote)}</div>` : ''}
         </td>
-        <td style="text-align: right; font-weight: 700; color: #1e293b; font-size: 9.5px; padding: 6px 6px;">
-          <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 3px;"></span>
+        <td style="text-align: right; font-weight: 700; color: #1e293b; font-size: 10px; padding: 8px 8px;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${tx.categoryColor || '#94a3b8'}; vertical-align: middle; margin-left: 4px;"></span>
           <span style="vertical-align: middle;">${esc(tx.categoryName)}</span>
         </td>
-        <td style="text-align: right; color: #475569; font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 6px 6px;">${esc(tx.walletName)}</td>
+        <td style="text-align: right; color: #475569; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 8px; font-weight: 600;">${esc(tx.walletName)}</td>
         
         <!-- Debit Column (مدين / منصرف) -->
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #be123c; white-space: nowrap; font-size: 10px; padding: 6px 6px;">
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #be123c; white-space: nowrap; font-size: 10.5px; padding: 8px 8px;">
           ${isExpense ? `-${formatNum(tx.originalAmount)}` : `<span style="color: #cbd5e1; font-weight: normal;">-</span>`}
         </td>
 
         <!-- Credit Column (دائن / وارد) -->
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #15803d; white-space: nowrap; font-size: 10px; padding: 6px 6px;">
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 800; color: #15803d; white-space: nowrap; font-size: 10.5px; padding: 8px 8px;">
           ${isIncome ? `+${formatNum(tx.originalAmount)}` : `<span style="color: #cbd5e1; font-weight: normal;">-</span>`}
         </td>
 
         <!-- Running Balance Column -->
-        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; font-size: 10px; background: #fffdf5; padding: 6px 6px;">
+        <td style="text-align: left; font-family: 'Plus Jakarta Sans', Arial, sans-serif; direction: ltr; font-weight: 900; color: #0f172a; white-space: nowrap; font-size: 10.5px; background: #fffdf5; padding: 8px 8px;">
           ${effectiveBal !== undefined ? formatNum(effectiveBal) : '-'}
         </td>
       </tr>
@@ -354,8 +307,8 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     const sectionsByPage: PrintLedgerSection[][] = [];
     let currentPageSections: PrintLedgerSection[] = [];
     let currentPageWeight = 0;
-    const PAGE_1_MAX_WEIGHT = 12; // Generous height budget for Page 1
-    const PAGE_N_MAX_WEIGHT = 16; // Spacious capacity on continuation pages
+    const PAGE_1_MAX_WEIGHT = 10; // Spacious height budget for Page 1 without crowding
+    const PAGE_N_MAX_WEIGHT = 14; // Spacious capacity on continuation pages
 
     effectiveGroups.forEach(group => {
       const gTx = group.transactions || [];
@@ -1392,9 +1345,9 @@ export function buildPrintableReportHTML(model: ReportModel): string {
     table.report-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10px;
-      line-height: 16px;
-      margin-bottom: 8px;
+      font-size: 10.5px;
+      line-height: 17px;
+      margin-bottom: 10px;
       table-layout: fixed;
     }
     table.report-table thead {
@@ -1404,19 +1357,19 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       background-color: #0f172a;
       color: #ffffff;
       font-weight: 800;
-      font-size: 10px;
-      line-height: 15px;
-      padding: 7px 8px;
+      font-size: 10.5px;
+      line-height: 16px;
+      padding: 8px 8px;
       border: 1px solid #1e293b;
       white-space: nowrap;
     }
     table.report-table td {
-      padding: 6px 8px;
+      padding: 8px 8px;
       border: 1px solid #cbd5e1;
       color: #0f172a;
       vertical-align: middle;
-      font-size: 10px;
-      line-height: 16px;
+      font-size: 10.5px;
+      line-height: 17px;
       word-break: break-word;
       white-space: normal;
     }
@@ -1427,9 +1380,9 @@ export function buildPrintableReportHTML(model: ReportModel): string {
       background-color: #0f172a;
       border-top: 1.5px solid #0f172a;
       font-weight: 900;
-      font-size: 10px;
-      line-height: 16px;
-      padding: 7px 8px;
+      font-size: 10.5px;
+      line-height: 17px;
+      padding: 8px 8px;
     }
   </style>
 </head>

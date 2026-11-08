@@ -1963,7 +1963,18 @@ export default function Settings({
                    </div>
                  </div>
 
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setReportConfig({ type: 'detailed', currencyFilter: null, action: 'print' });
+                        setShowReportModal(true);
+                      }} 
+                      className="flex items-center justify-center gap-2 p-3.5 bg-[#D9B978]/15 hover:bg-[#D9B978]/25 rounded-2xl active:scale-95 transition-all border border-[#D9B978]/40 text-[#D9B978] text-xs font-black cursor-pointer"
+                    >
+                        <FileDown size={18} className="text-[#D9B978]" />
+                        <span>{localLanguage === 'en' ? 'Download Financial Report (PDF)' : 'تنزيل وتحميل التقارير (PDF)'}</span>
+                    </button>
                     <button type="button" onClick={() => handleExportCSV('detailed', null)} className="flex items-center justify-center gap-2 p-3.5 bg-[#0A0D10] rounded-2xl active:scale-95 transition-all border border-white/10 text-white hover:border-[#8EB9A7]/40 text-xs font-bold cursor-pointer">
                         <FileSpreadsheet size={18} className="text-[#8EB9A7]" />
                         <span>{t.exportExcel}</span>
@@ -2193,6 +2204,9 @@ export default function Settings({
         currentCurrency={currency || appState.currency}
         userName={appState.userName || userName || (localLanguage === 'en' ? 'Thari User' : 'مستخدم ثري')}
         exchangeRates={appState.exchangeRates || exchangeRates || {}}
+        budgets={appState.budgets || []}
+        debts={appState.debts || []}
+        goals={appState.goals || []}
         initialType={reportConfig.type}
         initialCurrencyCode={reportConfig.currencyFilter}
         onTriggerPrint={onPrint}

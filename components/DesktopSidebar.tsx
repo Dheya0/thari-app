@@ -12,12 +12,11 @@ import {
   PiggyBank, 
   PieChart, 
   Repeat, 
-  Calculator,
+  FileDown,
   ChevronLeft,
   ChevronRight,
   WifiOff,
   TrendingUp,
-  BookOpen,
   Bell
 } from 'lucide-react';
 import { Logo } from './Logo';
@@ -39,6 +38,7 @@ interface DesktopSidebarProps {
   currency: Currency;
   onOpenCurrencySelector: () => void;
   onOpenToolsHub: () => void;
+  onOpenReports?: () => void;
   onOpenAlerts?: () => void;
   alertsCount?: number;
   hasPendingAlerts?: boolean;
@@ -57,6 +57,7 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   currency,
   onOpenCurrencySelector,
   onOpenToolsHub,
+  onOpenReports,
   onOpenAlerts,
   alertsCount = 0,
   hasPendingAlerts = false,
@@ -132,13 +133,6 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       label: isEn ? 'Subscriptions' : 'الاشتراكات الدورية',
       shortLabel: isEn ? 'Subs' : 'الاشتراكات',
       icon: Repeat,
-      badge: null
-    },
-    {
-      id: 'zakat' as TabType,
-      label: isEn ? 'Zakat Calculator' : 'حاسبة الزكاة الذكية',
-      shortLabel: isEn ? 'Zakat' : 'الزكاة',
-      icon: Calculator,
       badge: null
     },
     {
@@ -304,8 +298,24 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
         })}
       </nav>
 
-      {/* 4. Financial Context & Quick Settings (Wallet & Currency Quick Selectors) */}
+      {/* 4. Financial Context & Quick Settings (Reports, Wallet & Currency Quick Selectors) */}
       <div className="p-3 border-t border-white/[0.06] space-y-2 bg-[#080B0E]/60">
+        {onOpenReports && (
+          <button
+            type="button"
+            onClick={() => {
+              NativeHaptics.selection().catch(() => {});
+              onOpenReports();
+            }}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/40 text-[#D9B978] text-xs font-black transition-all cursor-pointer active:scale-95 ${
+              isCollapsed ? 'px-0 h-10' : ''
+            }`}
+            title={isEn ? 'Download Financial Report (PDF / Excel)' : 'تنزيل التقارير المالية (PDF / Excel)'}
+          >
+            <FileDown size={15} strokeWidth={2.5} className="shrink-0" />
+            {!isCollapsed && <span>{isEn ? 'Download Reports' : 'تنزيل التقارير (PDF)'}</span>}
+          </button>
+        )}
         {!isCollapsed ? (
           <div className="grid grid-cols-2 gap-1.5">
             {/* Wallet Quick Button */}

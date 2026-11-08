@@ -2,8 +2,8 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  X, Repeat, Trash2, Scale, 
-  ArrowLeft, ArrowRight, Sparkles, Coins, PieChart, Calendar, TrendingUp, PiggyBank
+  X, Repeat, Trash2, FileDown, 
+  ArrowLeft, ArrowRight, Sparkles, PieChart, Calendar, TrendingUp, PiggyBank
 } from 'lucide-react';
 
 interface ToolsHubModalProps {
@@ -15,7 +15,6 @@ interface ToolsHubModalProps {
   onOpenForecast?: () => void;
   onOpenRecurring: () => void;
   onOpenTrash: () => void;
-  onOpenZakat?: () => void;
   onOpenBudgets?: () => void;
   onOpenGoals?: () => void;
   onOpenSubscriptions?: () => void;
@@ -24,12 +23,16 @@ interface ToolsHubModalProps {
 
 const STRINGS = {
   ar: {
-    title: 'مركز الأدوات والخيارات المهمة',
-    subtitle: 'وصول فوري وواضح لجميع أدوات التخطيط والميزانية والالتزامات',
+    title: 'مركز الأدوات والتقارير المالية',
+    subtitle: 'تنزيل التقارير وأدوات التخطيط والميزانية والالتزامات',
     close: 'إغلاق',
     activeBadge: 'نشطة',
     opsBadge: 'عملية',
     tools: {
+      reports: {
+        title: 'تنزيل وتحميل التقارير المالية (PDF / Excel)',
+        desc: 'إصدار ومشاركة كشف حساب تفصيلي أو ملخص تنفيذي مرتب وجاهز للطباعة'
+      },
       forecast: {
         title: 'التخطيط والسيولة المستقبلية',
         desc: 'توقعات التدفقات النقدية والالتزامات القادمة واستقرار الرصيد'
@@ -46,10 +49,6 @@ const STRINGS = {
         title: 'الأهداف المالية والمدخرات',
         desc: 'تتبع خطط التوفير وصناديق الطوارئ ونسب الإنجاز'
       },
-      zakat: {
-        title: 'حاسبة الزكاة الشرعية',
-        desc: 'حساب نصاب الزكاة بدقة للأرصدة النقدية والذهب والديون'
-      },
       subscriptions: {
         title: 'الاشتراكات والفواتير الدورية',
         desc: 'متابعة مواعيد التجديد وتكلفة الاشتراكات الشهرية والسنوية'
@@ -61,12 +60,16 @@ const STRINGS = {
     }
   },
   en: {
-    title: 'Important Tools & Features Hub',
-    subtitle: 'Instant access to planning, budgets, savings & automation tools',
+    title: 'Financial Tools & Reports Hub',
+    subtitle: 'Download reports & access planning, budgets, and savings tools',
     close: 'Close',
     activeBadge: 'active',
     opsBadge: 'records',
     tools: {
+      reports: {
+        title: 'Download & Export Reports (PDF / Excel)',
+        desc: 'Generate clean, well-formatted detailed statements or executive summaries'
+      },
       forecast: {
         title: 'Cashflow & Future Planning',
         desc: 'Track upcoming commitments, liquidity runway & balance stability'
@@ -82,10 +85,6 @@ const STRINGS = {
       goals: {
         title: 'Financial Goals & Savings',
         desc: 'Track target funds, emergency reserves, and milestones'
-      },
-      zakat: {
-        title: 'Smart Zakat Calculator',
-        desc: 'Calculate Zakat accurately across wallets, currencies & debts'
       },
       subscriptions: {
         title: 'Subscriptions & Recurring Bills',
@@ -104,10 +103,10 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
   onClose,
   recurringRulesCount,
   trashCount,
+  onOpenReports,
   onOpenForecast,
   onOpenRecurring,
   onOpenTrash,
-  onOpenZakat,
   onOpenBudgets,
   onOpenGoals,
   onOpenSubscriptions,
@@ -157,6 +156,30 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
 
           {/* Tools Grid */}
           <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-2.5 overscroll-contain">
+            {/* Primary Tool: Download & Export Financial Reports */}
+            {onOpenReports && (
+              <button
+                type="button"
+                onClick={() => { onClose(); onOpenReports(); }}
+                className="w-full group p-4 rounded-2xl bg-gradient-to-r from-[#D9B978]/20 via-[#151C25] to-[#151C25] hover:from-[#D9B978]/30 border border-[#D9B978]/50 hover:border-[#D9B978] transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99] cursor-pointer shadow-md"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl bg-[#D9B978] text-slate-950 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                    <FileDown size={22} strokeWidth={2.5} />
+                  </div>
+                  <div className="truncate">
+                    <h4 className="text-sm font-black text-[#F4F1EA] group-hover:text-[#D9B978] transition-colors">
+                      {t.tools.reports.title}
+                    </h4>
+                    <p className="text-xs text-slate-300 truncate mt-0.5">
+                      {t.tools.reports.desc}
+                    </p>
+                  </div>
+                </div>
+                <ArrowIcon size={18} className="text-[#D9B978] transition-all shrink-0" />
+              </button>
+            )}
+
             {/* Tool 1: Cashflow & Financial Planning */}
             {onOpenForecast && (
               <button
@@ -258,31 +281,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
               <ArrowIcon size={18} className="text-slate-400 group-hover:text-[#8EB9A7] transition-all shrink-0" />
             </button>
 
-            {/* Tool 5: Zakat Calculator */}
-            {onOpenZakat && (
-              <button
-                type="button"
-                onClick={() => { onClose(); onOpenZakat(); }}
-                className="w-full group p-4 rounded-2xl bg-[#151C25] hover:bg-[#1B2430] border border-white/10 hover:border-emerald-400/50 transition-all text-start flex items-center justify-between gap-4 active:scale-[0.99] cursor-pointer"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 group-hover:scale-105 transition-transform">
-                    <Scale size={22} strokeWidth={2.2} />
-                  </div>
-                  <div className="truncate">
-                    <h4 className="text-sm font-black text-white group-hover:text-emerald-400 transition-colors">
-                      {t.tools.zakat.title}
-                    </h4>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">
-                      {t.tools.zakat.desc}
-                    </p>
-                  </div>
-                </div>
-                <ArrowIcon size={18} className="text-slate-400 group-hover:text-emerald-400 transition-all shrink-0" />
-              </button>
-            )}
-
-            {/* Tool 6: Subscriptions */}
+            {/* Tool 5: Subscriptions */}
             {onOpenSubscriptions && (
               <button
                 type="button"
@@ -306,7 +305,7 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
               </button>
             )}
 
-            {/* Tool 7: Trash Bin */}
+            {/* Tool 6: Trash Bin */}
             <button
               type="button"
               onClick={() => { onClose(); onOpenTrash(); }}

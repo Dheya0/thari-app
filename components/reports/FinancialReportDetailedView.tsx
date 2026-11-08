@@ -23,34 +23,33 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
   // View mode switcher: 'grouped' (default) vs 'unified'
   const [viewMode, setViewMode] = useState<'grouped' | 'unified'>('grouped');
 
-  // Helper to render an authentic bank statement ledger table
+  // Helper to render a spacious, uncrowded bank statement ledger table
   const renderLedgerTable = (
     txList: ReportLedgerEntry[],
     currencyCode?: string,
     runningBalanceField: 'currencyRunningBalance' | 'runningBalance' = 'currencyRunningBalance'
   ) => {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs print:overflow-visible print:border print:border-slate-300 print:rounded-none print:shadow-none">
-        <table className="w-full table-fixed text-xs border-collapse print:text-[10px]">
+      <div className="rounded-2xl border border-slate-300 bg-white overflow-hidden shadow-xs print:overflow-visible print:border print:border-slate-300 print:rounded-none print:shadow-none">
+        <table className="w-full table-fixed text-xs border-collapse print:text-[10.5px]">
           <thead className="print:table-header-group">
-            <tr className="bg-slate-900 text-white break-avoid border-b-2 border-[#D9B978] text-[11px] print:text-[10px] print:bg-slate-900 print:text-white">
-              <th className="py-3.5 px-2 text-center font-black w-[4%] print:w-[4%] print:py-2.5">#</th>
-              <th className="py-3.5 px-3 text-center font-black w-[11%] print:w-[11%] print:py-2.5">التاريخ</th>
-              <th className="py-3.5 px-3.5 text-right font-black w-[27%] print:w-[28%] print:py-2.5">البيان / تفاصيل القيد</th>
-              <th className="py-3.5 px-3 text-right font-black w-[12%] print:w-[12%] print:py-2.5">التصنيف</th>
-              <th className="py-3.5 px-3 text-right font-black w-[11%] print:w-[11%] print:py-2.5">المحفظة</th>
-              <th className="py-3.5 px-2 text-center font-black w-[5%] print:w-[5%] print:py-2.5">العملة</th>
-              <th className="py-3.5 px-3 text-left font-black w-[10%] print:w-[10%] text-rose-300 print:py-2.5">مدين (-)</th>
-              <th className="py-3.5 px-3 text-left font-black w-[10%] print:w-[10%] text-emerald-300 print:py-2.5">دائن (+)</th>
-              <th className="py-3.5 px-3 text-left font-black w-[10%] print:w-[10%] text-[#F3E5AB] print:py-2.5">
+            <tr className="bg-slate-900 text-white break-avoid border-b-2 border-[#D9B978] text-xs print:text-[10.5px] print:bg-slate-900 print:text-white">
+              <th className="py-3.5 px-2 text-center font-black w-[5%] border border-slate-700">#</th>
+              <th className="py-3.5 px-2.5 text-center font-black w-[12%] border border-slate-700">التاريخ</th>
+              <th className="py-3.5 px-3.5 text-right font-black w-[30%] border border-slate-700">البيان والتفاصيل</th>
+              <th className="py-3.5 px-3 text-right font-black w-[13%] border border-slate-700">التصنيف</th>
+              <th className="py-3.5 px-3 text-right font-black w-[13%] border border-slate-700">المحفظة</th>
+              <th className="py-3.5 px-2.5 text-left font-black w-[9%] text-rose-300 border border-slate-700">مدين (-)</th>
+              <th className="py-3.5 px-2.5 text-left font-black w-[9%] text-emerald-300 border border-slate-700">دائن (+)</th>
+              <th className="py-3.5 px-2.5 text-left font-black w-[9%] text-[#F3E5AB] border border-slate-700">
                 الرصيد
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 bg-white">
+          <tbody className="bg-white">
             {txList.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-slate-400 text-sm">
+                <td colSpan={8} className="py-12 text-center text-slate-400 text-sm">
                   لا توجد قيود مسجلة تطابق محددات التصفية
                 </td>
               </tr>
@@ -65,85 +64,71 @@ export const FinancialReportDetailedView: React.FC<DetailedViewProps> = ({ model
                 return (
                   <tr
                     key={t.id || i}
-                    className={`break-inside-avoid page-break-inside-avoid transition-colors hover:bg-amber-50/25 border-b border-slate-100/90 ${
-                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
+                    className={`break-inside-avoid page-break-inside-avoid transition-colors ${
+                      i % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
                     }`}
                   >
                     {/* Index */}
-                    <td className="py-4 px-2 print:py-2.5 print:px-1 text-center font-mono font-bold text-slate-400 text-xs print:text-[9.5px] align-middle">
+                    <td className="py-3.5 px-2 border border-slate-200 text-center font-mono font-bold text-slate-500 text-xs align-middle">
                       {t.index}
                     </td>
 
                     {/* Date */}
-                    <td className="py-4 px-3 print:py-2.5 print:px-1 font-semibold text-slate-700 text-xs print:text-[9.5px] whitespace-nowrap text-center align-middle font-mono">
+                    <td className="py-3.5 px-2.5 border border-slate-200 font-bold text-slate-800 text-xs whitespace-nowrap text-center align-middle font-mono">
                       {t.date}
                     </td>
 
-                    {/* Note / Statement Description (Generous, Breathable, Natural Wrap) */}
-                    <td className="py-4 px-3.5 print:py-2.5 print:px-2 text-slate-900 text-xs print:text-[10px] align-middle">
-                      <div className="font-semibold leading-relaxed break-words text-slate-900">
-                        {t.note || <span className="text-slate-400 italic font-normal">قيد محاسبي مسجل ({t.categoryName})</span>}
+                    {/* Note / Statement Description */}
+                    <td className="py-3.5 px-3.5 border border-slate-200 text-slate-900 text-xs align-middle">
+                      <div className="font-bold leading-relaxed break-words text-slate-900">
+                        {t.note || t.categoryName}
                       </div>
                       {(t.conversionNote || (t.foreignAmount && t.exchangeRate)) && (
-                        <div className="text-[9.5px] print:text-[8px] font-bold text-amber-900 bg-amber-50/90 px-2 py-0.5 rounded-md border border-amber-300 mt-1.5 inline-flex items-center gap-1 max-w-full">
-                          <span className="shrink-0 text-amber-600">💱</span>
-                          <span className="break-words">{t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}</span>
+                        <div className="text-[10px] font-bold text-amber-900 mt-1 break-words">
+                          {t.conversionNote || `عملية: ${t.foreignAmount} ${t.foreignCurrency} بسعر ${t.exchangeRate}`}
                         </div>
                       )}
                     </td>
 
                     {/* Category */}
-                    <td className="py-4 px-3 print:py-2.5 print:px-1.5 align-middle">
-                      <div className="flex items-center gap-2 min-w-0">
+                    <td className="py-3.5 px-3 border border-slate-200 align-middle">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
                           style={{ backgroundColor: t.categoryColor }}
                         />
-                        <span className="font-semibold text-slate-800 truncate text-xs print:text-[9.5px]">{t.categoryName}</span>
+                        <span className="font-bold text-slate-800 break-words text-xs">{t.categoryName}</span>
                       </div>
                     </td>
 
                     {/* Wallet */}
-                    <td className="py-4 px-3 print:py-2.5 print:px-1.5 font-medium text-slate-700 truncate text-xs print:text-[9.5px] align-middle">
-                      {t.walletName}
+                    <td className="py-3.5 px-3 border border-slate-200 font-bold text-slate-700 break-words text-xs align-middle">
+                      <div>{t.walletName}</div>
+                      {!currencyCode && (
+                        <span className="text-[10px] font-mono text-slate-500">{t.currencyCode}</span>
+                      )}
                     </td>
 
-                    {/* Currency Badge */}
-                    <td className="py-4 px-2 print:py-2.5 print:px-1 text-center align-middle">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-800 font-mono font-bold text-[10px] print:text-[8.5px]">
-                        {t.currencyCode}
-                      </span>
-                    </td>
-
-                    {/* Debit Column (مدين / منصرف / مسحوبات) */}
-                    <td className="py-4 px-3 print:py-2.5 print:px-1 text-left font-mono font-bold tabular-nums text-xs print:text-[9.5px] align-middle text-rose-700 dir-ltr whitespace-nowrap">
+                    {/* Debit Column (مدين / منصرف) */}
+                    <td className="py-3.5 px-2.5 border border-slate-200 text-left font-mono font-black tabular-nums text-xs align-middle text-rose-700 dir-ltr whitespace-nowrap">
                       {isExpense ? (
-                        <div>
-                          -{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          {t.isCrossCurrencyWithWallet && t.walletDeductionAmount !== undefined && (
-                            <div className="text-[8px] print:text-[7.5px] font-normal text-amber-800 font-sans dir-rtl text-right mt-0.5">
-                              المخصوم: {t.walletDeductionAmount.toLocaleString(undefined, { maximumFractionDigits: 1 })} {t.walletCurrencyCode}
-                            </div>
-                          )}
-                        </div>
+                        <span>-{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                       ) : (
                         <span className="text-slate-300 font-normal">-</span>
                       )}
                     </td>
 
-                    {/* Credit Column (دائن / مقبوض / إيداعات) */}
-                    <td className="py-4 px-3 print:py-2.5 print:px-1 text-left font-mono font-bold tabular-nums text-xs print:text-[9.5px] align-middle text-emerald-700 dir-ltr whitespace-nowrap">
+                    {/* Credit Column (دائن / مقبوض) */}
+                    <td className="py-3.5 px-2.5 border border-slate-200 text-left font-mono font-black tabular-nums text-xs align-middle text-emerald-700 dir-ltr whitespace-nowrap">
                       {isIncome ? (
-                        <div>
-                          +{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </div>
+                        <span>+{t.originalAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
                       ) : (
                         <span className="text-slate-300 font-normal">-</span>
                       )}
                     </td>
 
-                    {/* Running Balance Column (الرصيد التراكمي) */}
-                    <td className="py-4 px-3 print:py-2.5 print:px-1 text-left font-mono font-black tabular-nums text-xs print:text-[10px] align-middle text-slate-950 bg-amber-50/50 print:bg-transparent dir-ltr whitespace-nowrap">
+                    {/* Running Balance Column */}
+                    <td className="py-3.5 px-2.5 border border-slate-200 text-left font-mono font-black tabular-nums text-xs align-middle text-slate-950 bg-amber-50/40 dir-ltr whitespace-nowrap">
                       {runBal !== undefined ? (
                         <span>{Math.round(runBal).toLocaleString()}</span>
                       ) : (

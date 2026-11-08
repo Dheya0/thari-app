@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3, Globe, TrendingUp, BookOpen, Bell, PieChart } from 'lucide-react';
+import { Plus, LayoutDashboard, History, Settings as SettingsIcon, Briefcase, HandCoins, Repeat, Coins, Sparkles, Scale, Wallet as WalletIcon, Check, Wifi, WifiOff, ChevronDown, ChevronRight, RefreshCw, X, BarChart3, Globe, TrendingUp, BookOpen, Bell, PieChart, FileDown } from 'lucide-react';
 import { AppState, Wallet, Transaction, Category, Debt, DebtPayment, Account, RecurringRule, FinancialEventType, TransactionType, Subscription, ZakatPaymentRecord } from './types';
 import { INITIAL_CATEGORIES, DEFAULT_CURRENCIES, DEFAULT_EXCHANGE_RATES, convertCurrency } from './constants';
 import { buildExecutiveCSVContentAsync, exportAndShareExecutiveCSV } from './utils/exportHelper';
@@ -2084,6 +2084,7 @@ const App: React.FC = () => {
           currency={state.currency}
           onOpenCurrencySelector={() => setShowCurrencySelector(true)}
           onOpenToolsHub={() => setShowToolsHub(true)}
+          onOpenReports={() => setShowReportModal(true)}
           onOpenAlerts={() => setShowSmartAlertsDrawer(true)}
           alertsCount={activeSmartAlerts.length}
           hasPendingAlerts={activeSmartAlerts.length > 0 || ((state.recurringRules?.length || 0) > 0 || (state.trashTransactions?.length || 0) > 0)}
@@ -2378,12 +2379,8 @@ const App: React.FC = () => {
                     isTravelMode={state.isTravelMode}
                     showSeparateCurrencies={state.showSeparateCurrencies}
                     onToggleSeparateCurrencies={(val) => setState(p => ({ ...p, showSeparateCurrencies: val }))}
-                    onOpenGoals={() => setActiveTab('goals')}
-                    onOpenBudgets={() => setActiveTab('budgets')}
-                    onOpenForecast={() => setActiveTab('forecast')}
-                    onOpenRecurring={() => setShowRecurringModal(true)}
-                    onOpenZakat={() => setActiveTab('zakat')}
                     onOpenSettings={() => setActiveTab('settings')}
+                    onOpenReports={() => setShowReportModal(true)}
                   />
                 )}
 
@@ -2501,37 +2498,52 @@ const App: React.FC = () => {
                 
                 {activeTab === 'transactions' && (
                     <div className="space-y-6">
-                        {/* View Switcher: List vs Analytics */}
-                        <div className="flex items-center justify-center p-1 bg-[#11161C] rounded-2xl border border-white/10 max-w-md mx-auto shadow-inner">
+                        {/* View Switcher: List vs Analytics + Report Download */}
+                        <div className="flex flex-wrap items-center justify-between gap-2.5">
+                          <div className="flex items-center p-1 bg-[#11161C] rounded-2xl border border-white/10 flex-1 max-w-md shadow-inner">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                NativeHaptics.selection().catch(() => {});
+                                setTransactionsSubView('list');
+                              }}
+                              className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                transactionsSubView === 'list'
+                                  ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <History size={15} />
+                              <span>{activeLanguage === 'en' ? 'Ledger & Search' : 'كشف العمليات'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                NativeHaptics.selection().catch(() => {});
+                                setTransactionsSubView('analytics');
+                              }}
+                              className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                transactionsSubView === 'analytics'
+                                  ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <BarChart3 size={15} />
+                              <span>{activeLanguage === 'en' ? 'Analytics & Charts' : 'الرسوم والتحليلات'}</span>
+                            </button>
+                          </div>
+
                           <button
                             type="button"
                             onClick={() => {
                               NativeHaptics.selection().catch(() => {});
-                              setTransactionsSubView('list');
+                              setShowReportModal(true);
                             }}
-                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                              transactionsSubView === 'list'
-                                ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
-                                : 'text-slate-400 hover:text-white'
-                            }`}
+                            className="flex items-center gap-1.5 py-2.5 px-4 rounded-2xl bg-[#D9B978]/15 hover:bg-[#D9B978]/25 border border-[#D9B978]/40 text-[#D9B978] text-xs font-black transition-all active:scale-95 cursor-pointer shrink-0"
+                            title={activeLanguage === 'en' ? 'Download Financial Report (PDF / Excel)' : 'تنزيل وتحميل التقارير المالية (PDF / Excel)'}
                           >
-                            <History size={16} />
-                            <span>{activeLanguage === 'en' ? 'Ledger & Search' : 'كشف العمليات والبحث'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              NativeHaptics.selection().catch(() => {});
-                              setTransactionsSubView('analytics');
-                            }}
-                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                              transactionsSubView === 'analytics'
-                                ? 'bg-[#D9B978] text-slate-950 shadow-md font-black'
-                                : 'text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            <BarChart3 size={16} />
-                            <span>{activeLanguage === 'en' ? 'Analytics & Charts' : 'الرسوم والتحليلات'}</span>
+                            <FileDown size={16} strokeWidth={2.5} />
+                            <span>{activeLanguage === 'en' ? 'Download Report' : 'تنزيل تقرير'}</span>
                           </button>
                         </div>
 
@@ -2742,14 +2754,33 @@ const App: React.FC = () => {
               onClose={() => setShowToolsHub(false)}
               recurringRulesCount={state.recurringRules?.length || 0}
               trashCount={state.trashTransactions?.length || 0}
+              onOpenReports={() => { setShowToolsHub(false); setShowReportModal(true); }}
               onOpenForecast={() => { setShowToolsHub(false); setActiveTab('forecast'); }}
               onOpenRecurring={() => setShowRecurringModal(true)}
               onOpenTrash={() => setShowTrashModal(true)}
-              onOpenZakat={() => { setShowToolsHub(false); setActiveTab('zakat'); }}
               onOpenBudgets={() => { setShowToolsHub(false); setActiveTab('budgets'); }}
               onOpenGoals={() => { setShowToolsHub(false); setActiveTab('goals'); }}
               onOpenSubscriptions={() => { setShowToolsHub(false); setActiveTab('subscriptions'); }}
               language={state.language || 'ar'}
+            />
+          )}
+          {showReportModal && (
+            <ReportModal
+              isOpen={showReportModal}
+              onClose={() => setShowReportModal(false)}
+              transactions={state.transactions}
+              categories={state.categories}
+              wallets={state.wallets}
+              currencies={localizedCurrencies}
+              currentCurrency={localizedCurrency}
+              userName={state.userName}
+              exchangeRates={state.exchangeRates}
+              budgets={state.budgets}
+              debts={state.debts}
+              goals={state.goals}
+              initialType="detailed"
+              initialWalletId={selectedWalletId}
+              onTriggerPrint={handlePrint}
             />
           )}
           {showTrashModal && (
